@@ -1,0 +1,39 @@
+---
+description: After implementing new features or structural changes, evaluate whether FEATURES.md and PROJECT_INDEX.md need updating
+alwaysApply: true
+---
+
+# Keep FEATURES.md and PROJECT_INDEX.md Current
+
+After implementing something new (feature, module, endpoint, component, significant refactor), evaluate whether these files need an update:
+
+## FEATURES.md
+
+Update when:
+- A new user-facing feature was added or removed
+- An existing feature's behavior changed significantly
+- A feature was deprecated or replaced
+
+Skip when:
+- The change is purely internal (refactor, bugfix, dependency bump)
+- The feature is already documented and unchanged
+
+## PROJECT_INDEX.md
+
+Update when:
+- New files, modules, or directories were created
+- Files were renamed, moved, or deleted
+- New endpoints, routes, or entry points were added
+- Architecture or dependencies changed meaningfully
+- New environment variables or external integrations were introduced
+
+Skip when:
+- Only code within existing files changed (logic fixes, style tweaks)
+- The change doesn't affect structure, navigation, or module boundaries
+
+## Workflow
+
+1. Complete the implementation
+2. Briefly assess: "Did I add, remove, rename, or restructure anything?"
+3. If yes, suggest: "This change affects [X]. Want me to update FEATURES.md / PROJECT_INDEX.md?"
+4. Only update after the user confirms

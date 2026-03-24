@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "familien-app": {
+      "url": "https://DEINE-DOMAIN.de/mcp/sse"
+    }
+  }
+}

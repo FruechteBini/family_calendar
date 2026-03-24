@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Familienkalender</title>
+  <link rel="stylesheet" href="/css/style.css?v=23">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+</head>
+<body>
+
+  <!-- Auth Screen -->
+  <div id="auth-screen" class="screen">
+    <div class="auth-card">
+      <h1>Familienkalender</h1>
+      <p class="auth-subtitle" id="auth-subtitle">Anmelden</p>
+      <form id="auth-form">
+        <input type="text" id="auth-user" placeholder="Benutzername" required autocomplete="username">
+        <input type="password" id="auth-pass" placeholder="Passwort" required autocomplete="current-password">
+        <button type="submit" id="auth-btn">Anmelden</button>
+        <p class="auth-toggle" id="auth-toggle">Noch kein Account? <a href="#">Ersteinrichtung</a></p>
+        <p class="auth-error" id="auth-error"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Family Onboarding -->
+  <div id="family-screen" class="screen hidden">
+    <div class="auth-card family-card">
+      <div class="family-icon">&#127968;</div>
+      <h1>Willkommen!</h1>
+      <p class="auth-subtitle">Richte deine Familie ein, um loszulegen.</p>
+
+      <div class="family-section">
+        <h2 class="family-section-title">Neue Familie erstellen</h2>
+        <form id="family-create-form" class="family-form">
+          <input type="text" id="family-name" placeholder="z.B. Familie Meier" required>
+          <button type="submit">&#10024; Familie erstellen</button>
+        </form>
+      </div>
+
+      <div class="family-divider">
+        <span>oder</span>
+      </div>
+
+      <div class="family-section">
+        <h2 class="family-section-title">Einladung annehmen</h2>
+        <form id="family-join-form" class="family-form">
+          <input type="text" id="family-invite-code" placeholder="Einladungscode eingeben" required>
+          <button type="submit" class="btn-secondary">Beitreten</button>
+        </form>
+      </div>
+
+      <p class="auth-error" id="family-error"></p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app-screen" class="screen hidden">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="topbar-title">Familienkalender</h1>
+      </div>
+      <nav class="topbar-nav">
+        <button class="nav-btn active" data-view="calendar">Kalender</button>
+        <button class="nav-btn" data-view="todos">Todos</button>
+        <button class="nav-btn" data-view="meals">Einkauf &amp; Essen</button>
+        <button class="nav-btn" data-view="members">Familie</button>
+      </nav>
+      <div class="topbar-right">
+        <button class="btn-icon" id="proposal-btn" title="Offene Terminvorschlaege" style="position:relative">
+          &#128197;
+          <span id="proposal-badge" class="proposal-badge hidden">0</span>
+        </button>
+        <span id="user-display"></span>
+        <button id="theme-toggle" title="Dark Mode umschalten">&#9790;</button>
+        <button class="btn-icon" id="logout-btn" title="Abmelden">Abmelden</button>
+      </div>
+    </header>
+
+    <!-- Calendar View -->
+    <main id="view-calendar" class="view">
+      <div class="calendar-header">
+        <button class="btn-icon" id="cal-prev">&larr;</button>
+        <h2 id="cal-title"></h2>
+        <button class="btn-icon" id="cal-next">&rarr;</button>
+        <button class="btn-small" id="cal-today">Heute</button>
+      </div>
+      <div class="calendar-grid">
+        <div class="cal-weekdays">
+          <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+        </div>
+        <div class="cal-days" id="cal-days"></div>
+      </div>
+
+      <!-- Day Detail Panel -->
+      <div id="day-panel" class="day-panel hidden">
+        <div class="day-panel-header">
+          <h3 id="day-panel-title"></h3>
+          <button class="btn-icon" id="day-panel-close">&times;</button>
+        </div>
+        <div id="day-panel-events"></div>
+        <button class="btn-small btn-primary" id="day-panel-add">+ Event</button>
+      </div>
+    </main>
+
+    <!-- Todos View -->
+    <main id="view-todos" class="view hidden">
+      <div class="todos-header">
+        <h2>Aufgaben</h2>
+        <div class="todos-filters">
+          <select id="todo-filter-priority">
+            <option value="">Alle Prioritaeten</option>
+            <option value="high">Hoch</option>
+            <option value="medium">Mittel</option>
+            <option value="low">Niedrig</option>
+          </select>
+          <select id="todo-filter-member">
+            <option value="">Alle Mitglieder</option>
+          </select>
+          <label class="toggle-label">
+            <input type="checkbox" id="todo-filter-done"> Erledigte zeigen
+          </label>
+        </div>
+      </div>
+      <div class="todo-add-bar">
+        <input type="text" id="todo-quick-input" placeholder="Neue Aufgabe...">
+        <select id="todo-quick-priority">
+          <option value="medium">Mittel</option>
+          <option value="high">Hoch</option>
+          <option value="low">Niedrig</option>
+        </select>
+        <button class="btn-small btn-primary" id="todo-quick-add">+</button>
+      </div>
+      <div id="todo-list" class="todo-list"></div>
+    </main>
+
+    <!-- Meals & Shopping View -->
+    <main id="view-meals" class="view hidden">
+      <div class="meals-tabs">
+        <button class="meals-tab active" data-subtab="weekplan" id="tab-weekplan">Wochenplan</button>
+        <button class="meals-tab" data-subtab="recipes" id="tab-recipes">Rezepte</button>
+        <button class="meals-tab" data-subtab="shopping" id="tab-shopping">Einkaufsliste</button>
+      </div>
+
+      <!-- Wochenplan Sub-View -->
+      <div id="subtab-weekplan" class="meals-subtab">
+        <div class="week-nav">
+          <button class="btn-icon" id="week-prev">&larr;</button>
+          <h2 id="week-title"></h2>
+          <button class="btn-icon" id="week-next">&rarr;</button>
+          <button class="btn-small" id="week-today">Diese Woche</button>
+          <button class="btn-small btn-primary" id="generate-shopping-btn">Einkaufsliste generieren</button>
+          <button class="btn-small btn-ai" id="ai-meal-plan-btn">KI-Essensplan</button>
+        </div>
+        <div id="week-grid" class="week-grid"></div>
+      </div>
+
+      <!-- Recipes Sub-View -->
+      <div id="subtab-recipes" class="meals-subtab hidden">
+        <div class="recipes-header">
+          <h2>Rezepte</h2>
+          <div style="display:flex;gap:0.5rem">
+            <button class="btn-small" id="cookidoo-import-btn">Rezepte Import</button>
+            <button class="btn-small btn-primary" id="recipe-add-btn">+ Neues Rezept</button>
+          </div>
+        </div>
+        <div id="recipe-list" class="recipe-list"></div>
+      </div>
+
+      <!-- Shopping Sub-View -->
+      <div id="subtab-shopping" class="meals-subtab hidden">
+        <div class="shopping-header">
+          <h2>Einkaufsliste</h2>
+          <div class="shopping-actions">
+            <span id="shopping-progress"></span>
+            <button class="btn-small btn-ai" id="shopping-ai-sort-btn">Sortieren (KI)</button>
+            <button class="btn-small" id="knuspr-send-btn" disabled title="Knuspr-Integration nicht konfiguriert">An Knuspr senden</button>
+          </div>
+        </div>
+        <div id="shopping-store-picker" class="shopping-store-picker hidden">
+          <span class="store-picker-label">Supermarkt waehlen:</span>
+          <div class="store-picker-buttons">
+            <button class="store-btn" data-store="edeka">Edeka</button>
+            <button class="store-btn" data-store="lidl">Lidl</button>
+            <button class="store-btn" data-store="aldi">Aldi</button>
+            <button class="store-btn" data-store="penny">Penny</button>
+            <button class="store-btn" data-store="netto">Netto</button>
+          </div>
+        </div>
+        <div id="shopping-sort-badge" class="shopping-sort-badge hidden"></div>
+        <div class="shopping-add-bar">
+          <input type="text" id="shopping-quick-input" placeholder="Artikel hinzufuegen...">
+          <select id="shopping-quick-category">
+            <option value="sonstiges">Sonstiges</option>
+            <option value="kuehlregal">Kuehlregal</option>
+            <option value="obst_gemuese">Obst/Gemuese</option>
+            <option value="trockenware">Trockenware</option>
+            <option value="drogerie">Drogerie</option>
+          </select>
+          <button class="btn-small btn-primary" id="shopping-quick-add">+</button>
+        </div>
+        <div id="shopping-list" class="shopping-list"></div>
+      </div>
+    </main>
+
+    <!-- Members View -->
+    <main id="view-members" class="view hidden">
+      <div class="members-header">
+        <h2>Familienmitglieder</h2>
+        <button class="btn-small btn-primary" id="member-add-btn">+ Mitglied</button>
+      </div>
+      <div id="member-list" class="member-list"></div>
+    </main>
+
+    <!-- Voice Command FAB -->
+    <button id="voice-cmd-btn" class="voice-fab" title="Sprachbefehl">
+      <span class="voice-fab-icon">&#127908;</span>
+    </button>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal" id="modal">
+        <div class="modal-header">
+          <h3 id="modal-title"></h3>
+          <button class="btn-icon modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Secondary Modal Overlay (for sub-dialogs) -->
+    <div id="modal-overlay-2" class="modal-overlay modal-overlay-secondary hidden">
+      <div class="modal" id="modal-2">
+        <div class="modal-header">
+          <h3 id="modal-title-2"></h3>
+          <button class="btn-icon modal-close" id="modal-close-2">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body-2"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/js/api.js?v=21"></script>
+  <script src="/js/app.js?v=21"></script>
+  <script src="/js/calendar.js?v=21"></script>
+  <script src="/js/todos.js?v=21"></script>
+  <script src="/js/members.js?v=21"></script>
+  <script src="/js/meals.js?v=21"></script>
+  <script src="/js/recipes.js?v=21"></script>
+  <script src="/js/shopping.js?v=21"></script>
+  <script src="/js/voice.js?v=21"></script>
+</body>
+</html>

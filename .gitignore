@@ -1,0 +1,37 @@
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/*.iml
+android/.idea/
+
+# Python / backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+backend/.venv/
+backend/venv/
+backend/env/
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+*.egg-info/
+dist/
+*.egg
+
+# Environment / secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+.claude/
+prompt.txt

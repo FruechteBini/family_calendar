@@ -1,0 +1,6 @@
+sqlalchemy==2.0.48
+aiosqlite==0.22.1
+pydantic-settings==2.13.1
+mcp[cli]>=1.0.0
+cookidoo-api==0.16.0
+knuspr-api==0.3.0

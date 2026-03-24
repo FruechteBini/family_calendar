@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: familienkalender-db
+    environment:
+      POSTGRES_USER: kalender
+      POSTGRES_PASSWORD: kalender
+      POSTGRES_DB: kalender
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  api:
+    build: .
+    container_name: familienkalender-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kalender:kalender@db:5432/kalender
+    depends_on:
+      db:
+        condition: service_started
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: familienkalender-mcp
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kalender:kalender@db:5432/kalender
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

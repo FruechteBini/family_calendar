@@ -1,5 +1,5 @@
 sqlalchemy==2.0.48
-aiosqlite==0.22.1
+asyncpg==0.31.0
 pydantic-settings==2.13.1
 mcp[cli]>=1.0.0
 cookidoo-api==0.16.0

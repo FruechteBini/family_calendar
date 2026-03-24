@@ -6,10 +6,8 @@ echo   Familienkalender - Server starten
 echo ============================================
 echo.
 
-if exist "venv_new\Scripts\python.exe" (
-    set PYTHON=venv_new\Scripts\python
-    set PIP=venv_new\Scripts\pip
-) else if exist "venv\Scripts\python.exe" (
+:: --- Virtual Environment ---
+if exist "venv\Scripts\python.exe" (
     set PYTHON=venv\Scripts\python
     set PIP=venv\Scripts\pip
 ) else (
@@ -35,15 +33,39 @@ if exist "venv_new\Scripts\python.exe" (
     set PIP=venv\Scripts\pip
 )
 
+:: --- PostgreSQL pruefen ---
+echo Pruefe PostgreSQL-Verbindung...
+sc query postgresql-x64-16 | findstr RUNNING >nul 2>&1
+if errorlevel 1 (
+    echo [WARNUNG] PostgreSQL-Service scheint nicht zu laufen.
+    echo Versuche Service zu starten...
+    net start postgresql-x64-16 >nul 2>&1
+    if errorlevel 1 (
+        echo [FEHLER] PostgreSQL konnte nicht gestartet werden.
+        echo Bitte starte PostgreSQL manuell oder pruefe die Installation.
+        pause
+        exit /b 1
+    )
+    echo PostgreSQL-Service gestartet.
+)
+echo PostgreSQL laeuft.
+echo.
+
+:: --- Abhaengigkeiten synchronisieren ---
 echo Pruefe Abhaengigkeiten...
 %PIP% install -r requirements.txt --quiet
 if errorlevel 1 (
     echo [WARNUNG] Einige Pakete konnten nicht installiert werden.
 )
 
-if not exist "data" mkdir data
+:: --- .env pruefen ---
+if not exist ".env" (
+    echo [WARNUNG] Keine .env-Datei gefunden. Kopiere .env.example oder erstelle eine.
+)
 
+echo.
 echo Python: %PYTHON%
+echo DB:     PostgreSQL (localhost:5432/kalender)
 echo Port:   8000
 echo URL:    http://localhost:8000
 echo.

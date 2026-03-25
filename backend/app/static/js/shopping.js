@@ -22,14 +22,6 @@ const Shopping = (() => {
   };
   const CATEGORY_ORDER = ['kuehlregal', 'obst_gemuese', 'trockenware', 'drogerie', 'sonstiges'];
 
-  const STORE_LABELS = {
-    edeka: 'Edeka',
-    lidl: 'Lidl',
-    aldi: 'Aldi',
-    penny: 'Penny',
-    netto: 'Netto',
-  };
-
   const SECTION_ICONS = {
     'Obst & Gemuese': '&#127813;',
     'Obst & Gemüse': '&#127813;',
@@ -68,32 +60,20 @@ const Shopping = (() => {
     if (knusprBtn) knusprBtn.addEventListener('click', sendToKnuspr);
 
     const sortBtn = document.getElementById('shopping-ai-sort-btn');
-    if (sortBtn) sortBtn.addEventListener('click', toggleStorePicker);
+    if (sortBtn) sortBtn.addEventListener('click', sortList);
 
-    const picker = document.getElementById('shopping-store-picker');
-    if (picker) {
-      picker.querySelectorAll('.store-btn').forEach(btn => {
-        btn.addEventListener('click', () => sortByStore(btn.dataset.store));
-      });
-    }
+    const clearBtn = document.getElementById('shopping-clear-btn');
+    if (clearBtn) clearBtn.addEventListener('click', clearList);
   }
 
-  function toggleStorePicker() {
-    const picker = document.getElementById('shopping-store-picker');
-    if (!picker) return;
-    picker.classList.toggle('hidden');
-  }
-
-  async function sortByStore(store) {
+  async function sortList() {
     if (sortLoading) return;
-    const picker = document.getElementById('shopping-store-picker');
     const sortBtn = document.getElementById('shopping-ai-sort-btn');
     sortLoading = true;
     if (sortBtn) { sortBtn.disabled = true; sortBtn.textContent = 'Sortiere...'; }
-    if (picker) picker.classList.add('hidden');
 
     try {
-      shoppingList = await API.post('/api/shopping/sort', { store });
+      shoppingList = await API.post('/api/shopping/sort', {});
       renderList();
     } catch (err) {
       alert('Sortierung fehlgeschlagen: ' + err.message);
@@ -128,10 +108,9 @@ const Shopping = (() => {
     if (progress) progress.textContent = `${checked}/${total} erledigt`;
 
     if (shoppingList.sorted_by_store) {
-      const storeName = STORE_LABELS[shoppingList.sorted_by_store] || shoppingList.sorted_by_store;
       if (sortBadge) {
         sortBadge.classList.remove('hidden');
-        sortBadge.innerHTML = `&#10024; Sortiert f&uuml;r <strong>${esc(storeName)}</strong>`;
+        sortBadge.innerHTML = '&#10024; Sortiert nach Supermarkt-Abteilungen';
       }
       renderStoreSorted(container, items);
     } else {
@@ -260,6 +239,22 @@ const Shopping = (() => {
     } catch (err) {
       alert('Knuspr-Fehler: ' + err.message);
     }
+  }
+
+  function clearList() {
+    const html = `<form>
+      <p>Moechtest du die gesamte Einkaufsliste wirklich leeren?</p>
+      <p style="color:var(--text-muted);font-size:0.85rem">Alle Artikel werden archiviert und die Liste wird zurueckgesetzt.</p>
+      <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
+      <div class="modal-footer">
+        <button type="submit" class="btn-small btn-danger">Ja, Liste leeren</button>
+      </div>
+    </form>`;
+
+    App.openModal('Einkaufsliste leeren', html, async () => {
+      await API.post('/api/shopping/clear-all', {});
+      await refresh();
+    });
   }
 
   return { init, refresh, toggleCheck, removeItem };

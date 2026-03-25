@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .database import Base, engine
 from .models import *  # noqa: F401,F403 – register models
-from .routers import ai, auth, categories, cookidoo, events, family_members, knuspr, meals, proposals, recipes, shopping, todos
+from .routers import ai, auth, categories, cookidoo, events, family_members, knuspr, meals, pantry, proposals, recipes, shopping, todos
 
 logger = logging.getLogger("kalender")
 
@@ -46,6 +46,7 @@ app.include_router(proposals.router)
 app.include_router(recipes.router)
 app.include_router(meals.router)
 app.include_router(shopping.router)
+app.include_router(pantry.router)
 app.include_router(cookidoo.router)
 app.include_router(knuspr.router)
 

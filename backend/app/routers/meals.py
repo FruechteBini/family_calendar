@@ -5,19 +5,24 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
+
 from ..auth import get_current_user, require_family_id
 from ..database import get_db, utcnow
 from ..models.cooking_history import CookingHistory
 from ..models.meal_plan import MealPlan
+from ..models.pantry_item import PantryItem
 from ..models.recipe import Recipe
 from ..schemas.meal_plan import (
     DayPlan,
     MarkCookedRequest,
+    MarkCookedResponse,
     MealSlotResponse,
     MealSlotUpdate,
+    PantryDeductionItem,
     WeekPlanResponse,
 )
-from ..utils import monday_of
+from ..utils import monday_of, normalize_ingredient_name
 
 router = APIRouter(
     prefix="/api/meals",
@@ -139,7 +144,48 @@ async def clear_meal_slot(
         await db.delete(existing)
 
 
-@router.patch("/plan/{plan_date}/{slot}/done", response_model=MealSlotResponse)
+async def _deduct_from_pantry(
+    db: _AsyncSession, family_id: int, ingredients, ratio: float,
+) -> list[PantryDeductionItem]:
+    """Deduct recipe ingredient amounts from pantry. Returns deduction report."""
+    pantry_stmt = select(PantryItem).where(PantryItem.family_id == family_id)
+    pantry_result = await db.execute(pantry_stmt)
+    pantry_items = pantry_result.scalars().all()
+
+    pantry_lookup: dict[str, PantryItem] = {}
+    pantry_by_name: dict[str, PantryItem] = {}
+    for pi in pantry_items:
+        key = f"{pi.name_normalized}_{pi.unit or ''}"
+        pantry_lookup[key] = pi
+        pantry_by_name[pi.name_normalized] = pi
+
+    deductions: list[PantryDeductionItem] = []
+    for ing in ingredients:
+        norm_name = normalize_ingredient_name(ing.name)
+        norm_key = f"{norm_name}_{ing.unit or ''}"
+        match = pantry_lookup.get(norm_key) or pantry_by_name.get(norm_name)
+        if not match or match.amount is None:
+            continue
+
+        scaled = (ing.amount * ratio) if ing.amount else 0
+        if scaled <= 0:
+            continue
+
+        old_amount = match.amount
+        new_amount = max(0, round(old_amount - scaled, 2))
+        match.amount = new_amount
+
+        deductions.append(PantryDeductionItem(
+            name=match.name,
+            old_amount=old_amount,
+            new_amount=new_amount,
+            depleted=new_amount <= 0,
+        ))
+
+    return deductions
+
+
+@router.patch("/plan/{plan_date}/{slot}/done", response_model=MarkCookedResponse)
 async def mark_as_cooked(
     plan_date: date,
     slot: str,
@@ -183,5 +229,22 @@ async def mark_as_cooked(
         recipe.last_cooked_at = now
         recipe.cook_count = (recipe.cook_count or 0) + 1
 
+    # Deduct from pantry
+    pantry_deductions: list[PantryDeductionItem] = []
+    if meal.recipe and meal.recipe.ingredients:
+        ratio = servings / meal.recipe.servings if meal.recipe.servings else 1
+        pantry_deductions = await _deduct_from_pantry(db, family_id, meal.recipe.ingredients, ratio)
+
     await db.flush()
-    return meal
+
+    return MarkCookedResponse(
+        id=meal.id,
+        plan_date=meal.plan_date,
+        slot=meal.slot,
+        recipe_id=meal.recipe_id,
+        servings_planned=meal.servings_planned,
+        recipe=meal.recipe,
+        created_at=meal.created_at,
+        updated_at=meal.updated_at,
+        pantry_deductions=pantry_deductions,
+    )

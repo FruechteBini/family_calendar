@@ -76,6 +76,7 @@ const App = (() => {
     Meals.init();
     Recipes.init();
     Shopping.init();
+    Pantry.init();
     Voice.init();
     switchView('calendar');
     refreshProposalBadge();

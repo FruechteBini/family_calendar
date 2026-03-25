@@ -63,6 +63,27 @@ if not exist ".env" (
     echo [WARNUNG] Keine .env-Datei gefunden. Kopiere .env.example oder erstelle eine.
 )
 
+:: --- Zombie-Prozesse auf Port 8000 bereinigen ---
+set ZOMBIES=0
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000 ^| findstr ABH 2^>nul') do (
+    if not "%%a"=="0" (
+        echo Beende alten Prozess PID %%a auf Port 8000...
+        taskkill /PID %%a /T /F >nul 2>&1
+        set ZOMBIES=1
+    )
+)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000 ^| findstr LISTEN 2^>nul') do (
+    if not "%%a"=="0" (
+        echo Beende alten Prozess PID %%a auf Port 8000...
+        taskkill /PID %%a /T /F >nul 2>&1
+        set ZOMBIES=1
+    )
+)
+if "%ZOMBIES%"=="1" (
+    echo Alte Prozesse bereinigt. Warte kurz...
+    timeout /t 2 /nobreak >nul
+)
+
 echo.
 echo Python: %PYTHON%
 echo DB:     PostgreSQL (localhost:5432/kalender)

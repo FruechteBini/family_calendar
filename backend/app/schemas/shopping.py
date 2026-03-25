@@ -46,5 +46,3 @@ class GenerateRequest(BaseModel):
     week_start: date
 
 
-class SortByStoreRequest(BaseModel):
-    store: str

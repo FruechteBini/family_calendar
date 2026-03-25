@@ -42,6 +42,27 @@ class DayPlan(BaseModel):
     dinner: MealSlotResponse | None = None
 
 
+class PantryDeductionItem(BaseModel):
+    name: str
+    old_amount: float
+    new_amount: float
+    depleted: bool
+
+
+class MarkCookedResponse(BaseModel):
+    id: int
+    plan_date: date
+    slot: str
+    recipe_id: int
+    servings_planned: int
+    recipe: RecipeResponse
+    created_at: datetime
+    updated_at: datetime
+    pantry_deductions: list[PantryDeductionItem] = []
+
+    model_config = {"from_attributes": True}
+
+
 class WeekPlanResponse(BaseModel):
     week_start: date
     days: list[DayPlan]

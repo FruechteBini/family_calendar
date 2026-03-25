@@ -12,6 +12,7 @@ from ..auth import get_current_user, require_family_id
 from ..config import settings
 from ..database import get_db, utcnow
 from ..models.meal_plan import MealPlan
+from ..models.pantry_item import PantryItem
 from ..models.recipe import Recipe
 from ..models.shopping_list import ShoppingItem, ShoppingList
 from ..schemas.shopping import (
@@ -19,8 +20,8 @@ from ..schemas.shopping import (
     ShoppingItemCreate,
     ShoppingItemResponse,
     ShoppingListResponse,
-    SortByStoreRequest,
 )
+from ..utils import normalize_ingredient_name
 
 logger = logging.getLogger("kalender.shopping")
 
@@ -96,8 +97,45 @@ async def _generate_shopping_list(monday: date, family_id: int, db: AsyncSession
                     "recipe_id": meal.recipe_id,
                 }
 
-    shopping_list = ShoppingList(family_id=family_id, week_start_date=monday, status="active")
+    # Deduct pantry quantities
+    pantry_stmt = select(PantryItem).where(PantryItem.family_id == family_id)
+    pantry_result = await db.execute(pantry_stmt)
+    pantry_items = pantry_result.scalars().all()
+    # Two lookups: exact (name+unit) and name-only (fallback for unit mismatch)
+    pantry_lookup: dict[str, PantryItem] = {}
+    pantry_by_name: dict[str, PantryItem] = {}
+    for pi in pantry_items:
+        key = f"{pi.name_normalized}_{pi.unit or ''}"
+        pantry_lookup[key] = pi
+        pantry_by_name[pi.name_normalized] = pi
+
+    items_to_add: list[dict] = []
     for item_data in consolidated.values():
+        norm_name = normalize_ingredient_name(item_data["name"])
+        norm_key = f"{norm_name}_{item_data['unit'] or ''}"
+        # Try exact match (name+unit) first, then fall back to name-only
+        pantry_match = pantry_lookup.get(norm_key) or pantry_by_name.get(norm_name)
+
+        if pantry_match:
+            if pantry_match.amount is None:
+                # Unknown quantity in pantry — assume sufficient, skip
+                continue
+            if item_data["amount"] is not None:
+                # Only deduct if units match; otherwise skip (assume available)
+                if pantry_match.unit and item_data["unit"] and pantry_match.unit != item_data["unit"]:
+                    continue
+                remaining = item_data["amount"] - pantry_match.amount
+                if remaining <= 0:
+                    continue  # Pantry covers entirely
+                item_data["amount"] = round(remaining, 2)
+            else:
+                # Recipe has no amount but pantry has it — skip
+                continue
+
+        items_to_add.append(item_data)
+
+    shopping_list = ShoppingList(family_id=family_id, week_start_date=monday, status="active")
+    for item_data in items_to_add:
         shopping_list.items.append(ShoppingItem(
             name=item_data["name"],
             amount=str(item_data["amount"]) if item_data["amount"] is not None else None,
@@ -154,6 +192,20 @@ async def add_manual_item(
     return item
 
 
+@router.post("/clear-all")
+async def clear_shopping_list(
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    stmt = select(ShoppingList).where(
+        ShoppingList.status == "active", ShoppingList.family_id == family_id
+    )
+    result = await db.execute(stmt)
+    for sl in result.scalars().all():
+        sl.status = "archived"
+    return {"message": "Einkaufsliste geleert"}
+
+
 @router.patch("/items/{item_id}/check", response_model=ShoppingItemResponse)
 async def check_item(
     item_id: int,
@@ -193,55 +245,13 @@ async def delete_item(
     await db.delete(item)
 
 
-VALID_STORES = {"edeka", "lidl", "aldi", "penny", "netto"}
-
-STORE_LAYOUT_HINTS = {
-    "edeka": (
-        "Edeka ist ein Vollsortimenter. Typischer Rundgang: "
-        "Obst & Gemuese → Brot & Backwaren → Fleisch & Wurst (Theke) → "
-        "Kaese → Molkereiprodukte/Kuehlregal → Tiefkuehl → "
-        "Konserven & Trockenware → Gewuerze & Backen → Getränke → "
-        "Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse"
-    ),
-    "lidl": (
-        "Lidl ist ein Discounter. Typischer Rundgang: "
-        "Backwaren (am Eingang) → Obst & Gemuese → "
-        "Kuehlregal (Fleisch, Wurst, Kaese, Milchprodukte) → Tiefkuehl → "
-        "Konserven & Trockenware → Gewuerze & Backen → Getränke → "
-        "Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse"
-    ),
-    "aldi": (
-        "Aldi ist ein Discounter. Typischer Rundgang: "
-        "Backwaren (am Eingang) → Obst & Gemuese → "
-        "Kuehlregal (Fleisch, Wurst, Kaese, Milchprodukte) → Tiefkuehl → "
-        "Konserven & Trockenware → Gewuerze & Backen → Getränke → "
-        "Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse"
-    ),
-    "penny": (
-        "Penny ist ein Discounter. Typischer Rundgang: "
-        "Obst & Gemuese → Backwaren → "
-        "Kuehlregal (Fleisch, Wurst, Kaese, Milchprodukte) → Tiefkuehl → "
-        "Konserven & Trockenware → Gewuerze & Backen → Getränke → "
-        "Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse"
-    ),
-    "netto": (
-        "Netto ist ein Discounter. Typischer Rundgang: "
-        "Obst & Gemuese → Backwaren → "
-        "Kuehlregal (Fleisch, Wurst, Kaese, Milchprodukte) → Tiefkuehl → "
-        "Konserven & Trockenware → Gewuerze & Backen → Getränke → "
-        "Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse"
-    ),
-}
-
-
-def _build_sort_prompt(store: str, items: list[ShoppingItem]) -> str:
-    store_hint = STORE_LAYOUT_HINTS.get(store, "")
+def _build_sort_prompt(items: list[ShoppingItem]) -> str:
     items_text = "\n".join(f"- id={it.id}, name=\"{it.name}\"" for it in items)
 
-    return f"""Du bist ein Experte fuer deutsche Supermarkt-Layouts. Sortiere die folgende Einkaufsliste so, wie man die Artikel beim Gang durch einen {store.capitalize()}-Supermarkt antrifft (vom Eingang bis zur Kasse).
+    return f"""Du bist ein Experte fuer deutsche Supermarkt-Layouts. Sortiere die folgende Einkaufsliste so, dass Artikel die typischerweise in der gleichen Abteilung eines Supermarkts stehen zusammen gruppiert sind. Ordne sie in der Reihenfolge an, wie man sie bei einem typischen Rundgang durch einen deutschen Supermarkt antrifft (vom Eingang bis zur Kasse).
 
-## Supermarkt-Layout
-{store_hint}
+## Typischer Supermarkt-Rundgang
+Obst & Gemuese → Backwaren → Fleisch & Wurst → Kaese → Kuehlregal/Molkereiprodukte → Tiefkuehl → Konserven & Trockenware → Gewuerze & Backen → Getraenke → Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse
 
 ## Einkaufsliste
 {items_text}
@@ -259,17 +269,10 @@ def _build_sort_prompt(store: str, items: list[ShoppingItem]) -> str:
 
 
 @router.post("/sort", response_model=ShoppingListResponse)
-async def sort_by_store(
-    data: SortByStoreRequest,
+async def sort_shopping_list(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
 ):
-    store = data.store.lower().strip()
-    if store not in VALID_STORES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unbekannter Supermarkt. Erlaubt: {', '.join(sorted(VALID_STORES))}",
-        )
 
     stmt = (
         select(ShoppingList)
@@ -289,7 +292,7 @@ async def sort_by_store(
     if not unchecked:
         raise HTTPException(status_code=400, detail="Alle Artikel bereits abgehakt")
 
-    prompt = _build_sort_prompt(store, unchecked)
+    prompt = _build_sort_prompt(unchecked)
 
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -334,7 +337,7 @@ async def sort_by_store(
         it.sort_order = max_order + 1 + i
         it.store_section = "Erledigt"
 
-    sl.sorted_by_store = store
+    sl.sorted_by_store = "sorted"
     await db.flush()
 
     await db.refresh(sl)

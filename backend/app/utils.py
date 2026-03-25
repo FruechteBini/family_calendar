@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -17,6 +18,27 @@ def ensure_aware(dt: datetime) -> datetime:
 def monday_of(d: date) -> date:
     """Return the Monday of the week containing the given date."""
     return d - timedelta(days=d.weekday())
+
+
+def normalize_ingredient_name(name: str) -> str:
+    """Normalize an ingredient name for fuzzy matching.
+
+    "Tomaten, gehackt" -> "gehackt tomaten"
+    "gehackte Tomaten" -> "gehackt tomaten"
+    "Salz" -> "salz"
+    """
+    name = name.lower().strip()
+    name = re.sub(r"[,;.\-/()]", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    tokens = sorted(name.split())
+    normalized = []
+    for t in tokens:
+        for suffix in ("te", "ter", "tes", "ten", "em"):
+            if len(t) > len(suffix) + 3 and t.endswith(suffix):
+                t = t[: -len(suffix)]
+                break
+        normalized.append(t)
+    return " ".join(normalized)
 
 
 async def resolve_members(

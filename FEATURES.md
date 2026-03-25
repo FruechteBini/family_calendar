@@ -1,6 +1,6 @@
 # Familienkalender — Funktionsuebersicht
 
-Letzte Aktualisierung: 2026-03-24
+Letzte Aktualisierung: 2026-03-25
 
 ---
 
@@ -155,6 +155,7 @@ Letzte Aktualisierung: 2026-03-24
 | Cookidoo-Rezepte auto-importieren | ✅ | – | – | Backend-Logik |
 | Plan rueckgaengig machen (Undo) | ✅ | – | – | `POST /api/ai/undo-meal-plan` |
 | Portionen + Wuensche konfigurieren | ✅ | – | – | Request-Parameter |
+| Essensplan per Sprachbefehl erstellen | ✅ | – | – | Voice-Action `generate_meal_plan` |
 
 ---
 
@@ -163,22 +164,53 @@ Letzte Aktualisierung: 2026-03-24
 | Funktion | Web | Android | MCP | API-Endpunkt |
 |----------|:---:|:-------:|:---:|-------------|
 | Aktive Einkaufsliste anzeigen | ✅ | ✅ | ✅ | `GET /api/shopping/list` |
-| Aus Wochenplan generieren | ✅ | ✅ | ✅ | `POST /api/shopping/generate` |
+| Aus Wochenplan generieren (mit Vorrats-Abgleich) | ✅ | ✅ | ✅ | `POST /api/shopping/generate` |
 | Artikel manuell hinzufuegen | ✅ | ✅ | ✅ | `POST /api/shopping/items` |
 | Artikel abhaken / aufhaken | ✅ | ✅ | ✅ | `PATCH /api/shopping/items/{id}/check` |
 | Artikel loeschen (nur manuelle) | ✅ | ✅ | – | `DELETE /api/shopping/items/{id}` |
 | Gruppierung nach Kategorie | ✅ | ✅ | – | Frontend-Logik |
 | Fortschrittsanzeige | ✅ | ✅ | – | Frontend-Logik |
 | An Knuspr senden | ✅ | – | ✅ | `POST /api/knuspr/cart/send-list/{id}` |
-| KI-Sortierung nach Supermarkt | ✅ | – | – | `POST /api/shopping/sort` |
+| KI-Sortierung nach Supermarkt-Abteilungen | ✅ | – | – | `POST /api/shopping/sort` |
 
 ### KI-Einkaufslisten-Sortierung
 
-Sortiert die Einkaufsliste per Claude API nach dem typischen Gang-Layout eines deutschen Supermarkts (Eingang bis Kasse). Der User waehlt einen Supermarkt (Edeka, Lidl, Aldi, Penny, Netto), und die KI ordnet die Artikel in der Reihenfolge, in der man sie beim Gang durch den Laden antrifft. Jeder Artikel wird einer Supermarkt-Abteilung zugeordnet (z.B. "Obst & Gemuese", "Kuehlregal", "Tiefkuehl"). Die Sortierung wird in der DB persistiert.
+Sortiert die Einkaufsliste per Claude API nach dem typischen Gang-Layout eines deutschen Supermarkts (Eingang bis Kasse). Die KI ordnet die Artikel in der Reihenfolge, in der man sie beim Gang durch einen typischen Supermarkt antrifft — ohne dass ein spezifischer Supermarkt gewaehlt werden muss. Jeder Artikel wird einer Supermarkt-Abteilung zugeordnet (z.B. "Obst & Gemuese", "Kuehlregal", "Tiefkuehl"). Die Sortierung wird in der DB persistiert.
+
+### Vorrats-Abgleich bei Einkaufslistengenerierung
+
+Beim Generieren der Einkaufsliste aus dem Wochenplan wird automatisch die Vorratskammer abgeglichen. Zutaten, die in ausreichender Menge im Vorrat vorhanden sind, werden nicht auf die Einkaufsliste gesetzt. Bei teilweise vorhandenen Zutaten wird nur die Differenz eingetragen.
 
 ---
 
-## 11. Cookidoo-Integration (Thermomix)
+## 11. Vorratskammer (Pantry)
+
+| Funktion | Web | Android | MCP | API-Endpunkt |
+|----------|:---:|:-------:|:---:|-------------|
+| Vorratskammer anzeigen | ✅ | – | – | `GET /api/pantry/` |
+| Artikel manuell hinzufuegen | ✅ | – | – | `POST /api/pantry/` |
+| Artikel per Sprachbefehl hinzufuegen (Bulk) | ✅ | – | – | `POST /api/pantry/bulk` |
+| Artikel bearbeiten | ✅ | – | – | `PATCH /api/pantry/{id}` |
+| Artikel loeschen | ✅ | – | – | `DELETE /api/pantry/{id}` |
+| Warnungen (Niedrigbestand / Ablauf) | ✅ | – | – | `GET /api/pantry/alerts` |
+| Warnung: Zur Einkaufsliste | ✅ | – | – | `POST /api/pantry/alerts/{id}/add-to-shopping` |
+| Warnung: Verwerfen | ✅ | – | – | `POST /api/pantry/alerts/{id}/dismiss` |
+| Gruppierung nach Kategorie | ✅ | – | – | Frontend-Logik |
+| Vorrat abziehen beim Kochen | ✅ | – | – | `PATCH /api/meals/plan/{date}/{slot}/done` |
+
+### Vorrats-Features
+
+- **Mengen-Tracking**: Optionale Menge und Einheit pro Artikel (z.B. "20 Dosen Tomaten gehackt")
+- **Ablaufdatum**: Optionales ungefaehres Ablaufdatum (z.B. "ca. Juni 2026")
+- **Fuzzy-Matching**: Intelligenter Namensabgleich zwischen Vorrat und Rezeptzutaten ("Tomaten gehackt" matcht "gehackte Tomaten", "Tomaten, gehackt")
+- **Automatische Vorrats-Deduktion beim Kochen**: Wird ein Rezept als "gekocht" markiert, werden die Rezeptzutaten automatisch vom Vorrat abgezogen
+- **Niedrigbestand-Warnungen**: Bei Menge <= 2 (oder individuellem Schwellenwert) wird eine Warnung angezeigt
+- **Ablauf-Warnungen**: Artikel die innerhalb von 7 Tagen ablaufen werden hervorgehoben
+- **Merge bei Duplikaten**: Gleichnamige Artikel werden automatisch zusammengefuehrt (Mengen addiert)
+
+---
+
+## 12. Cookidoo-Integration (Thermomix)
 
 | Funktion | Web | Android | MCP | API-Endpunkt |
 |----------|:---:|:-------:|:---:|-------------|
@@ -191,7 +223,7 @@ Sortiert die Einkaufsliste per Claude API nach dem typischen Gang-Layout eines d
 
 ---
 
-## 12. Knuspr-Integration (Online-Supermarkt)
+## 13. Knuspr-Integration (Online-Supermarkt)
 
 | Funktion | Web | Android | MCP | API-Endpunkt |
 |----------|:---:|:-------:|:---:|-------------|
@@ -203,7 +235,7 @@ Sortiert die Einkaufsliste per Claude API nach dem typischen Gang-Layout eines d
 
 ---
 
-## 13. MCP-Server (Claude Desktop Integration)
+## 14. MCP-Server (Claude Desktop Integration)
 
 28 Tools und 8 Resources fuer die Steuerung des Familienkalenders ueber Claude Desktop.
 
@@ -255,7 +287,7 @@ Sortiert die Einkaufsliste per Claude API nach dem typischen Gang-Layout eines d
 
 ---
 
-## 14. Android-exklusive Features
+## 15. Android-exklusive Features
 
 | Feature | Beschreibung |
 |---------|-------------|
@@ -266,7 +298,7 @@ Sortiert die Einkaufsliste per Claude API nach dem typischen Gang-Layout eines d
 
 ---
 
-## 15. KI-Sprachassistent (Voice Command)
+## 16. KI-Sprachassistent (Voice Command)
 
 Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar ist. Spracheingabe wird per Browser Web Speech API transkribiert und an Claude gesendet, das die passenden Aktionen erkennt und ausfuehrt.
 
@@ -288,6 +320,8 @@ Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar 
 | Rezept erstellen | `create_recipe` | "Neues Rezept Kartoffelsuppe, einfach, 30 Minuten" |
 | Essensplan belegen | `set_meal_slot` | "Am Dienstag Abend gibt es Spaghetti Bolognese" |
 | Einkaufsartikel hinzufuegen | `add_shopping_item` | "Fuege 500g Mehl zur Einkaufsliste hinzu" |
+| Vorratskammer befuellen | `add_pantry_items` | "Wir haben noch Salz, Pfeffer, 20 Dosen Tomaten gehackt, Mehl bis Juni" |
+| Essensplan per KI erstellen | `generate_meal_plan` | "Plane mir diese Woche, Montag Abend und Mittwoch Mittag, was Neues und was Bewaehrtes" |
 | Termin verschieben / bearbeiten | `update_event` | "Verschiebe das Meeting auf Mittwoch um 15 Uhr" |
 | Todo bearbeiten | `update_todo` | "Aendere die Prioritaet von Dokument ausfuellen auf hoch" |
 | Todo als erledigt markieren | `complete_todo` | "Kaffee vorbereiten ist erledigt" |
@@ -303,6 +337,7 @@ Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar 
 | Referenz-System | Event + verknuepfte Todos in einem Sprachbefehl (automatische ID-Aufloesung) |
 | Smart Context Loading | Bestehende Events/Todos werden nur bei Bearbeitungs-Befehlen geladen (Keyword-Erkennung), spart Tokens bei Create-Befehlen |
 | Serientermine | Backend generiert bis zu 200 Einzeltermine aus einem Muster (taeglich/woechentlich/monatlich) |
+| KI-Essensplanung per Sprache | Kompletter Wochenplan mit natuerlichem Kontext ("was Neues, was Bewaehrtes"), auto-Einkaufsliste, detaillierte Ergebnisanzeige |
 | Ergebnis-Popup | Zeigt Zusammenfassung + Liste aller ausgefuehrten Aktionen mit Erfolgsstatus |
 | Auto-Refresh | Aktive Ansicht wird nach Ausfuehrung automatisch aktualisiert |
 
@@ -314,7 +349,7 @@ Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar 
 
 ---
 
-## 16. Multi-Tenancy (Familien-Isolation)
+## 17. Multi-Tenancy (Familien-Isolation)
 
 Alle Daten sind per `family_id` einer Familie zugeordnet. Jeder User gehoert zu genau einer Familie.
 
@@ -324,7 +359,7 @@ Alle Daten sind per `family_id` einer Familie zugeordnet. Jeder User gehoert zu 
 |---------|---------|
 | **Family** | Kern-Entity mit `id`, `name`, `invite_code` (auto-generiert) |
 | **User → Family** | `family_id` FK (nullable, bis User einer Familie beitritt) |
-| **Scoped Models** | FamilyMember, Category, Event, Todo, Recipe, MealPlan, ShoppingList |
+| **Scoped Models** | FamilyMember, Category, Event, Todo, Recipe, MealPlan, ShoppingList, PantryItem |
 | **Indirekt scoped** | Ingredient (via Recipe), ShoppingItem (via ShoppingList), CookingHistory (via Recipe), TodoProposal (via Todo) |
 
 ### Flow
@@ -354,9 +389,10 @@ Alle Daten sind per `family_id` einer Familie zugeordnet. Jeder User gehoert zu 
 | recipes | `/api/recipes` | 7 |
 | meals | `/api/meals` | 4 |
 | shopping | `/api/shopping` | 6 |
+| pantry | `/api/pantry` | 8 |
 | cookidoo | `/api/cookidoo` | 6 |
 | knuspr | `/api/knuspr` | 5 |
 | ai | `/api/ai` | 5 |
 | categories | `/api/categories` | 4 |
 | family_members | `/api/family-members` | 4 |
-| **Gesamt** | | **64 Endpunkte** |
+| **Gesamt** | | **72 Endpunkte** |

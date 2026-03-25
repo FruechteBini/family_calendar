@@ -1002,44 +1002,6 @@ body {
 .shopping-item-amount { font-size: 0.8rem; color: var(--text-muted); }
 .shopping-item-actions { display: flex; gap: 0.2rem; }
 
-/* ── Shopping Store Picker (AI Sort) ──────────────────── */
-.shopping-store-picker {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.06), rgba(168, 85, 247, 0.06));
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  border-radius: var(--radius);
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-}
-.store-picker-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.store-picker-buttons {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-.store-btn {
-  padding: 0.4rem 0.85rem;
-  border: 1.5px solid rgba(124, 58, 237, 0.35);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-.store-btn:hover {
-  background: linear-gradient(135deg, #7C3AED, #A855F7);
-  color: white;
-  border-color: #7C3AED;
-}
 .shopping-sort-badge {
   display: flex;
   align-items: center;
@@ -1066,6 +1028,79 @@ body {
 }
 .recipes-header h2 { font-weight: 700; }
 .recipe-empty { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
+
+/* ── Vorratskammer (Pantry) ──────────────────────────── */
+.pantry-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+}
+.pantry-header h2 { font-weight: 700; }
+.pantry-actions { display: flex; align-items: center; gap: 0.75rem; }
+.pantry-alert-badge {
+  background: var(--orange, #f59e0b); color: white; font-size: 0.75rem;
+  padding: 0.2rem 0.6rem; border-radius: 999px; font-weight: 600;
+}
+.pantry-add-bar {
+  display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;
+}
+.pantry-add-bar input, .pantry-add-bar select {
+  padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: 0.85rem; background: var(--card-bg); color: var(--text);
+}
+.pantry-add-bar input[type="text"] { flex: 1; min-width: 140px; }
+
+.pantry-alerts {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
+  border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius);
+  padding: 0.75rem; margin-bottom: 1rem;
+}
+.pantry-alert-header { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem; }
+.pantry-alert-items { display: flex; flex-direction: column; gap: 0.5rem; }
+.pantry-alert-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+  padding: 0.4rem 0; border-bottom: 1px solid rgba(245, 158, 11, 0.15); flex-wrap: wrap;
+}
+.pantry-alert-item:last-child { border-bottom: none; }
+.pantry-alert-info { display: flex; flex-direction: column; gap: 0.1rem; }
+.pantry-alert-reason { font-size: 0.8rem; color: var(--text-muted); }
+.pantry-alert-actions { display: flex; gap: 0.4rem; }
+
+.pantry-category { margin-bottom: 1rem; }
+.pantry-cat-header {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0;
+  border-bottom: 2px solid var(--border); margin-bottom: 0.4rem; font-weight: 600;
+}
+.pantry-cat-icon { font-size: 1.1rem; }
+.pantry-cat-name { flex: 1; font-size: 0.9rem; }
+.pantry-cat-count { font-size: 0.8rem; color: var(--text-muted); }
+.pantry-cat-items { display: flex; flex-direction: column; }
+
+.pantry-item {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--border-light, rgba(0,0,0,0.05));
+  transition: all var(--transition);
+}
+.pantry-item:hover { background: var(--hover-bg, rgba(0,0,0,0.02)); }
+.pantry-item.low-stock { border-left: 3px solid var(--orange, #f59e0b); }
+.pantry-item.depleted { border-left: 3px solid var(--red, #ef4444); opacity: 0.6; }
+.pantry-item.expiring { border-left: 3px solid var(--orange, #f59e0b); }
+.pantry-item-info { flex: 1; display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.pantry-item-name { font-size: 0.9rem; font-weight: 500; }
+.pantry-item-amount { font-size: 0.8rem; color: var(--text-muted); }
+.pantry-unknown-qty { font-style: italic; opacity: 0.5; }
+.pantry-expiry-badge { font-size: 0.75rem; color: var(--text-muted); }
+.pantry-expiry-badge.expiring { color: var(--orange, #f59e0b); font-weight: 600; }
+.pantry-item-actions { display: flex; gap: 0.2rem; }
+
+/* Pantry Deduction Toast */
+.pantry-deduction-toast {
+  position: fixed; bottom: 5rem; right: 1.5rem; z-index: 10000;
+  background: var(--card-bg, white); border: 1px solid var(--green, #22c55e);
+  border-left: 4px solid var(--green, #22c55e); border-radius: var(--radius);
+  padding: 0.75rem 1rem; font-size: 0.85rem; max-width: 320px;
+  box-shadow: var(--shadow-lg); transition: opacity 1s ease;
+}
+.pantry-deduction-toast.fade-out { opacity: 0; }
+
 .recipe-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1744,6 +1779,24 @@ body {
 .voice-action-error {
   color: var(--red);
   font-size: 0.8rem;
+}
+.voice-meal-plan-details {
+  padding: 0.4rem 0.6rem 0.4rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.voice-meal-item {
+  font-size: 0.82rem;
+  color: var(--text);
+  padding: 0.15rem 0;
+}
+.voice-meal-reasoning {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 0.3rem;
 }
 
 /* ── Responsive ──────────────────────────────────────── */

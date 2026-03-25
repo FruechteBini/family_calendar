@@ -10,6 +10,7 @@ from .ingredient import Ingredient
 from .meal_plan import MealPlan
 from .cooking_history import CookingHistory
 from .shopping_list import ShoppingList, ShoppingItem
+from .pantry_item import PantryItem
 
 __all__ = [
     "Family",
@@ -28,4 +29,5 @@ __all__ = [
     "CookingHistory",
     "ShoppingList",
     "ShoppingItem",
+    "PantryItem",
 ]

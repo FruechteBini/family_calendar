@@ -31,6 +31,7 @@ const Meals = (() => {
         document.getElementById(`subtab-${tab.dataset.subtab}`).classList.remove('hidden');
         if (tab.dataset.subtab === 'recipes') Recipes.refresh();
         if (tab.dataset.subtab === 'shopping') Shopping.refresh();
+        if (tab.dataset.subtab === 'pantry') Pantry.refresh();
       });
     });
   }
@@ -217,8 +218,14 @@ const Meals = (() => {
       const notes = fd.get('notes');
       if (rating) body.rating = parseInt(rating);
       if (notes) body.notes = notes;
-      await API.patch(`/api/meals/plan/${dateStr}/${slot}/done`, Object.keys(body).length ? body : null);
+      const result = await API.patch(`/api/meals/plan/${dateStr}/${slot}/done`, Object.keys(body).length ? body : null);
       await loadWeek();
+      if (result && result.pantry_deductions && result.pantry_deductions.length > 0) {
+        const lines = result.pantry_deductions.map(d =>
+          `${d.name}: ${d.old_amount} \u2192 ${d.new_amount}${d.depleted ? ' (aufgebraucht)' : ''}`
+        );
+        _showPantryDeductionToast(lines);
+      }
     });
   }
 
@@ -594,6 +601,18 @@ const Meals = (() => {
 
   function formatDateDE(d) {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  }
+
+  function _showPantryDeductionToast(lines) {
+    const existing = document.getElementById('pantry-deduction-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'pantry-deduction-toast';
+    toast.className = 'pantry-deduction-toast';
+    toast.innerHTML = `<strong>Vorrat aktualisiert</strong><br>${lines.map(l => esc(l)).join('<br>')}`;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.classList.add('fade-out'); }, 4000);
+    setTimeout(() => { toast.remove(); }, 5000);
   }
 
   return { init, loadWeek, assignSlot, editSlot: assignSlot, clearSlot, markCooked, undoAiPlan, dismissUndo };

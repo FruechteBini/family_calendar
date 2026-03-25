@@ -19,6 +19,7 @@ from ..models.category import Category
 from ..models.event import Event, event_members
 from ..models.family_member import FamilyMember
 from ..models.ingredient import Ingredient
+from ..models.pantry_item import PantryItem
 from ..models.shopping_list import ShoppingItem, ShoppingList
 from ..models.todo import Todo, todo_members
 from ..schemas.ai import (
@@ -32,7 +33,7 @@ from ..schemas.ai import (
     VoiceCommandRequest,
     VoiceCommandResponse,
 )
-from ..utils import ensure_aware, monday_of
+from ..utils import ensure_aware, monday_of, normalize_ingredient_name
 
 logger = logging.getLogger("kalender.ai")
 
@@ -804,6 +805,40 @@ Parameter:
 - "amount" (String, optional, z.B. "500")
 - "unit" (String, optional, z.B. "g", "ml", "Stueck")
 - "category" (String: "kuehlregal", "obst_gemuese", "trockenware", "drogerie", "sonstiges", default "sonstiges")
+
+### add_pantry_items
+Fuegt Artikel zur Vorratskammer hinzu. Verwende diesen Typ wenn der Nutzer sagt was er im Vorrat/Schrank/Speisekammer hat.
+Erkennung: "Wir haben noch...", "Im Vorrat haben wir...", "Auf Lager...", "In der Vorratskammer...", "Daheim haben wir noch..."
+Parameter:
+- "items" (Array von Objekten, PFLICHT) - jedes mit:
+  - "name" (String, PFLICHT - z.B. "Tomaten gehackt")
+  - "amount" (Float, optional - z.B. 20)
+  - "unit" (String, optional - z.B. "Dosen", "kg", "Stueck")
+  - "category" (String: "kuehlregal", "obst_gemuese", "trockenware", "drogerie", "sonstiges", default "sonstiges")
+  - "expiry_date" (ISO-Datum "YYYY-MM-DD", optional - bei "reicht bis Juni" setze den 1. des Monats, z.B. "2026-06-01")
+
+Beispiel: "Wir haben noch: Salz, Pfeffer, 20 Dosen Tomaten gehackt, Mehl - das reicht ca bis Juni"
+-> {{"type": "add_pantry_items", "params": {{"items": [
+  {{"name": "Salz", "category": "trockenware"}},
+  {{"name": "Pfeffer", "category": "trockenware"}},
+  {{"name": "Tomaten gehackt", "amount": 20, "unit": "Dosen", "category": "trockenware"}},
+  {{"name": "Mehl", "category": "trockenware", "expiry_date": "2026-06-01"}}
+]}}}}
+
+### generate_meal_plan
+Erstellt einen kompletten KI-Essensplan fuer eine Woche. Verwende diesen Typ wenn der Nutzer sagt, er moechte eine Woche (oder mehrere Tage) planen lassen, z.B. "plane mir die Woche", "mach mir einen Essensplan", "was sollen wir diese Woche kochen".
+WICHTIG: Dieser Typ generiert den Plan UND speichert ihn direkt. Es wird auch automatisch eine Einkaufsliste erstellt.
+Parameter:
+- "week_start" (ISO-Datum "YYYY-MM-DD", PFLICHT - der Montag der gewuenschten Woche. Wenn der Nutzer "diese Woche" sagt, verwende den aktuellen oder naechsten Montag)
+- "servings" (Integer, default 4 - Portionen pro Mahlzeit)
+- "preferences" (String, optional - Besondere Wuensche des Nutzers, z.B. "vegetarisch", "ein neues Gericht und eins das wir schon kennen", "schnelle Gerichte unter der Woche")
+- "selected_slots" (Array von Objekten mit "date" (YYYY-MM-DD) und "slot" ("lunch" oder "dinner"), optional - wenn leer, werden ALLE freien Slots der Woche geplant. Wenn der Nutzer spezifische Tage/Mahlzeiten nennt, gib nur diese an)
+
+Beispiel: "Plane mir diese Woche, Montag Abend und Mittwoch Mittag soll was Neues sein"
+-> {{"type": "generate_meal_plan", "params": {{"week_start": "2026-03-23", "servings": 4, "preferences": "Montag Abend und Mittwoch Mittag sollen neue Gerichte sein, die wir noch nie gekocht haben", "selected_slots": [{{"date": "2026-03-23", "slot": "dinner"}}, {{"date": "2026-03-25", "slot": "lunch"}}]}}}}
+
+Beispiel: "Mach einen Essensplan fuer die ganze Woche, 3 Portionen, eher einfach"
+-> {{"type": "generate_meal_plan", "params": {{"week_start": "2026-03-23", "servings": 3, "preferences": "eher einfache Gerichte bevorzugen", "selected_slots": []}}}}
 {modify_actions_block}
 
 ## Referenz-System
@@ -861,7 +896,9 @@ ACTION_TYPE_ORDER = {
     "update_todo": 4,
     "complete_todo": 5,
     "set_meal_slot": 6,
+    "generate_meal_plan": 6,
     "add_shopping_item": 7,
+    "add_pantry_items": 7,
     "delete_todo": 8,
     "delete_event": 9,
 }
@@ -895,6 +932,10 @@ async def _execute_voice_actions(
                 result_data = await _exec_set_meal_slot(params, db, family_id)
             elif action_type == "add_shopping_item":
                 result_data = await _exec_add_shopping_item(params, db, family_id)
+            elif action_type == "add_pantry_items":
+                result_data = await _exec_add_pantry_items(params, db, family_id)
+            elif action_type == "generate_meal_plan":
+                result_data = await _exec_generate_meal_plan(params, db, family_id)
             elif action_type == "update_event":
                 result_data = await _exec_update_event(params, db, family_id)
             elif action_type == "update_todo":
@@ -1155,6 +1196,207 @@ async def _exec_add_shopping_item(params: dict, db: AsyncSession, family_id: int
     await db.flush()
 
     return {"id": item.id, "name": item.name}
+
+
+async def _exec_add_pantry_items(params: dict, db: AsyncSession, family_id: int) -> dict:
+    items_data = params.get("items", [])
+    added = 0
+    updated = 0
+
+    for item_data in items_data:
+        name = item_data.get("name", "?")
+        norm_name = normalize_ingredient_name(name)
+        unit = item_data.get("unit")
+
+        stmt = select(PantryItem).where(
+            PantryItem.family_id == family_id,
+            PantryItem.name_normalized == norm_name,
+        )
+        if unit:
+            stmt = stmt.where(PantryItem.unit == unit)
+        else:
+            stmt = stmt.where(PantryItem.unit.is_(None))
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        new_amount = item_data.get("amount")
+        expiry_str = item_data.get("expiry_date")
+        expiry = date.fromisoformat(expiry_str) if expiry_str else None
+
+        if existing:
+            if new_amount is not None and existing.amount is not None:
+                existing.amount = round(existing.amount + new_amount, 2)
+            elif new_amount is not None:
+                existing.amount = new_amount
+            if expiry:
+                existing.expiry_date = expiry
+            updated += 1
+        else:
+            pantry_item = PantryItem(
+                family_id=family_id,
+                name=name,
+                name_normalized=norm_name,
+                amount=new_amount,
+                unit=unit,
+                category=item_data.get("category", "sonstiges"),
+                expiry_date=expiry,
+            )
+            db.add(pantry_item)
+            added += 1
+
+    await db.flush()
+    return {"added": added, "updated": updated, "count": added + updated}
+
+
+async def _exec_generate_meal_plan(params: dict, db: AsyncSession, family_id: int) -> dict:
+    """Generate and confirm a full meal plan via Claude, reusing existing logic."""
+    week_start_str = params.get("week_start")
+    if not week_start_str:
+        return {"error": "Kein week_start angegeben"}
+
+    monday = monday_of(date.fromisoformat(week_start_str))
+    sunday = monday + timedelta(days=6)
+    servings = params.get("servings", 4)
+    preferences = params.get("preferences", "")
+    selected_slots_raw = params.get("selected_slots", [])
+
+    # Load recipes
+    stmt = (
+        select(Recipe)
+        .where(Recipe.ai_accessible.is_(True), Recipe.family_id == family_id)
+        .options(selectinload(Recipe.ingredients), selectinload(Recipe.history))
+        .order_by(Recipe.title)
+    )
+    result = await db.execute(stmt)
+    recipes = result.scalars().unique().all()
+
+    if not recipes:
+        return {"error": "Keine Rezepte vorhanden. Bitte zuerst Rezepte anlegen."}
+
+    recipe_lookup = {r.id: r for r in recipes}
+
+    # Determine filled slots
+    existing_stmt = (
+        select(MealPlan)
+        .where(and_(
+            MealPlan.family_id == family_id,
+            MealPlan.plan_date >= monday,
+            MealPlan.plan_date <= sunday,
+        ))
+    )
+    existing_result = await db.execute(existing_stmt)
+    existing_meals = existing_result.scalars().all()
+    filled_slots = {f"{m.plan_date}_{m.slot}" for m in existing_meals}
+
+    # Build target slots
+    if selected_slots_raw:
+        target_slots = []
+        for s in selected_slots_raw:
+            s_date = s.get("date", "") if isinstance(s, dict) else ""
+            s_slot = s.get("slot", "") if isinstance(s, dict) else ""
+            key = f"{s_date}_{s_slot}"
+            if key in filled_slots:
+                continue
+            d = date.fromisoformat(s_date)
+            day_idx = (d - monday).days
+            if 0 <= day_idx <= 6:
+                target_slots.append({
+                    "date": s_date,
+                    "day": WEEKDAY_NAMES_DE[day_idx],
+                    "slot": s_slot,
+                    "label": "Mittag" if s_slot == "lunch" else "Abend",
+                })
+    else:
+        target_slots = []
+        for i in range(7):
+            d = monday + timedelta(days=i)
+            for slot in ["lunch", "dinner"]:
+                key = f"{d}_{slot}"
+                if key not in filled_slots:
+                    target_slots.append({
+                        "date": str(d),
+                        "day": WEEKDAY_NAMES_DE[i],
+                        "slot": slot,
+                        "label": "Mittag" if slot == "lunch" else "Abend",
+                    })
+
+    if not target_slots:
+        return {"error": "Keine freien Slots in dieser Woche"}
+
+    now = utcnow()
+    recipe_descriptions = _build_recipe_descriptions(recipes, now)
+    prompt = _build_prompt(
+        recipe_descriptions, target_slots, servings,
+        preferences, False, {},
+    )
+
+    raw_text = await _call_claude(prompt)
+    plan_items, reasoning = _parse_claude_json(raw_text)
+
+    suggestions = _validate_suggestions(
+        plan_items,
+        valid_recipe_ids={r.id for r in recipes},
+        recipe_lookup=recipe_lookup,
+        cookidoo_lookup={},
+        target_slot_keys={f"{s['date']}_{s['slot']}" for s in target_slots},
+        default_servings=servings,
+    )
+
+    if not suggestions:
+        return {"error": "KI konnte keinen passenden Essensplan erstellen"}
+
+    # Save the plan directly (confirm step)
+    meal_ids: list[int] = []
+    meals_created = 0
+    for item in suggestions:
+        slot_key = f"{item.date}_{item.slot}"
+        if slot_key in filled_slots:
+            continue
+
+        item_date = date.fromisoformat(item.date)
+        if not item.recipe_id:
+            continue
+
+        meal = MealPlan(
+            family_id=family_id,
+            plan_date=item_date,
+            slot=item.slot,
+            recipe_id=item.recipe_id,
+            servings_planned=item.servings_planned,
+        )
+        db.add(meal)
+        await db.flush()
+        meal_ids.append(meal.id)
+        filled_slots.add(slot_key)
+        meals_created += 1
+
+    # Auto-generate shopping list
+    shopping_generated = False
+    if meals_created > 0:
+        try:
+            from .shopping import _generate_shopping_list
+            await _generate_shopping_list(monday, family_id, db)
+            shopping_generated = True
+        except Exception:
+            logger.warning("Auto-Einkaufsliste konnte nicht erstellt werden", exc_info=True)
+
+    # Build meal plan details for the voice result
+    meal_details = []
+    for s in suggestions:
+        d = date.fromisoformat(s.date)
+        day_idx = (d - monday).days
+        day_name = WEEKDAY_NAMES_DE[day_idx] if 0 <= day_idx <= 6 else s.date
+        slot_label = "Mittag" if s.slot == "lunch" else "Abend"
+        meal_details.append(f"{day_name} {slot_label}: {s.recipe_title}")
+
+    return {
+        "id": meal_ids[0] if meal_ids else 0,
+        "meals_created": meals_created,
+        "meal_ids": meal_ids,
+        "shopping_list_generated": shopping_generated,
+        "reasoning": reasoning,
+        "meal_details": meal_details,
+    }
 
 
 async def _exec_update_event(params: dict, db: AsyncSession, family_id: int) -> dict:

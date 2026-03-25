@@ -19,7 +19,9 @@ const Voice = (() => {
     create_todo: 'Aufgabe erstellt',
     create_recipe: 'Rezept erstellt',
     set_meal_slot: 'Essensplan belegt',
+    generate_meal_plan: 'Essensplan erstellt',
     add_shopping_item: 'Einkaufsartikel hinzugefuegt',
+    add_pantry_items: 'Vorrat aktualisiert',
     complete_todo: 'Aufgabe erledigt',
     mark_cooked: 'Als gekocht markiert',
     update_event: 'Termin bearbeitet',
@@ -181,12 +183,26 @@ const Voice = (() => {
       const label = ACTION_LABELS[action.type] || action.type;
       const hasError = action.result?.error;
       const icon = hasError ? '&#10060;' : '&#9989;';
-      let detailText = action.result?.title || action.result?.name || action.result?.id?.toString() || '';
-      if (action.result?.count) detailText += ` (${action.result.count}x)`;
-      const detail = hasError
-        ? `<span class="voice-action-error">${esc(action.result.error)}</span>`
-        : `<span class="voice-action-detail">${esc(detailText)}</span>`;
-      actionsHtml += `<div class="voice-action-item">${icon} <strong>${esc(label)}</strong> ${detail}</div>`;
+
+      if (action.type === 'generate_meal_plan' && !hasError && action.result?.meal_details) {
+        const r = action.result;
+        let mealsHtml = r.meal_details.map(m => `<div class="voice-meal-item">&#127869; ${esc(m)}</div>`).join('');
+        let extraInfo = `${r.meals_created} Mahlzeiten geplant`;
+        if (r.shopping_list_generated) extraInfo += ' + Einkaufsliste erstellt';
+        actionsHtml += `<div class="voice-action-item">${icon} <strong>${esc(label)}</strong>
+          <span class="voice-action-detail">${esc(extraInfo)}</span></div>
+          <div class="voice-meal-plan-details">${mealsHtml}</div>`;
+        if (r.reasoning) {
+          actionsHtml += `<div class="voice-meal-reasoning"><em>&#128161; ${esc(r.reasoning)}</em></div>`;
+        }
+      } else {
+        let detailText = action.result?.title || action.result?.name || action.result?.id?.toString() || '';
+        if (action.result?.count) detailText += ` (${action.result.count}x)`;
+        const detail = hasError
+          ? `<span class="voice-action-error">${esc(action.result.error)}</span>`
+          : `<span class="voice-action-detail">${esc(detailText)}</span>`;
+        actionsHtml += `<div class="voice-action-item">${icon} <strong>${esc(label)}</strong> ${detail}</div>`;
+      }
     }
 
     const popup = document.createElement('div');
@@ -242,7 +258,11 @@ const Voice = (() => {
       const id = active.id;
       if (id === 'view-calendar') Calendar.refresh();
       else if (id === 'view-todos') Todos.refresh();
-      else if (id === 'view-meals') Meals.loadWeek();
+      else if (id === 'view-meals') {
+        Meals.loadWeek();
+        const pantryTab = document.getElementById('subtab-pantry');
+        if (pantryTab && !pantryTab.classList.contains('hidden')) Pantry.refresh();
+      }
       else if (id === 'view-members') Members.refresh();
     } catch { /* view might not have refresh */ }
   }

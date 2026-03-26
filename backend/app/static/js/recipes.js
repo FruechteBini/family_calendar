@@ -366,7 +366,7 @@ const Recipes = (() => {
 
     try {
       const preview = await API.post('/api/recipes/parse-url', { url });
-      _showUrlPreview(preview, url);
+      _showUrlPreview(preview);
     } catch (err) {
       errEl.textContent = err.message || 'Rezept konnte nicht geladen werden';
       errEl.classList.remove('hidden');
@@ -375,10 +375,8 @@ const Recipes = (() => {
     }
   }
 
-  function _showUrlPreview(data, originalUrl) {
+  function _showUrlPreview(data) {
     _setModalWide(false);
-    const ingRows = (data.ingredients || []).map((ing, i) => ingredientRowHtml(i, ing)).join('');
-    const diffLabels = { easy: 'Einfach', medium: 'Mittel', hard: 'Aufwendig' };
 
     let html = '<div class="url-preview">';
     html += `<button class="cd-back-btn" onclick="Recipes._backToImportHome()">&#8592; Zurueck</button>`;
@@ -721,5 +719,5 @@ const Recipes = (() => {
     }
   }
 
-  return { init, refresh, edit: openRecipeForm, remove, openRecipeForm, openCookidooBrowser, openCookidooCollection, previewCookidoo, importFromCookidoo, _goBack, _backToImportHome };
+  return { init, refresh, detail: openRecipeDetail, edit: openRecipeForm, remove, openRecipeForm, openCookidooBrowser, openCookidooCollection, previewCookidoo, importFromCookidoo, _goBack, _backToImportHome };
 })();

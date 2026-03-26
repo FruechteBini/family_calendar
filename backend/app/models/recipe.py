@@ -22,6 +22,7 @@ class Recipe(Base):
     difficulty: Mapped[str] = mapped_column(String(10), default="medium")
     last_cooked_at: Mapped[datetime | None] = mapped_column(default=None)
     cook_count: Mapped[int] = mapped_column(default=0)
+    instructions: Mapped[str | None] = mapped_column(Text, default=None)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     image_url: Mapped[str | None] = mapped_column(String(500), default=None)
     ai_accessible: Mapped[bool] = mapped_column(default=True)

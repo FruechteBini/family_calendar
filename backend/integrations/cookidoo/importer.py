@@ -76,6 +76,7 @@ async def import_recipe(cookidoo_id: str, db: AsyncSession, family_id: int) -> R
         prep_time_active_minutes=active_min,
         prep_time_passive_minutes=passive_min,
         difficulty=client._map_difficulty(detail.get("difficulty")),
+        instructions=detail.get("instructions"),
         image_url=detail.get("image"),
     )
 

@@ -14,10 +14,21 @@ from .routers import ai, auth, categories, cookidoo, events, family_members, knu
 logger = logging.getLogger("kalender")
 
 
+async def _add_missing_columns(conn):
+    """Add columns that were added after initial table creation."""
+    from sqlalchemy import text, inspect as sa_inspect
+    inspector = sa_inspect(conn)
+    columns = {c["name"] for c in inspector.get_columns("recipes")}
+    if "instructions" not in columns:
+        conn.execute(text("ALTER TABLE recipes ADD COLUMN instructions TEXT"))
+        logger.info("Spalte 'instructions' zu recipes hinzugefuegt")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_missing_columns)
     logger.info("Datenbank-Tabellen erstellt")
     yield
 

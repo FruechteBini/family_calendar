@@ -147,6 +147,14 @@ async def get_recipe_detail(cookidoo_id: str) -> dict[str, Any] | None:
     try:
         r = await client.get_recipe_details(cookidoo_id)
         ingredients = [_serialize_ingredient(i) for i in getattr(r, "ingredients", [])]
+        # Extract instructions from notes or instructions field
+        instructions_list = getattr(r, "instructions", None) or getattr(r, "notes", None) or []
+        instructions_text = None
+        if instructions_list and isinstance(instructions_list, list):
+            steps = [s for s in instructions_list if s and s.strip()]
+            if steps:
+                instructions_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(steps))
+
         return {
             "cookidoo_id": r.id,
             "name": getattr(r, "name", ""),
@@ -157,6 +165,7 @@ async def get_recipe_detail(cookidoo_id: str) -> dict[str, Any] | None:
             "image": getattr(r, "image", None),
             "url": getattr(r, "url", None),
             "ingredients": ingredients,
+            "instructions": instructions_text,
             "categories": [getattr(c, "name", str(c)) for c in getattr(r, "categories", [])],
         }
     except Exception as e:

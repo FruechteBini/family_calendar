@@ -43,6 +43,8 @@ const Recipes = (() => {
       const ingCount = r.ingredients ? r.ingredients.length : 0;
       const srcBadge = r.source === 'cookidoo'
         ? '<span class="source-badge cookidoo">Cookidoo</span>'
+        : r.source === 'web'
+        ? '<span class="source-badge web">Web</span>'
         : '<span class="source-badge manual">Eigenes</span>';
       const lastCooked = r.last_cooked_at
         ? new Date(r.last_cooked_at).toLocaleDateString('de-DE')
@@ -51,7 +53,7 @@ const Recipes = (() => {
         ? `<div class="recipe-card-img" style="background-image:url('${r.image_url}')"></div>`
         : `<div class="recipe-card-img recipe-card-img-placeholder"><span>&#127858;</span></div>`;
 
-      return `<div class="recipe-card" onclick="Recipes.edit(${r.id})">
+      return `<div class="recipe-card" onclick="Recipes.detail(${r.id})">
         ${imgHtml}
         <div class="recipe-card-body">
           <div class="recipe-card-title">${esc(r.title)}</div>
@@ -78,6 +80,87 @@ const Recipes = (() => {
     return parts.join(' ');
   }
 
+  /* ── Recipe Detail (read-only) ── */
+  async function openRecipeDetail(id) {
+    let recipe;
+    try { recipe = await API.get(`/api/recipes/${id}`); } catch { return; }
+
+    const diffLabel = App.DIFFICULTY_LABELS[recipe.difficulty] || recipe.difficulty;
+    const diffClass = App.DIFFICULTY_CLASS[recipe.difficulty] || '';
+    const timeStr = formatPrepTime(recipe.prep_time_active_minutes, recipe.prep_time_passive_minutes);
+    const srcLabel = recipe.source === 'cookidoo' ? 'Cookidoo' : recipe.source === 'web' ? 'Web' : 'Eigenes';
+    const srcClass = recipe.source;
+    const lastCooked = recipe.last_cooked_at ? new Date(recipe.last_cooked_at).toLocaleDateString('de-DE') : null;
+
+    let html = '<div class="recipe-detail">';
+
+    if (recipe.image_url) {
+      html += `<img class="recipe-detail-hero" src="${esc(recipe.image_url)}" alt="" onerror="this.style.display='none'">`;
+    }
+
+    html += '<div class="recipe-detail-pills">';
+    html += `<span class="source-badge ${srcClass}">${srcLabel}</span>`;
+    html += `<span class="diff-badge ${diffClass}">${diffLabel}</span>`;
+    html += `<span class="cd-pill">&#128101; ${recipe.servings} Portionen</span>`;
+    if (timeStr) html += `<span class="cd-pill">&#9202; ${timeStr}</span>`;
+    html += '</div>';
+
+    html += '<div class="recipe-detail-stats">';
+    html += `<span>${recipe.cook_count}x gekocht</span>`;
+    if (lastCooked) html += `<span>Zuletzt: ${lastCooked}</span>`;
+    html += '</div>';
+
+    // Ingredients
+    if (recipe.ingredients && recipe.ingredients.length) {
+      html += `<div class="recipe-detail-section-header"><h5>Zutaten</h5><span class="cd-count">${recipe.ingredients.length}</span></div>`;
+      html += '<div class="recipe-detail-ingredients">';
+      for (const ing of recipe.ingredients) {
+        const desc = [ing.amount, ing.unit].filter(Boolean).join(' ');
+        html += `<div class="cd-ing-row"><span class="cd-ing-name">${esc(ing.name)}</span><span class="cd-ing-desc">${esc(desc)}</span></div>`;
+      }
+      html += '</div>';
+    }
+
+    // Instructions
+    if (recipe.instructions) {
+      html += `<div class="recipe-detail-section-header" style="margin-top:1rem"><h5>Zubereitung</h5></div>`;
+      html += `<div class="recipe-instructions-preview">${esc(recipe.instructions).replace(/\n/g, '<br>')}</div>`;
+    }
+
+    // Notes
+    if (recipe.notes) {
+      html += `<div class="recipe-detail-section-header" style="margin-top:1rem"><h5>Notizen</h5></div>`;
+      html += `<p class="recipe-detail-notes">${esc(recipe.notes).replace(/\n/g, '<br>')}</p>`;
+    }
+
+    // History
+    if (recipe.history && recipe.history.length) {
+      html += `<div class="recipe-detail-section-header" style="margin-top:1rem"><h5>Kochverlauf</h5></div>`;
+      html += '<div class="recipe-detail-history">';
+      for (const h of recipe.history.slice(0, 5)) {
+        const d = new Date(h.cooked_at).toLocaleDateString('de-DE');
+        const stars = h.rating ? ' — ' + '&#9733;'.repeat(h.rating) + '&#9734;'.repeat(5 - h.rating) : '';
+        html += `<div class="recipe-history-row"><span>${d}</span><span>${h.servings_cooked} Portionen${stars}</span></div>`;
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+
+    const titleHtml = `<span style="flex:1">${esc(recipe.title)}</span><button class="btn-small btn-primary" id="recipe-detail-edit" style="margin-left:auto;font-size:0.8rem">&#9998; Bearbeiten</button>`;
+    App.openModal(recipe.title, html);
+    // Replace modal title with title + edit button
+    const titleEl = document.getElementById('modal-title');
+    titleEl.innerHTML = titleHtml;
+    titleEl.style.display = 'flex';
+    titleEl.style.alignItems = 'center';
+    titleEl.style.gap = '0.75rem';
+
+    document.getElementById('recipe-detail-edit').addEventListener('click', () => {
+      openRecipeForm(id);
+    });
+  }
+
   /* ── Recipe Form (create/edit) ── */
   async function openRecipeForm(existingId) {
     let recipe = null;
@@ -91,6 +174,7 @@ const Recipes = (() => {
     const activeMin = isEdit ? (recipe.prep_time_active_minutes || '') : '';
     const passiveMin = isEdit ? (recipe.prep_time_passive_minutes || '') : '';
     const diff = isEdit ? recipe.difficulty : 'medium';
+    const instructions = isEdit ? (recipe.instructions || '') : '';
     const notes = isEdit ? (recipe.notes || '') : '';
     const ingredients = isEdit && recipe.ingredients ? recipe.ingredients : [];
 
@@ -126,6 +210,9 @@ const Recipes = (() => {
         </div>
       </div>
 
+      <label>Zubereitung</label>
+      <textarea name="instructions" rows="6" placeholder="Schritt-fuer-Schritt Anleitung...">${esc(instructions)}</textarea>
+
       <label>Notizen</label>
       <textarea name="notes" rows="2" placeholder="Tipps, Varianten...">${esc(notes)}</textarea>
 
@@ -149,6 +236,7 @@ const Recipes = (() => {
         difficulty: fd.get('difficulty'),
         prep_time_active_minutes: fd.get('prep_time_active_minutes') ? parseInt(fd.get('prep_time_active_minutes')) : null,
         prep_time_passive_minutes: fd.get('prep_time_passive_minutes') ? parseInt(fd.get('prep_time_passive_minutes')) : null,
+        instructions: fd.get('instructions') || null,
         notes: fd.get('notes') || null,
         ingredients: collectIngredients(),
       };
@@ -219,7 +307,7 @@ const Recipes = (() => {
     return result;
   }
 
-  /* ── Cookidoo Browser ── */
+  /* ── Import Dialog (URL + Cookidoo) ── */
   let cachedCollections = null;
   let cachedShoppingList = null;
   let navStack = [];
@@ -232,9 +320,154 @@ const Recipes = (() => {
 
   async function openCookidooBrowser() {
     navStack = [];
-    App.openModal('Rezepte Import',
-      '<div style="text-align:center;padding:3rem"><div class="spinner"></div><p style="margin-top:1rem;color:var(--text-light)">Lade Cookidoo-Daten...</p></div>');
     _setModalWide(true);
+    App.openModal('Rezepte Import', _renderImportHome());
+
+    // Wire up URL import form
+    document.getElementById('url-import-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await _parseUrl();
+    });
+
+    // Wire up Cookidoo browse button
+    document.getElementById('cookidoo-browse-btn')?.addEventListener('click', () => _openCookidooBrowser());
+  }
+
+  function _renderImportHome() {
+    return `<div id="import-home">
+      <div class="url-import-section">
+        <h4>&#127760; Link zu Rezept-Webseite</h4>
+        <p class="url-import-hint">Fuege einen Link von einer beliebigen Koch-Webseite ein (z.B. Chefkoch, Lecker, EatSmarter, ...)</p>
+        <form id="url-import-form" class="url-import-bar">
+          <input type="url" id="url-import-input" placeholder="https://www.chefkoch.de/rezepte/..." required>
+          <button type="submit" class="btn-small btn-primary" id="url-import-btn">Rezept laden</button>
+        </form>
+        <p class="url-import-error hidden" id="url-import-error"></p>
+      </div>
+      <div class="import-divider"><span>oder</span></div>
+      <div class="cookidoo-import-section">
+        <h4>&#129379; Cookidoo / Thermomix</h4>
+        <p class="url-import-hint">Durchsuche deine Cookidoo-Sammlungen und importiere Rezepte.</p>
+        <button class="btn-small" id="cookidoo-browse-btn">Cookidoo durchsuchen</button>
+      </div>
+    </div>`;
+  }
+
+  async function _parseUrl() {
+    const input = document.getElementById('url-import-input');
+    const btn = document.getElementById('url-import-btn');
+    const errEl = document.getElementById('url-import-error');
+    const url = input.value.trim();
+    if (!url) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Lade...';
+    errEl.classList.add('hidden');
+
+    try {
+      const preview = await API.post('/api/recipes/parse-url', { url });
+      _showUrlPreview(preview, url);
+    } catch (err) {
+      errEl.textContent = err.message || 'Rezept konnte nicht geladen werden';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Rezept laden';
+    }
+  }
+
+  function _showUrlPreview(data, originalUrl) {
+    _setModalWide(false);
+    const ingRows = (data.ingredients || []).map((ing, i) => ingredientRowHtml(i, ing)).join('');
+    const diffLabels = { easy: 'Einfach', medium: 'Mittel', hard: 'Aufwendig' };
+
+    let html = '<div class="url-preview">';
+    html += `<button class="cd-back-btn" onclick="Recipes._backToImportHome()">&#8592; Zurueck</button>`;
+
+    if (data.image_url) {
+      html += `<img class="cd-preview-hero" src="${esc(data.image_url)}" alt="" onerror="this.style.display='none'">`;
+    }
+    html += `<h3 class="cd-preview-title">${esc(data.title)}</h3>`;
+    html += '<div class="cd-preview-pills">';
+    html += `<span class="cd-pill">&#128101; ${data.servings} Portionen</span>`;
+    if (data.prep_time_active_minutes) html += `<span class="cd-pill">&#9202; ${data.prep_time_active_minutes} Min aktiv</span>`;
+    if (data.prep_time_passive_minutes) html += `<span class="cd-pill">&#9203; ${data.prep_time_passive_minutes} Min passiv</span>`;
+    html += '</div>';
+
+    if (data.ingredients && data.ingredients.length) {
+      html += `<div class="cd-preview-ing-header"><h5>Zutaten</h5><span class="cd-count">${data.ingredients.length} Stueck</span></div>`;
+      html += '<div class="cd-preview-ingredients">';
+      for (const ing of data.ingredients) {
+        const desc = [ing.amount, ing.unit].filter(Boolean).join(' ');
+        html += `<div class="cd-ing-row">
+          <span class="cd-ing-name">${esc(ing.name)}</span>
+          <span class="cd-ing-desc">${esc(desc)}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    if (data.instructions) {
+      html += `<div class="cd-preview-ing-header" style="margin-top:1rem"><h5>Zubereitung</h5></div>`;
+      html += `<div class="recipe-instructions-preview">${esc(data.instructions).replace(/\n/g, '<br>')}</div>`;
+    }
+
+    html += `<div class="cd-preview-footer">
+      <button class="btn-small btn-primary" id="url-import-confirm" style="font-size:1rem;padding:0.6rem 1.5rem">&#10010; In meine Rezepte importieren</button>
+    </div>`;
+    html += '</div>';
+
+    document.getElementById('modal-title').textContent = data.title;
+    document.getElementById('modal-body').innerHTML = html;
+
+    document.getElementById('url-import-confirm').addEventListener('click', async function() {
+      this.disabled = true;
+      this.textContent = 'Importiere...';
+      try {
+        const body = {
+          title: data.title,
+          source: 'web',
+          servings: data.servings,
+          prep_time_active_minutes: data.prep_time_active_minutes,
+          prep_time_passive_minutes: data.prep_time_passive_minutes,
+          difficulty: data.difficulty || 'medium',
+          instructions: data.instructions || null,
+          notes: data.source_url ? `Quelle: ${data.source_url}` : null,
+          image_url: data.image_url,
+          ingredients: (data.ingredients || []).map(ing => ({
+            name: ing.name,
+            amount: ing.amount,
+            unit: ing.unit,
+            category: ing.category || 'sonstiges',
+          })),
+        };
+        await API.post('/api/recipes/', body);
+        this.textContent = '\u2713 Importiert';
+        this.classList.remove('btn-primary');
+        this.classList.add('btn-success');
+        await refresh();
+        setTimeout(() => App.closeModal(), 800);
+      } catch (err) {
+        this.disabled = false;
+        this.textContent = 'Importieren';
+        alert('Import fehlgeschlagen: ' + err.message);
+      }
+    });
+  }
+
+  function _backToImportHome() {
+    _setModalWide(true);
+    document.getElementById('modal-title').textContent = 'Rezepte Import';
+    document.getElementById('modal-body').innerHTML = _renderImportHome();
+    document.getElementById('url-import-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await _parseUrl();
+    });
+    document.getElementById('cookidoo-browse-btn')?.addEventListener('click', () => _openCookidooBrowser());
+  }
+
+  async function _openCookidooBrowser() {
+    document.getElementById('modal-body').innerHTML =
+      '<div style="text-align:center;padding:3rem"><div class="spinner"></div><p style="margin-top:1rem;color:var(--text-light)">Lade Cookidoo-Daten...</p></div>';
 
     if (!cookidooAvailable) {
       try {
@@ -246,6 +479,7 @@ const Recipes = (() => {
     if (!cookidooAvailable) {
       document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center;padding:3rem">
+          <button class="cd-back-btn" onclick="Recipes._backToImportHome()" style="margin-bottom:1rem">&#8592; Zurueck</button>
           <div style="font-size:3rem;margin-bottom:1rem">&#128268;</div>
           <h4 style="margin-bottom:0.75rem;color:var(--text)">Cookidoo nicht verfuegbar</h4>
           <p style="color:var(--text-light);max-width:400px;margin:0 auto;line-height:1.6">
@@ -253,7 +487,6 @@ const Recipes = (() => {
             Bitte stelle sicher, dass die <strong>cookidoo-api</strong> installiert ist und
             <strong>COOKIDOO_EMAIL</strong> sowie <strong>COOKIDOO_PASSWORD</strong> in der .env-Datei konfiguriert sind.
           </p>
-          <button class="btn-small" style="margin-top:1.5rem" onclick="App.closeModal()">Schliessen</button>
         </div>`;
       return;
     }
@@ -268,10 +501,10 @@ const Recipes = (() => {
     } catch (err) {
       document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center;padding:3rem">
+          <button class="cd-back-btn" onclick="Recipes._backToImportHome()" style="margin-bottom:1rem">&#8592; Zurueck</button>
           <div style="font-size:3rem;margin-bottom:1rem">&#9888;</div>
           <h4 style="margin-bottom:0.75rem;color:var(--text)">Verbindungsfehler</h4>
           <p style="color:var(--text-light);max-width:400px;margin:0 auto">Cookidoo-Daten konnten nicht geladen werden: ${esc(err.message)}</p>
-          <button class="btn-small" style="margin-top:1.5rem" onclick="App.closeModal()">Schliessen</button>
         </div>`;
       return;
     }
@@ -378,7 +611,7 @@ const Recipes = (() => {
 
   function _goBack() {
     if (navStack.length <= 1) {
-      _renderCookidooMain();
+      _backToImportHome();
       return;
     }
     navStack.pop();
@@ -433,6 +666,11 @@ const Recipes = (() => {
         html += '</div>';
       }
 
+      if (d.instructions) {
+        html += `<div class="cd-preview-ing-header" style="margin-top:1rem"><h5>Zubereitung</h5></div>`;
+        html += `<div class="recipe-instructions-preview">${esc(d.instructions).replace(/\n/g, '<br>')}</div>`;
+      }
+
       if (d.url) {
         html += `<a href="${d.url}" target="_blank" rel="noopener" class="cd-link">Auf Cookidoo.de ansehen &#8599;</a>`;
       }
@@ -483,5 +721,5 @@ const Recipes = (() => {
     }
   }
 
-  return { init, refresh, edit: openRecipeForm, remove, openRecipeForm, openCookidooBrowser, openCookidooCollection, previewCookidoo, importFromCookidoo, _goBack };
+  return { init, refresh, edit: openRecipeForm, remove, openRecipeForm, openCookidooBrowser, openCookidooCollection, previewCookidoo, importFromCookidoo, _goBack, _backToImportHome };
 })();

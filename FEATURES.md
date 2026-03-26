@@ -121,8 +121,9 @@ Letzte Aktualisierung: 2026-03-25
 | Rezept bearbeiten | ✅ | ✅ | – | `PUT /api/recipes/{id}` |
 | Rezept loeschen | ✅ | ✅ | – | `DELETE /api/recipes/{id}` |
 | Rezeptvorschlaege (selten gekocht) | – | – | ✅ | `GET /api/recipes/suggestions` |
-| Kochhistorie anzeigen | – | ✅ | ✅ | `GET /api/recipes/{id}/history` |
+| Kochhistorie anzeigen | ✅ | ✅ | ✅ | `GET /api/meals/history` |
 | Bild-Anzeige (Cookidoo-Import) | ✅ | ✅ | – | `image_url` Feld |
+| URL-Import (beliebige Koch-Webseite) | ✅ | – | – | `POST /api/recipes/parse-url` |
 
 ---
 
@@ -137,6 +138,8 @@ Letzte Aktualisierung: 2026-03-25
 | Schnellrezept erstellen beim Zuweisen | ✅ | – | – | – |
 | Woche navigieren (vor/zurueck) | ✅ | ✅ | – | Query-Parameter `week` |
 | "Schon lange nicht gekocht" Hinweis | ✅ | – | – | Frontend-Logik (>28 Tage) |
+| Koch-Verlauf (letzte 10 Gerichte) | ✅ | – | – | `GET /api/meals/history` |
+| Drag & Drop aus Verlauf in Wochenplan | ✅ | – | – | Frontend-Logik |
 
 ---
 

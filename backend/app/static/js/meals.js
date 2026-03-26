@@ -6,6 +6,7 @@ const Meals = (() => {
   let currentWeekStart = null;
   let weekData = null;
   let allRecipes = [];
+  let cookingHistory = [];
   let lastAiMealIds = null;
   let lastAiUndoTimeout = null;
 
@@ -45,11 +46,15 @@ const Meals = (() => {
   async function loadWeek() {
     const param = currentWeekStart ? `?week=${App.formatDateISO(currentWeekStart)}` : '';
     try {
-      weekData = await API.get(`/api/meals/plan${param}`);
-      allRecipes = await API.get('/api/recipes/?sort_by=title&order=asc');
+      [weekData, allRecipes, cookingHistory] = await Promise.all([
+        API.get(`/api/meals/plan${param}`),
+        API.get('/api/recipes/?sort_by=title&order=asc'),
+        API.get('/api/meals/history?limit=10'),
+      ]);
     } catch (err) {
       weekData = null;
       allRecipes = [];
+      cookingHistory = [];
     }
     render();
   }
@@ -95,11 +100,103 @@ const Meals = (() => {
       html += '</div>';
     }
     grid.innerHTML = html;
+    renderCookingHistory();
+    _initDropTargets();
+  }
+
+  function renderCookingHistory() {
+    let container = document.getElementById('cooking-history');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'cooking-history';
+      document.getElementById('week-grid').after(container);
+    }
+
+    if (!cookingHistory || cookingHistory.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    // Deduplicate: show each recipe only once (most recent)
+    const seen = new Set();
+    const unique = [];
+    for (const entry of cookingHistory) {
+      if (!seen.has(entry.recipe_id)) {
+        seen.add(entry.recipe_id);
+        unique.push(entry);
+      }
+    }
+
+    let html = '<div class="history-header"><h3>Koch-Verlauf</h3><span class="history-hint">Zum Einplanen in den Wochenplan ziehen</span></div>';
+    html += '<div class="history-cards">';
+    for (const entry of unique) {
+      const dateStr = new Date(entry.cooked_at).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+      const ratingStr = entry.rating ? '&#9733;'.repeat(entry.rating) : '';
+      const diffClass = App.DIFFICULTY_CLASS[entry.recipe_difficulty] || '';
+      const diffLabel = App.DIFFICULTY_LABELS[entry.recipe_difficulty] || '';
+
+      html += `<div class="history-card" draggable="true"
+        data-recipe-id="${entry.recipe_id}" data-recipe-title="${esc(entry.recipe_title)}">
+        <div class="history-card-title">${esc(entry.recipe_title)}</div>
+        <div class="history-card-meta">
+          ${diffLabel ? `<span class="diff-badge ${diffClass}">${diffLabel}</span>` : ''}
+          <span class="history-card-date">${dateStr}</span>
+          ${ratingStr ? `<span class="history-card-rating">${ratingStr}</span>` : ''}
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Init drag on history cards
+    container.querySelectorAll('.history-card').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('application/recipe-id', card.dataset.recipeId);
+        e.dataTransfer.setData('text/plain', card.dataset.recipeTitle);
+        e.dataTransfer.effectAllowed = 'copy';
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.week-slot.drag-over').forEach(el => el.classList.remove('drag-over'));
+      });
+    });
+  }
+
+  function _initDropTargets() {
+    document.querySelectorAll('.week-slot.empty').forEach(slot => {
+      slot.addEventListener('dragover', (e) => {
+        if (e.dataTransfer.types.includes('application/recipe-id')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          slot.classList.add('drag-over');
+        }
+      });
+      slot.addEventListener('dragleave', () => {
+        slot.classList.remove('drag-over');
+      });
+      slot.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        slot.classList.remove('drag-over');
+        const recipeId = e.dataTransfer.getData('application/recipe-id');
+        if (!recipeId) return;
+
+        const dateStr = slot.dataset.date;
+        const slotKey = slot.dataset.slot;
+        try {
+          await API.put(`/api/meals/plan/${dateStr}/${slotKey}`, {
+            recipe_id: parseInt(recipeId),
+            servings_planned: 4,
+          });
+          await loadWeek();
+        } catch (err) { alert(err.message); }
+      });
+    });
   }
 
   function renderSlotCell(dateStr, slot, meal, isToday) {
     if (!meal) {
-      return `<div class="week-slot empty ${isToday ? 'today' : ''}" onclick="Meals.assignSlot('${dateStr}','${slot}')">
+      return `<div class="week-slot empty ${isToday ? 'today' : ''}" data-date="${dateStr}" data-slot="${slot}" onclick="Meals.assignSlot('${dateStr}','${slot}')">
         <span class="slot-placeholder">+ Rezept</span>
       </div>`;
     }

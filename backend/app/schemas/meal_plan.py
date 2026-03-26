@@ -66,3 +66,16 @@ class MarkCookedResponse(BaseModel):
 class WeekPlanResponse(BaseModel):
     week_start: date
     days: list[DayPlan]
+
+
+class CookingHistoryEntry(BaseModel):
+    id: int
+    recipe_id: int
+    recipe_title: str
+    recipe_difficulty: str | None = None
+    recipe_image_url: str | None = None
+    cooked_at: datetime
+    servings_cooked: int
+    rating: int | None = None
+
+    model_config = {"from_attributes": True}

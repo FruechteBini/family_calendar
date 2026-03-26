@@ -14,6 +14,7 @@ from ..models.meal_plan import MealPlan
 from ..models.pantry_item import PantryItem
 from ..models.recipe import Recipe
 from ..schemas.meal_plan import (
+    CookingHistoryEntry,
     DayPlan,
     MarkCookedRequest,
     MarkCookedResponse,
@@ -74,6 +75,37 @@ async def get_week_plan(
         ))
 
     return WeekPlanResponse(week_start=monday, days=days)
+
+
+@router.get("/history", response_model=list[CookingHistoryEntry])
+async def get_cooking_history(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    stmt = (
+        select(CookingHistory)
+        .join(Recipe)
+        .where(Recipe.family_id == family_id)
+        .options(selectinload(CookingHistory.recipe))
+        .order_by(CookingHistory.cooked_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    entries = result.scalars().unique().all()
+    return [
+        CookingHistoryEntry(
+            id=e.id,
+            recipe_id=e.recipe_id,
+            recipe_title=e.recipe.title,
+            recipe_difficulty=e.recipe.difficulty,
+            recipe_image_url=e.recipe.image_url,
+            cooked_at=e.cooked_at,
+            servings_cooked=e.servings_cooked,
+            rating=e.rating,
+        )
+        for e in entries
+    ]
 
 
 @router.put("/plan/{plan_date}/{slot}", response_model=MealSlotResponse)

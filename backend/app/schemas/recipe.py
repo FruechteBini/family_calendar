@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class RecipeSource(str, Enum):
     cookidoo = "cookidoo"
     manual = "manual"
+    web = "web"
 
 
 class Difficulty(str, Enum):
@@ -48,6 +49,7 @@ class RecipeCreate(BaseModel):
     prep_time_active_minutes: int | None = None
     prep_time_passive_minutes: int | None = None
     difficulty: Difficulty = Difficulty.medium
+    instructions: str | None = None
     notes: str | None = None
     image_url: str | None = None
     ai_accessible: bool = True
@@ -60,6 +62,7 @@ class RecipeUpdate(BaseModel):
     prep_time_active_minutes: int | None = None
     prep_time_passive_minutes: int | None = None
     difficulty: Difficulty | None = None
+    instructions: str | None = None
     notes: str | None = None
     image_url: str | None = None
     ai_accessible: bool | None = None
@@ -77,6 +80,7 @@ class RecipeResponse(BaseModel):
     difficulty: str
     last_cooked_at: datetime | None
     cook_count: int
+    instructions: str | None
     notes: str | None
     image_url: str | None
     ai_accessible: bool
@@ -113,3 +117,19 @@ class RecipeSuggestion(BaseModel):
     days_since_cooked: int | None
 
     model_config = {"from_attributes": True}
+
+
+class UrlImportRequest(BaseModel):
+    url: str
+
+
+class UrlImportPreview(BaseModel):
+    title: str
+    servings: int = 4
+    prep_time_active_minutes: int | None = None
+    prep_time_passive_minutes: int | None = None
+    difficulty: str = "medium"
+    instructions: str | None = None
+    image_url: str | None = None
+    source_url: str | None = None
+    ingredients: list[IngredientCreate] = []

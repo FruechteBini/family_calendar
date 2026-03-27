@@ -22,9 +22,10 @@ import de.familienkalender.app.data.local.db.entity.*
         CookingHistoryEntity::class,
         ShoppingListEntity::class,
         ShoppingItemEntity::class,
+        PantryItemEntity::class,
         PendingChangeEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
     abstract fun mealPlanDao(): MealPlanDao
     abstract fun shoppingDao(): ShoppingDao
+    abstract fun pantryDao(): PantryDao
     abstract fun pendingChangeDao(): PendingChangeDao
 
     companion object {

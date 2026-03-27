@@ -8,6 +8,9 @@ interface MealApi {
     @GET("api/meals/plan")
     suspend fun getWeekPlan(@Query("week") week: String? = null): WeekPlanResponse
 
+    @GET("api/meals/history")
+    suspend fun getHistory(@Query("limit") limit: Int = 10): List<CookingHistoryEntry>
+
     @PUT("api/meals/plan/{date}/{slot}")
     suspend fun setMealSlot(
         @Path("date") date: String,
@@ -26,5 +29,5 @@ interface MealApi {
         @Path("date") date: String,
         @Path("slot") slot: String,
         @Body request: MarkCookedRequest
-    ): MealSlotResponse
+    ): MarkCookedResponseDto
 }

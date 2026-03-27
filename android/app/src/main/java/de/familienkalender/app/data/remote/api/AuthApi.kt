@@ -16,4 +16,13 @@ interface AuthApi {
 
     @PATCH("api/auth/link-member")
     suspend fun linkMember(@Body request: LinkMemberRequest): UserResponse
+
+    @POST("api/auth/family")
+    suspend fun createFamily(@Body request: FamilyCreateRequest): FamilyResponse
+
+    @POST("api/auth/family/join")
+    suspend fun joinFamily(@Body request: FamilyJoinRequest): FamilyResponse
+
+    @GET("api/auth/family")
+    suspend fun getFamily(): FamilyResponse
 }

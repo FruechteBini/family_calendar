@@ -101,3 +101,5 @@ data class RecipeSuggestion(
     @SerializedName("cook_count") val cookCount: Int,
     @SerializedName("days_since_cooked") val daysSinceCooked: Int?
 )
+
+data class ParseUrlRequest(val url: String)

@@ -14,6 +14,7 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val isLoggedIn: Boolean = false,
+    val hasFamilyId: Boolean = false,
     val serverUrl: String = ""
 )
 
@@ -35,10 +36,13 @@ class LoginViewModel(
     fun login(username: String, password: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val result = authRepository.login(username, password)
-            result.fold(
-                onSuccess = {
-                    _uiState.value = _uiState.value.copy(isLoading = false, isLoggedIn = true)
+            authRepository.login(username, password).fold(
+                onSuccess = { user ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        hasFamilyId = user.familyId != null
+                    )
                 },
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
@@ -53,10 +57,13 @@ class LoginViewModel(
     fun register(username: String, password: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val result = authRepository.register(username, password)
-            result.fold(
-                onSuccess = {
-                    _uiState.value = _uiState.value.copy(isLoading = false, isLoggedIn = true)
+            authRepository.register(username, password).fold(
+                onSuccess = { user ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        hasFamilyId = user.familyId != null
+                    )
                 },
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
@@ -72,10 +79,13 @@ class LoginViewModel(
         if (tokenManager.isLoggedIn) {
             viewModelScope.launch {
                 _uiState.value = _uiState.value.copy(isLoading = true)
-                val result = authRepository.getMe()
-                result.fold(
-                    onSuccess = {
-                        _uiState.value = _uiState.value.copy(isLoading = false, isLoggedIn = true)
+                authRepository.getMe().fold(
+                    onSuccess = { user ->
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            isLoggedIn = true,
+                            hasFamilyId = user.familyId != null
+                        )
                     },
                     onFailure = {
                         tokenManager.clear()

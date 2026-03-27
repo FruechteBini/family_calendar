@@ -35,3 +35,26 @@ data class MarkCookedRequest(
     val rating: Int? = null,
     val notes: String? = null
 )
+
+data class MarkCookedResponseDto(
+    val id: Int,
+    @SerializedName("plan_date") val planDate: String,
+    val slot: String,
+    @SerializedName("recipe_id") val recipeId: Int,
+    @SerializedName("servings_planned") val servingsPlanned: Int,
+    val recipe: RecipeResponse,
+    @SerializedName("pantry_deductions") val pantryDeductions: List<PantryDeductionItem>,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String
+)
+
+data class CookingHistoryEntry(
+    val id: Int,
+    @SerializedName("recipe_id") val recipeId: Int,
+    @SerializedName("recipe_title") val recipeTitle: String,
+    @SerializedName("recipe_difficulty") val recipeDifficulty: String?,
+    @SerializedName("recipe_image_url") val recipeImageUrl: String?,
+    @SerializedName("cooked_at") val cookedAt: String,
+    @SerializedName("servings_cooked") val servingsCooked: Int,
+    val rating: Int?
+)

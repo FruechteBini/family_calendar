@@ -2,11 +2,8 @@ package de.familienkalender.app.ui.meals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarViewWeek
-import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -17,13 +14,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.familienkalender.app.FamilienkalenderApp
+import java.time.format.DateTimeFormatter
 
 private data class MealTab(val title: String, val icon: ImageVector)
 
 private val mealTabs = listOf(
     MealTab("Wochenplan", Icons.Outlined.CalendarViewWeek),
     MealTab("Rezepte", Icons.Outlined.MenuBook),
-    MealTab("Einkauf", Icons.Outlined.ShoppingCart)
+    MealTab("Einkauf", Icons.Outlined.ShoppingCart),
+    MealTab("Vorrat", Icons.Outlined.Kitchen)
 )
 
 @Composable
@@ -31,18 +30,23 @@ fun MealsScreen(app: FamilienkalenderApp) {
     val viewModel: MealsViewModel = viewModel(
         factory = MealsViewModel.Factory(
             app.mealPlanRepository, app.recipeRepository, app.shoppingRepository,
-            app.retrofitClient.cookidooApi
+            app.retrofitClient.cookidooApi, app.aiRepository
         )
+    )
+    val pantryViewModel: PantryViewModel = viewModel(
+        factory = PantryViewModel.Factory(app.pantryRepository)
     )
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    var showAiDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Surface(color = Color.White, modifier = Modifier.fillMaxWidth()) {
-            TabRow(
+            ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.White,
                 contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 0.dp,
                 indicator = { tabPositions ->
                     if (selectedTab < tabPositions.size) {
                         TabRowDefaults.SecondaryIndicator(
@@ -76,9 +80,30 @@ fun MealsScreen(app: FamilienkalenderApp) {
         }
 
         when (selectedTab) {
-            0 -> WeekPlanTab(viewModel)
+            0 -> WeekPlanTab(viewModel, onOpenAiDialog = { showAiDialog = true })
             1 -> RecipesTab(viewModel)
             2 -> ShoppingTab(viewModel)
+            3 -> PantryTab(pantryViewModel)
         }
+    }
+
+    if (showAiDialog) {
+        val currentWeekStart by viewModel.currentWeekStart.collectAsState()
+        val weekStr = currentWeekStart.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val aiVm: AiMealPlanViewModel = viewModel(
+            key = "ai_$weekStr",
+            factory = AiMealPlanViewModel.Factory(app.aiRepository, weekStr)
+        )
+
+        AiMealPlanDialog(
+            viewModel = aiVm,
+            onDismiss = { showAiDialog = false },
+            onConfirmed = { mealIds ->
+                viewModel.setUndoMealIds(mealIds)
+                viewModel.refreshAll()
+                showAiDialog = false
+            }
+        )
     }
 }

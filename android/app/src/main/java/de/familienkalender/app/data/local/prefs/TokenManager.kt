@@ -39,6 +39,13 @@ class TokenManager(context: Context) {
         get() = prefs.getInt(KEY_MEMBER_ID, -1)
         set(value) = prefs.edit().putInt(KEY_MEMBER_ID, value).apply()
 
+    var familyId: Int?
+        get() {
+            val v = prefs.getInt(KEY_FAMILY_ID, 0)
+            return if (v == 0) null else v
+        }
+        set(value) = prefs.edit().putInt(KEY_FAMILY_ID, value ?: 0).apply()
+
     var serverUrl: String
         get() = prefs.getString(KEY_SERVER_URL, BuildConfig.DEFAULT_SERVER_URL)
             ?: BuildConfig.DEFAULT_SERVER_URL
@@ -53,6 +60,7 @@ class TokenManager(context: Context) {
             .remove(KEY_USERNAME)
             .remove(KEY_USER_ID)
             .remove(KEY_MEMBER_ID)
+            .remove(KEY_FAMILY_ID)
             .apply()
     }
 
@@ -61,6 +69,7 @@ class TokenManager(context: Context) {
         private const val KEY_USERNAME = "username"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_MEMBER_ID = "member_id"
+        private const val KEY_FAMILY_ID = "family_id"
         private const val KEY_SERVER_URL = "server_url"
     }
 }

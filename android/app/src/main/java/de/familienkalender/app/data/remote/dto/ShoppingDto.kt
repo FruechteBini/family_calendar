@@ -6,6 +6,7 @@ data class ShoppingListResponse(
     val id: Int,
     @SerializedName("week_start_date") val weekStartDate: String,
     val status: String,
+    @SerializedName("sorted_by_store") val sortedByStore: String?,
     val items: List<ShoppingItemResponse>,
     @SerializedName("created_at") val createdAt: String
 )
@@ -21,6 +22,8 @@ data class ShoppingItemResponse(
     val source: String,
     @SerializedName("recipe_id") val recipeId: Int?,
     @SerializedName("ai_accessible") val aiAccessible: Boolean,
+    @SerializedName("sort_order") val sortOrder: Int?,
+    @SerializedName("store_section") val storeSection: String?,
     @SerializedName("created_at") val createdAt: String,
     @SerializedName("updated_at") val updatedAt: String
 )

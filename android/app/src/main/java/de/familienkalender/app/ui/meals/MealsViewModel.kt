@@ -8,6 +8,7 @@ import de.familienkalender.app.data.local.db.dao.RecipeWithIngredients
 import de.familienkalender.app.data.local.db.dao.ShoppingListWithItems
 import de.familienkalender.app.data.remote.api.CookidooApi
 import de.familienkalender.app.data.remote.dto.*
+import de.familienkalender.app.data.repository.AiRepository
 import de.familienkalender.app.data.repository.MealPlanRepository
 import de.familienkalender.app.data.repository.RecipeRepository
 import de.familienkalender.app.data.repository.ShoppingRepository
@@ -22,7 +23,8 @@ class MealsViewModel(
     private val mealPlanRepository: MealPlanRepository,
     private val recipeRepository: RecipeRepository,
     private val shoppingRepository: ShoppingRepository,
-    private val cookidooApi: CookidooApi
+    private val cookidooApi: CookidooApi,
+    private val aiRepository: AiRepository
 ) : ViewModel() {
 
     companion object {
@@ -46,7 +48,6 @@ class MealsViewModel(
     val shoppingList: StateFlow<ShoppingListWithItems?> = shoppingRepository.getActiveList()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // ── Cookidoo ──────────────────────────────────────────────────
     private val _cookidooAvailable = MutableStateFlow(false)
     val cookidooAvailable: StateFlow<Boolean> = _cookidooAvailable
 
@@ -61,6 +62,12 @@ class MealsViewModel(
 
     private val _cookidooImportStatus = MutableStateFlow<Map<String, String>>(emptyMap())
     val cookidooImportStatus: StateFlow<Map<String, String>> = _cookidooImportStatus
+
+    private val _undoMealIds = MutableStateFlow<List<Int>>(emptyList())
+    val undoMealIds: StateFlow<List<Int>> = _undoMealIds
+
+    private val _isSorting = MutableStateFlow(false)
+    val isSorting: StateFlow<Boolean> = _isSorting
 
     init {
         refreshAll()
@@ -118,8 +125,6 @@ class MealsViewModel(
             }
         }
     }
-
-    // ── Recipe CRUD ───────────────────────────────────────────────
 
     fun refreshAll() {
         viewModelScope.launch {
@@ -201,15 +206,47 @@ class MealsViewModel(
         viewModelScope.launch { shoppingRepository.deleteItem(id) }
     }
 
+    fun clearShoppingList() {
+        viewModelScope.launch { shoppingRepository.clearAll() }
+    }
+
+    fun aiSortShopping() {
+        viewModelScope.launch {
+            _isSorting.value = true
+            shoppingRepository.aiSort()
+            _isSorting.value = false
+        }
+    }
+
+    fun setUndoMealIds(mealIds: List<Int>) {
+        _undoMealIds.value = mealIds
+    }
+
+    fun undoAiPlan() {
+        viewModelScope.launch {
+            val ids = _undoMealIds.value
+            if (ids.isNotEmpty()) {
+                aiRepository.undoMealPlan(ids)
+                _undoMealIds.value = emptyList()
+                refreshAll()
+            }
+        }
+    }
+
+    fun dismissUndo() {
+        _undoMealIds.value = emptyList()
+    }
+
     class Factory(
         private val mealPlanRepository: MealPlanRepository,
         private val recipeRepository: RecipeRepository,
         private val shoppingRepository: ShoppingRepository,
-        private val cookidooApi: CookidooApi
+        private val cookidooApi: CookidooApi,
+        private val aiRepository: AiRepository
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MealsViewModel(mealPlanRepository, recipeRepository, shoppingRepository, cookidooApi) as T
+            return MealsViewModel(mealPlanRepository, recipeRepository, shoppingRepository, cookidooApi, aiRepository) as T
         }
     }
 }

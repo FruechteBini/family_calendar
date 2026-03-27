@@ -39,6 +39,7 @@ class SyncWorker(
         app.todoRepository.refresh()
         app.recipeRepository.refresh()
         app.shoppingRepository.refresh()
+        app.pantryRepository.refresh()
     }
 
     private suspend fun replayPendingChanges(app: FamilienkalenderApp) {

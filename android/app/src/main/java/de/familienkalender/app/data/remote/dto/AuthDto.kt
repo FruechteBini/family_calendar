@@ -24,6 +24,21 @@ data class LinkMemberRequest(
 data class UserResponse(
     val id: Int,
     val username: String,
+    @SerializedName("family_id") val familyId: Int?,
+    val family: FamilyResponse?,
     @SerializedName("member_id") val memberId: Int?,
     val member: FamilyMemberResponse?
+)
+
+data class FamilyCreateRequest(val name: String)
+
+data class FamilyJoinRequest(
+    @SerializedName("invite_code") val inviteCode: String
+)
+
+data class FamilyResponse(
+    val id: Int,
+    val name: String,
+    @SerializedName("invite_code") val inviteCode: String,
+    @SerializedName("created_at") val createdAt: String
 )

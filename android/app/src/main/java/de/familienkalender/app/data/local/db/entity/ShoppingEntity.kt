@@ -8,6 +8,7 @@ data class ShoppingListEntity(
     @PrimaryKey val id: Int,
     val weekStartDate: String,
     val status: String,
+    val sortedByStore: String?,
     val createdAt: String
 )
 
@@ -23,6 +24,8 @@ data class ShoppingItemEntity(
     val source: String,
     val recipeId: Int?,
     val aiAccessible: Boolean,
+    val sortOrder: Int?,
+    val storeSection: String?,
     val createdAt: String,
     val updatedAt: String
 )

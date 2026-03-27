@@ -65,10 +65,18 @@ class MealPlanRepository(
         }
     }
 
-    suspend fun markAsCooked(date: String, slot: String, request: MarkCookedRequest): Result<MealSlotResponse> {
+    suspend fun markAsCooked(date: String, slot: String, request: MarkCookedRequest): Result<MarkCookedResponseDto> {
         return try {
             val response = api.markAsCooked(date, slot, request)
-            dao.upsert(response.toEntity())
+            dao.upsert(MealPlanEntity(
+                id = response.id,
+                planDate = response.planDate,
+                slot = response.slot,
+                recipeId = response.recipeId,
+                servingsPlanned = response.servingsPlanned,
+                createdAt = response.createdAt,
+                updatedAt = response.updatedAt
+            ))
             recipeDao.upsert(response.recipe.toEntity())
             Result.success(response)
         } catch (e: Exception) {

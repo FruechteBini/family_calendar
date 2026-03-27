@@ -28,4 +28,7 @@ interface RecipeApi {
 
     @DELETE("api/recipes/{id}")
     suspend fun deleteRecipe(@Path("id") id: Int)
+
+    @POST("api/recipes/parse-url")
+    suspend fun parseUrl(@Body request: ParseUrlRequest): RecipeResponse
 }

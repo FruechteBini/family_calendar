@@ -1,5 +1,9 @@
 package de.familienkalender.app.ui.navigation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,10 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -27,6 +34,7 @@ import de.familienkalender.app.FamilienkalenderApp
 import de.familienkalender.app.data.remote.dto.PendingProposalDetail
 import de.familienkalender.app.data.remote.dto.ProposalRespondRequest
 import de.familienkalender.app.ui.calendar.CalendarScreen
+import de.familienkalender.app.ui.categories.CategoriesScreen
 import de.familienkalender.app.ui.common.ProposalRespondDialog
 import de.familienkalender.app.ui.common.SHORT_DATE_YEAR_GERMAN
 import de.familienkalender.app.ui.common.TIME_FORMAT
@@ -35,6 +43,7 @@ import de.familienkalender.app.ui.members.MembersScreen
 import de.familienkalender.app.ui.settings.SettingsScreen
 import de.familienkalender.app.ui.theme.Teal
 import de.familienkalender.app.ui.todos.TodosScreen
+import de.familienkalender.app.ui.voice.*
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -45,6 +54,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     data object Meals : Screen("meals", "Küche", Icons.Outlined.Restaurant, Icons.Filled.Restaurant)
     data object Members : Screen("members", "Familie", Icons.Outlined.People, Icons.Filled.People)
     data object Settings : Screen("settings", "Einstellungen", Icons.Outlined.Settings, Icons.Filled.Settings)
+    data object Categories : Screen("categories", "Kategorien", Icons.Outlined.Category, Icons.Filled.Category)
 }
 
 private val bottomNavItems = listOf(Screen.Calendar, Screen.Todos, Screen.Meals)
@@ -54,9 +64,26 @@ private val bottomNavItems = listOf(Screen.Calendar, Screen.Todos, Screen.Meals)
 fun AppNavigation(app: FamilienkalenderApp, onLogout: () -> Unit) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var pendingProposals by remember { mutableStateOf<List<PendingProposalDetail>>(emptyList()) }
     var showPendingDialog by remember { mutableStateOf(false) }
+
+    val voiceViewModel: VoiceViewModel = viewModel(
+        factory = VoiceViewModel.Factory(app.aiRepository)
+    )
+    val voiceState by voiceViewModel.uiState.collectAsState()
+    var showVoiceTextFallback by remember { mutableStateOf(false) }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            voiceViewModel.startListening(context)
+        } else {
+            showVoiceTextFallback = true
+        }
+    }
 
     LaunchedEffect(Unit) {
         pendingProposals = app.todoRepository.getPendingProposals()
@@ -78,6 +105,7 @@ fun AppNavigation(app: FamilienkalenderApp, onLogout: () -> Unit) {
                 Screen.Meals.route -> Screen.Meals.title
                 Screen.Members.route -> Screen.Members.title
                 Screen.Settings.route -> Screen.Settings.title
+                Screen.Categories.route -> Screen.Categories.title
                 else -> "Familienkalender"
             }
             val isTopLevel = currentRoute in bottomNavItems.map { it.route }
@@ -177,6 +205,26 @@ fun AppNavigation(app: FamilienkalenderApp, onLogout: () -> Unit) {
                     )
                 }
             }
+        },
+        floatingActionButton = {
+            VoiceFab(
+                state = voiceState,
+                onClick = {
+                    if (voiceState.state == VoiceState.LISTENING) {
+                        voiceViewModel.stopListening()
+                    } else {
+                        val hasMicPermission = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (hasMicPermission) {
+                            voiceViewModel.startListening(context)
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+                }
+            )
         }
     ) { innerPadding ->
         NavHost(
@@ -188,8 +236,40 @@ fun AppNavigation(app: FamilienkalenderApp, onLogout: () -> Unit) {
             composable(Screen.Todos.route) { TodosScreen(app) }
             composable(Screen.Meals.route) { MealsScreen(app) }
             composable(Screen.Members.route) { MembersScreen(app) }
-            composable(Screen.Settings.route) { SettingsScreen(app) }
+            composable(Screen.Settings.route) { SettingsScreen(app, onLogout) }
+            composable(Screen.Categories.route) { CategoriesScreen(app) }
         }
+    }
+
+    VoiceListeningOverlay(
+        state = voiceState,
+        onCancel = { voiceViewModel.reset() }
+    )
+
+    if (voiceState.state == VoiceState.RESULT && voiceState.result != null) {
+        VoiceResultDialog(
+            result = voiceState.result!!,
+            onDismiss = { voiceViewModel.reset() }
+        )
+    }
+
+    if (voiceState.state == VoiceState.ERROR && voiceState.error != null) {
+        AlertDialog(
+            onDismissRequest = { voiceViewModel.reset() },
+            title = { Text("Sprachbefehl") },
+            text = { Text(voiceState.error!!) },
+            confirmButton = { TextButton(onClick = { voiceViewModel.reset() }) { Text("OK") } }
+        )
+    }
+
+    if (showVoiceTextFallback) {
+        VoiceTextFallbackDialog(
+            onDismiss = { showVoiceTextFallback = false },
+            onSend = { text ->
+                showVoiceTextFallback = false
+                voiceViewModel.sendTextCommand(text)
+            }
+        )
     }
 
     if (showPendingDialog) {

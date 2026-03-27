@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.shape.RoundedCornerShape
 import de.familienkalender.app.data.remote.dto.DayPlan
 import de.familienkalender.app.data.remote.dto.MealSlotResponse
 import de.familienkalender.app.ui.common.SHORT_DATE_GERMAN
@@ -25,15 +27,15 @@ import java.time.temporal.ChronoUnit
 import java.util.*
 
 @Composable
-fun WeekPlanTab(viewModel: MealsViewModel) {
+fun WeekPlanTab(viewModel: MealsViewModel, onOpenAiDialog: () -> Unit = {}) {
     val weekPlan by viewModel.weekPlan.collectAsState()
     val currentWeekStart by viewModel.currentWeekStart.collectAsState()
     val recipes by viewModel.recipes.collectAsState()
-    var showRecipePicker by remember { mutableStateOf<Pair<String, String>?>(null) } // date, slot
-    var showCookDialog by remember { mutableStateOf<Pair<String, String>?>(null) } // date, slot
+    val undoMealIds by viewModel.undoMealIds.collectAsState()
+    var showRecipePicker by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showCookDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Week navigation
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -64,19 +66,48 @@ fun WeekPlanTab(viewModel: MealsViewModel) {
             }
         }
 
-        // Generate shopping list button
-        Button(
-            onClick = { viewModel.generateShoppingList() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Default.ShoppingCart, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Einkaufsliste generieren")
+            Button(
+                onClick = { viewModel.generateShoppingList() },
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Einkaufsliste")
+            }
+            Button(
+                onClick = onOpenAiDialog,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6554C0))
+            ) {
+                Text("🤖 KI-Plan")
+            }
         }
 
-        // Days
+        AnimatedVisibility(visible = undoMealIds.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("KI-Plan erstellt", color = Color.White, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.undoAiPlan() }) {
+                        Text("Rückgängig", color = Color(0xFFFF6B6B))
+                    }
+                    TextButton(onClick = { viewModel.dismissUndo() }) {
+                        Text("OK", color = Color.White)
+                    }
+                }
+            }
+        }
+
         val days = weekPlan?.days ?: emptyList()
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(days) { day ->
@@ -94,6 +125,7 @@ fun WeekPlanTab(viewModel: MealsViewModel) {
             }
         }
     }
+
 
     // Recipe picker dialog
     showRecipePicker?.let { (date, slot) ->

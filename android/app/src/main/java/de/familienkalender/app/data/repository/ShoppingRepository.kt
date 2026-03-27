@@ -73,6 +73,30 @@ class ShoppingRepository(
         }
     }
 
+    suspend fun clearAll(): Result<Unit> {
+        return try {
+            api.clearAll()
+            dao.deleteAllItems()
+            dao.deleteAllLists()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun aiSort(): Result<ShoppingListResponse> {
+        return try {
+            val response = api.aiSort()
+            dao.deleteAllItems()
+            dao.deleteAllLists()
+            dao.upsertList(response.toEntity())
+            dao.upsertItems(response.items.map { it.toEntity() })
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     companion object {
         private const val TAG = "ShoppingRepository"
     }
@@ -82,6 +106,7 @@ fun ShoppingListResponse.toEntity() = ShoppingListEntity(
     id = id,
     weekStartDate = weekStartDate,
     status = status,
+    sortedByStore = sortedByStore,
     createdAt = createdAt
 )
 
@@ -96,6 +121,8 @@ fun ShoppingItemResponse.toEntity() = ShoppingItemEntity(
     source = source,
     recipeId = recipeId,
     aiAccessible = aiAccessible,
+    sortOrder = sortOrder,
+    storeSection = storeSection,
     createdAt = createdAt,
     updatedAt = updatedAt
 )

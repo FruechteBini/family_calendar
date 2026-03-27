@@ -23,9 +23,9 @@ class RetrofitClient(private val tokenManager: TokenManager) {
     val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(AuthInterceptor(tokenManager))
         .addInterceptor(loggingInterceptor)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     @Volatile private var cachedRetrofit: Retrofit? = null
@@ -71,4 +71,7 @@ class RetrofitClient(private val tokenManager: TokenManager) {
     val mealApi: MealApi get() = getApi(MealApi::class.java)
     val shoppingApi: ShoppingApi get() = getApi(ShoppingApi::class.java)
     val cookidooApi: CookidooApi get() = getApi(CookidooApi::class.java)
+    val pantryApi: PantryApi get() = getApi(PantryApi::class.java)
+    val aiApi: AiApi get() = getApi(AiApi::class.java)
+    val knusprApi: KnusprApi get() = getApi(KnusprApi::class.java)
 }

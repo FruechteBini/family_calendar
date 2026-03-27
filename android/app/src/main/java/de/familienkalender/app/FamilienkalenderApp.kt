@@ -13,7 +13,6 @@ class FamilienkalenderApp : Application() {
     lateinit var retrofitClient: RetrofitClient
     lateinit var database: AppDatabase
 
-    // Repositories
     lateinit var authRepository: AuthRepository
     lateinit var memberRepository: FamilyMemberRepository
     lateinit var categoryRepository: CategoryRepository
@@ -22,6 +21,8 @@ class FamilienkalenderApp : Application() {
     lateinit var recipeRepository: RecipeRepository
     lateinit var mealPlanRepository: MealPlanRepository
     lateinit var shoppingRepository: ShoppingRepository
+    lateinit var pantryRepository: PantryRepository
+    lateinit var aiRepository: AiRepository
 
     override fun onCreate() {
         super.onCreate()
@@ -54,8 +55,11 @@ class FamilienkalenderApp : Application() {
         shoppingRepository = ShoppingRepository(
             retrofitClient.shoppingApi, database.shoppingDao()
         )
+        pantryRepository = PantryRepository(
+            retrofitClient.pantryApi, database.pantryDao()
+        )
+        aiRepository = AiRepository(retrofitClient.aiApi)
 
-        // Start periodic background sync
         SyncWorker.enqueuePeriodicSync(this)
     }
 }

@@ -19,12 +19,13 @@ import de.familienkalender.app.data.remote.dto.ShoppingItemCreate
 import de.familienkalender.app.ui.common.categoryEmoji
 import de.familienkalender.app.ui.common.categoryLabel
 
-private enum class ShoppingViewMode { Category, Recipe }
+private enum class ShoppingViewMode { Category, Recipe, AiSort }
 
 @Composable
 fun ShoppingTab(viewModel: MealsViewModel) {
     val shoppingList by viewModel.shoppingList.collectAsState()
     val recipes by viewModel.recipes.collectAsState()
+    val isSorting by viewModel.isSorting.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf(ShoppingViewMode.Category) }
 
@@ -72,12 +73,54 @@ fun ShoppingTab(viewModel: MealsViewModel) {
                     }
                 }
 
-                when (viewMode) {
-                    ShoppingViewMode.Category -> CategoryView(
-                        items = items,
-                        onCheck = { viewModel.checkShoppingItem(it) },
-                        onDelete = { viewModel.deleteShoppingItem(it) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { viewModel.aiSortShopping() },
+                        enabled = !isSorting
+                    ) {
+                        if (isSorting) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("🤖 KI-Sortieren")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { viewModel.clearShoppingList() },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Leeren")
+                    }
+                }
+
+                val sortedByStore = shoppingList?.list?.sortedByStore
+                if (sortedByStore != null) {
+                    Text(
+                        "Sortiert nach: $sortedByStore",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                     )
+                }
+
+                when (viewMode) {
+                    ShoppingViewMode.Category, ShoppingViewMode.AiSort -> {
+                        val sortedItems = if (sortedByStore != null) {
+                            items.sortedWith(compareBy({ it.storeSection ?: "" }, { it.sortOrder ?: Int.MAX_VALUE }))
+                        } else items
+                        val groupKey: (ShoppingItemEntity) -> String = if (sortedByStore != null) {
+                            { it.storeSection ?: it.category }
+                        } else {
+                            { it.category }
+                        }
+                        CategoryView(
+                            items = sortedItems,
+                            onCheck = { viewModel.checkShoppingItem(it) },
+                            onDelete = { viewModel.deleteShoppingItem(it) }
+                        )
+                    }
                     ShoppingViewMode.Recipe -> RecipeView(
                         items = items,
                         recipeNames = recipes.associate { it.recipe.id to it.recipe.title },

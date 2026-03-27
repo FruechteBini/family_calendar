@@ -2,10 +2,7 @@ package de.familienkalender.app.data.repository
 
 import de.familienkalender.app.data.local.prefs.TokenManager
 import de.familienkalender.app.data.remote.api.AuthApi
-import de.familienkalender.app.data.remote.dto.LinkMemberRequest
-import de.familienkalender.app.data.remote.dto.LoginRequest
-import de.familienkalender.app.data.remote.dto.SetupRequest
-import de.familienkalender.app.data.remote.dto.UserResponse
+import de.familienkalender.app.data.remote.dto.*
 
 class AuthRepository(
     private val api: AuthApi,
@@ -21,6 +18,7 @@ class AuthRepository(
             val user = api.getMe()
             tokenManager.userId = user.id
             user.memberId?.let { tokenManager.memberId = it }
+            user.familyId?.let { tokenManager.familyId = it }
 
             Result.success(user)
         } catch (e: Exception) {
@@ -30,8 +28,7 @@ class AuthRepository(
 
     suspend fun register(username: String, password: String): Result<UserResponse> {
         return try {
-            val user = api.register(SetupRequest(username, password))
-            // After registration, login to get token
+            api.register(SetupRequest(username, password))
             login(username, password)
         } catch (e: Exception) {
             Result.failure(e)
@@ -44,6 +41,7 @@ class AuthRepository(
             tokenManager.userId = user.id
             tokenManager.username = user.username
             user.memberId?.let { tokenManager.memberId = it }
+            user.familyId?.let { tokenManager.familyId = it }
             Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
@@ -60,9 +58,38 @@ class AuthRepository(
         }
     }
 
+    suspend fun createFamily(name: String): Result<FamilyResponse> {
+        return try {
+            val family = api.createFamily(FamilyCreateRequest(name))
+            tokenManager.familyId = family.id
+            Result.success(family)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun joinFamily(inviteCode: String): Result<FamilyResponse> {
+        return try {
+            val family = api.joinFamily(FamilyJoinRequest(inviteCode))
+            tokenManager.familyId = family.id
+            Result.success(family)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getFamily(): Result<FamilyResponse> {
+        return try {
+            Result.success(api.getFamily())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun logout() {
         tokenManager.clear()
     }
 
     val isLoggedIn: Boolean get() = tokenManager.isLoggedIn
+    val hasFamilyId: Boolean get() = tokenManager.familyId != null && tokenManager.familyId != 0
 }

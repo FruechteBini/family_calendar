@@ -1,0 +1,115 @@
+class Recipe {
+  final int id;
+  final String name;
+  final String? description;
+  final String difficulty; // einfach, mittel, schwer
+  final int? prepTime;
+  final String? imageUrl;
+  final String? sourceUrl;
+  final bool isCookidoo;
+  final String? cookidooId;
+  final List<Ingredient> ingredients;
+  final DateTime? lastCooked;
+  final int cookCount;
+
+  const Recipe({
+    required this.id,
+    required this.name,
+    this.description,
+    this.difficulty = 'mittel',
+    this.prepTime,
+    this.imageUrl,
+    this.sourceUrl,
+    this.isCookidoo = false,
+    this.cookidooId,
+    this.ingredients = const [],
+    this.lastCooked,
+    this.cookCount = 0,
+  });
+
+  factory Recipe.fromJson(Map<String, dynamic> json) {
+    return Recipe(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      description: json['description'] as String?,
+      difficulty: json['difficulty'] as String? ?? 'mittel',
+      prepTime: json['prep_time'] as int?,
+      imageUrl: json['image_url'] as String?,
+      sourceUrl: json['source_url'] as String?,
+      isCookidoo: json['is_cookidoo'] as bool? ?? false,
+      cookidooId: json['cookidoo_id'] as String?,
+      ingredients: (json['ingredients'] as List<dynamic>?)
+              ?.map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      lastCooked: json['last_cooked'] != null
+          ? DateTime.parse(json['last_cooked'] as String)
+          : null,
+      cookCount: json['cook_count'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      if (description != null) 'description': description,
+      'difficulty': difficulty,
+      if (prepTime != null) 'prep_time': prepTime,
+      if (imageUrl != null) 'image_url': imageUrl,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      'ingredients': ingredients.map((i) => i.toJson()).toList(),
+    };
+  }
+}
+
+class Ingredient {
+  final int? id;
+  final String name;
+  final double? amount;
+  final String? unit;
+
+  const Ingredient({this.id, required this.name, this.amount, this.unit});
+
+  factory Ingredient.fromJson(Map<String, dynamic> json) {
+    return Ingredient(
+      id: json['id'] as int?,
+      name: json['name'] as String,
+      amount: (json['amount'] as num?)?.toDouble(),
+      unit: json['unit'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      if (amount != null) 'amount': amount,
+      if (unit != null) 'unit': unit,
+    };
+  }
+}
+
+class CookingHistoryEntry {
+  final int id;
+  final int recipeId;
+  final String recipeName;
+  final DateTime cookedAt;
+  final int? rating;
+
+  const CookingHistoryEntry({
+    required this.id,
+    required this.recipeId,
+    required this.recipeName,
+    required this.cookedAt,
+    this.rating,
+  });
+
+  factory CookingHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return CookingHistoryEntry(
+      id: json['id'] as int,
+      recipeId: json['recipe_id'] as int,
+      recipeName: json['recipe_name'] as String,
+      cookedAt: DateTime.parse(json['cooked_at'] as String),
+      rating: json['rating'] as int?,
+    );
+  }
+}

@@ -1,17 +1,35 @@
 # PROJECT_INDEX.md — Familienkalender
 
+> **Android-Basispfad:** Alle `ANDROID/`-Pfade in diesem Dokument sind relativ zu
+> `android/app/src/main/java/de/familienkalender/app/`
+
+## Quick Lookup
+
+| Frage | Sektion |
+|-------|---------|
+| Welche Dateien brauche ich fuer Aufgabe X? | **8** (Aufgaben → Dateipfade) |
+| Wo beginnt Methode Y in grosser Datei? | **10** (Methodenkarte) |
+| Welche Schichten hat das Projekt? | **2** (Architektur) + **5** (Modulkarte) |
+| API-Endpunkte / Routen-Prefixe? | **4** (Routen-Definitionen) |
+| Gotchas, Fallstricke, Workarounds? | **9** (Bekannte Besonderheiten) |
+| Naming, Auth, Fehlerbehandlung? | **6** (Patterns + Konventionen) |
+| Env-Vars, externe APIs? | **7** (Abhaengigkeiten) |
+| Build-, Run-, Deploy-Befehle? | **12** (Quick Reference) |
+
+---
+
 ## 1. Projektsteckbrief
 
 | Feld | Wert |
 |------|------|
 | **Projektname** | Familienkalender |
-| **Typ** | Fullstack-Webapp + Android App + MCP-Server |
-| **Primaere Sprachen** | Python 3.12+ (Backend), Kotlin (Android), JavaScript (Frontend) |
-| **Frameworks** | FastAPI 0.135, Jetpack Compose (Android), Vanilla JS SPA |
-| **Paketmanager** | pip (requirements.txt), Gradle (Android) |
-| **Build-Tool** | uvicorn (dev), Docker (prod), Gradle (Android) |
-| **Datenbank** | PostgreSQL 16 via SQLAlchemy 2.0 (async, asyncpg) |
-| **State Management** | Backend: SQLAlchemy ORM; Frontend: Module-IIFE-Closures; Android: Room + Retrofit |
+| **Typ** | Fullstack-Webapp + Cross-Platform App (Flutter) + MCP-Server |
+| **Primaere Sprachen** | Python 3.12+ (Backend), Dart 3.3+ (Flutter), Kotlin (Android Legacy), Swift (iOS Legacy), JavaScript (Web Legacy) |
+| **Frameworks** | FastAPI 0.135, Flutter 3.24 + Riverpod 2 (Cross-Platform), Jetpack Compose (Android Legacy), SwiftUI (iOS Legacy), Vanilla JS SPA (Web Legacy) |
+| **Paketmanager** | pip (requirements.txt), Flutter/pub (pubspec.yaml), Gradle (Android Legacy) |
+| **Build-Tool** | uvicorn (dev), Docker (prod), Flutter CLI (cross-platform), Gradle (Android Legacy) |
+| **Datenbank** | PostgreSQL 16 via SQLAlchemy 2.0 (async, asyncpg); Client: Drift/SQLite (Flutter) |
+| **State Management** | Backend: SQLAlchemy ORM; Flutter: Riverpod + Drift; Android Legacy: Room + Retrofit; Web Legacy: IIFE-Closures |
 | **Auth** | JWT (python-jose + bcrypt), OAuth2PasswordBearer |
 
 ---
@@ -30,152 +48,44 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 ### Schichtenmodell
 | Schicht | Verantwortung | Pfad |
 |---------|---------------|------|
-| Praesentationsschicht | Vanilla JS SPA, HTML, CSS | `backend/app/static/` |
+| Praesentationsschicht | Vanilla JS SPA, HTML, CSS (Legacy) | `backend/app/static/` |
+| **Flutter Cross-Platform** | Dart/Flutter App (Web + Android + iOS) | `flutter/lib/` |
 | API-Schicht | FastAPI Router, Endpunkte, Auth | `backend/app/routers/` |
 | Validierungsschicht | Pydantic Schemas | `backend/app/schemas/` |
 | Geschaeftslogik | In Routern + Integrations | `backend/app/routers/`, `backend/integrations/` |
 | Persistenzschicht | SQLAlchemy ORM Models | `backend/app/models/` |
 | Externe Integrationen | Cookidoo, Knuspr Bridges | `backend/integrations/` |
 | MCP-Schicht | Claude AI Tools/Resources | `backend/mcp_server.py` |
-| Mobile Schicht | Kotlin/Compose Android App | `android/` |
+| Mobile Schicht (Legacy) | Kotlin/Compose Android + SwiftUI iOS | `android/`, `ios/` |
 
 ---
 
 ## 3. Verzeichnisstruktur
 
-```
-c:\git\webapps_docs\
-├── .gitignore
-├── PROJECT_INDEX.md                    ← Dieses Dokument
-│
-├── android\                            ← Android App (93 Kotlin-Dateien, ~11.500 Zeilen)
-│   ├── gradle\wrapper\                 ← Gradle Wrapper
-│   ├── build.gradle.kts                ← Projekt-Level Gradle (AGP 8.7.3, Kotlin 2.1.0)
-│   ├── app\build.gradle.kts            ← App-Level Gradle (Deps, SDK 35, Compose BOM 2024.12)
-│   └── app\src\main\
-│       ├── AndroidManifest.xml         ← Permissions: INTERNET, NETWORK, RECORD_AUDIO
-│       ├── java\de\familienkalender\app\
-│       │   ├── MainActivity.kt         ← Login → Family Onboarding → AppNavigation (62 Z.)
-│       │   ├── FamilienkalenderApp.kt  ← Service-Locator: 10 Repositories (65 Z.)
-│       │   ├── data\
-│       │   │   ├── local\
-│       │   │   │   ├── prefs\TokenManager.kt    ← Encrypted JWT + familyId + serverUrl (75 Z.)
-│       │   │   │   └── db\
-│       │   │   │       ├── AppDatabase.kt        ← Room v2, 15 Entities, 9 DAOs (61 Z.)
-│       │   │   │       ├── entity\               ← 9 Entities (Event, Todo, Recipe, MealPlan, Shopping, Pantry, Category, Member, PendingChange)
-│       │   │   │       └── dao\                  ← 9 DAOs mit Flow-Queries, Relations, Upsert
-│       │   │   ├── remote\
-│       │   │   │   ├── RetrofitClient.kt         ← 12 API-Getter, URL-Caching (77 Z.)
-│       │   │   │   ├── AuthInterceptor.kt        ← Bearer Token Header (26 Z.)
-│       │   │   │   ├── api\                      ← 12 Retrofit-Interfaces (Auth, Event, Todo, Category, Member, Recipe, Meal, Shopping, Cookidoo, Pantry, AI, Knuspr)
-│       │   │   │   └── dto\                      ← 13 DTO-Dateien mit @SerializedName (580 Z.)
-│       │   │   └── repository\                   ← 10 Repositories (1288 Z.)
-│       │   │       ├── AuthRepository.kt         ← Login, Register, Family create/join (95 Z.)
-│       │   │       ├── EventRepository.kt        ← Offline-Queue (131 Z.)
-│       │   │       ├── TodoRepository.kt         ← Proposals + Offline-Queue (222 Z.)
-│       │   │       ├── RecipeRepository.kt       ← Offline-Queue (147 Z.)
-│       │   │       ├── MealPlanRepository.kt     ← Kein Offline-Queue (96 Z.)
-│       │   │       ├── ShoppingRepository.kt     ← AI-Sort, Clear-All (128 Z.)
-│       │   │       ├── PantryRepository.kt       ← Alerts, Bulk-Add (114 Z.)
-│       │   │       ├── AiRepository.kt           ← Meal Plan + Voice (49 Z.)
-│       │   │       ├── CategoryRepository.kt     ← Offline-Queue (103 Z.)
-│       │   │       └── FamilyMemberRepository.kt ← Offline-Queue (104 Z.)
-│       │   ├── sync\SyncWorker.kt      ← WorkManager: Replay + Refresh alle 15min (116 Z.)
-│       │   └── ui\                     ← Compose UI-Screens
-│       │       ├── auth\               ← Login, Register, Family Onboarding (562 Z.)
-│       │       ├── calendar\           ← Multi-Mode Kalender (Month/Week/3-Day/Day) (958 Z.)
-│       │       ├── meals\              ← Wochenplan + Rezepte + Einkauf + Vorrat + AI (3268 Z.)
-│       │       ├── members\            ← Familienmitglieder CRUD (306 Z.)
-│       │       ├── todos\              ← Todo-Liste + Proposals (983 Z.)
-│       │       ├── categories\         ← Kategorie-Verwaltung CRUD (223 Z.)
-│       │       ├── settings\           ← Server-URL + Family-Info + Logout (153 Z.)
-│       │       ├── voice\              ← Voice FAB + Overlay + ViewModel (307 Z.)
-│       │       ├── navigation\         ← AppNavigation mit Voice FAB (397 Z.)
-│       │       ├── common\             ← Shared Components (241 Z.)
-│       │       └── theme\              ← Material 3 Theme (153 Z.)
-│       └── res\                        ← Android Resources
-│
-├── backend\                            ← FastAPI Backend + Frontend SPA
-│   ├── Dockerfile                      ← API-Container (python:3.12-slim)
-│   ├── Dockerfile.mcp                  ← MCP-Server-Container
-│   ├── docker-compose.yml              ← db + api + mcp Services
-│   ├── requirements.txt                ← Python-Abhaengigkeiten
-│   ├── requirements-mcp.txt            ← MCP-spezifische Abhaengigkeiten
-│   ├── alembic.ini                     ← Alembic-Konfiguration
-│   ├── mcp_server.py                   ← MCP-Server (1171 Zeilen)
-│   │
-│   ├── alembic\                        ← Migrationsumgebung (noch keine Versionen)
-│   │   └── env.py
-│   │
-│   ├── app\                            ← Haupt-Anwendungspaket
-│   │   ├── main.py                     ← FastAPI App, Lifespan, Router-Registrierung
-│   │   ├── config.py                   ← Pydantic Settings (.env)
-│   │   ├── database.py                 ← Async SQLAlchemy Engine + Session
-│   │   ├── auth.py                     ← JWT, Passwort-Hashing, get_current_user
-│   │   │
-│   │   ├── models\                     ← SQLAlchemy ORM Models
-│   │   │   ├── __init__.py             ← Re-exports aller Models
-│   │   │   ├── family.py              ← Family (Multi-Tenancy Kern-Entity)
-│   │   │   ├── user.py                 ← User (Accounts)
-│   │   │   ├── family_member.py        ← FamilyMember
-│   │   │   ├── category.py             ← Category (Events/Todos)
-│   │   │   ├── event.py                ← Event + event_members Assoc.
-│   │   │   ├── todo.py                 ← Todo (hierarchisch, mit Sub-Todos)
-│   │   │   ├── proposal.py             ← TodoProposal + ProposalResponse
-│   │   │   ├── recipe.py               ← Recipe (mit image_url)
-│   │   │   ├── ingredient.py           ← Ingredient (FK → Recipe)
-│   │   │   ├── meal_plan.py            ← MealPlan (date+slot → Recipe)
-│   │   │   ├── cooking_history.py      ← CookingHistory
-│   │   │   └── shopping_list.py        ← ShoppingList + ShoppingItem
-│   │   │
-│   │   ├── schemas\                    ← Pydantic Request/Response Schemas
-│   │   │   ├── auth.py                 ← Login, Register, UserResponse
-│   │   │   ├── family.py              ← FamilyCreate/Join/Response
-│   │   │   ├── category.py             ← CategoryCreate/Response
-│   │   │   ├── event.py                ← EventCreate/Update/Response
-│   │   │   ├── family_member.py        ← MemberCreate/Response
-│   │   │   ├── todo.py                 ← TodoCreate/Update/Response + SubtodoResponse
-│   │   │   ├── proposal.py             ← ProposalCreate/Respond/Detail
-│   │   │   ├── recipe.py               ← RecipeCreate/Update/Response + Enums
-│   │   │   ├── meal_plan.py            ← MealSlot/DayPlan/WeekPlanResponse
-│   │   │   └── shopping.py             ← ShoppingItem/ListResponse
-│   │   │
-│   │   ├── routers\                    ← FastAPI Route-Module
-│   │   │   ├── ai.py                   ← AI-Essensplanung mit Preview/Confirm/Undo (494 Z.)
-│   │   │   ├── auth.py                 ← Register, Login, Me, Link-Member
-│   │   │   ├── categories.py           ← Kategorie-CRUD
-│   │   │   ├── cookidoo.py             ← Cookidoo-Integration Endpunkte
-│   │   │   ├── events.py               ← Event-CRUD
-│   │   │   ├── family_members.py       ← Familienmitglieder-CRUD
-│   │   │   ├── knuspr.py               ← Knuspr-Integration Endpunkte
-│   │   │   ├── meals.py                ← Wochenplan CRUD + als-gekocht
-│   │   │   ├── proposals.py            ← Terminvorschlaege
-│   │   │   ├── recipes.py              ← Rezept-CRUD + History + Suggestions
-│   │   │   ├── shopping.py             ← Einkaufsliste + Generierung + KI-Sortierung
-│   │   │   └── todos.py               ← Todo-CRUD + Sub-Todos
-│   │   │
-│   │   └── static\                     ← Frontend SPA
-│   │       ├── index.html              ← Haupt-HTML (226 Zeilen)
-│   │       ├── css\
-│   │       │   └── style.css           ← Gesamtes Styling (1699 Zeilen)
-│   │       └── js\
-│   │           ├── api.js              ← Fetch-Wrapper, Token-Mgmt (46 Z.)
-│   │           ├── app.js              ← Auth, Navigation, Modal (315 Z.)
-│   │           ├── calendar.js         ← Monatskalender (222 Z.)
-│   │           ├── todos.js            ← Todo-Liste + Sub-Todos (284 Z.)
-│   │           ├── members.js          ← Familienmitglieder (117 Z.)
-│   │           ├── meals.js            ← Wochenplan-Grid + AI-Dialog (578 Z.)
-│   │           ├── recipes.js          ← Rezepte + Cookidoo-Browser (469 Z.)
-│   │           └── shopping.js         ← Einkaufsliste + KI-Sortierung (266 Z.)
-│   │
-│   ├── integrations\                   ← Externe Service-Bridges
-│   │   ├── cookidoo\
-│   │   │   ├── client.py              ← Cookidoo-API Wrapper (190 Z.)
-│   │   │   └── importer.py            ← Rezept-Import in lokale DB (94 Z.)
-│   │   └── knuspr\
-│   │       ├── client.py              ← Knuspr-API Wrapper (77 Z.)
-│   │       └── cart.py                ← Warenkorb-Logik (54 Z.)
-```
+> Detail-Pfade → Sektion 4 (Schluesseldateien), Sektion 8 (Aufgaben → Dateien)
+
+| Verzeichnis | Zweck | Inhalt |
+|-------------|-------|--------|
+| `backend/app/models/` | SQLAlchemy ORM | 13 Models (Family, User, Event, Todo, Proposal, Recipe, Ingredient, MealPlan, CookingHistory, ShoppingList, Category, FamilyMember) |
+| `backend/app/schemas/` | Pydantic Validierung | 10 Schema-Dateien (Create/Update/Response je Modul) |
+| `backend/app/routers/` | FastAPI Endpunkte | 12 Router (auth, events, todos, proposals, recipes, meals, shopping, cookidoo, knuspr, ai, categories, family_members) |
+| `backend/app/static/` | Frontend SPA | `index.html` (226 Z.), `css/style.css` (1699 Z.), `js/` (8 Module, ~2300 Z.) |
+| `backend/integrations/` | Externe Bridges | `cookidoo/` (client + importer), `knuspr/` (client + cart) |
+| `backend/mcp_server.py` | Claude MCP-Server | 1171 Zeilen, 28 Tools + 8 Resources |
+| `backend/alembic/` | DB-Migration | Konfiguriert, noch keine Versionen |
+| `ANDROID/data/local/db/` | Room DB | 9 Entities, 9 DAOs, `AppDatabase.kt` (Room v2) |
+| `ANDROID/data/local/prefs/` | Encrypted Prefs | `TokenManager.kt` (JWT, familyId, serverUrl) |
+| `ANDROID/data/remote/api/` | Retrofit Interfaces | 12 API-Interfaces |
+| `ANDROID/data/remote/dto/` | Transfer Objects | 13 DTO-Dateien (580 Z.) |
+| `ANDROID/data/repository/` | Business-Logik + Offline | 10 Repositories (1288 Z. gesamt) |
+| `ANDROID/ui/` | Compose Screens | 11 Packages: auth, calendar, meals, todos, members, categories, settings, voice, navigation, common, theme |
+| `ANDROID/sync/` | Background Sync | `SyncWorker.kt` (WorkManager, 15min-Intervall) |
+| **`flutter/lib/core/`** | **Flutter Kern-Infrastruktur** | API-Client (Dio), Auth (JWT + Riverpod), Theme (Material 3), Database (Drift), Sync-Service |
+| **`flutter/lib/features/`** | **Flutter Feature-Module** | 11 Features: auth, family, calendar, todos, recipes, meals, shopping, pantry, ai, cookidoo, knuspr, settings |
+| **`flutter/lib/shared/`** | **Flutter Shared Widgets/Utils** | Wiederverwendbare Widgets (MemberChip, CategoryPicker, Toast, Skeleton), DateUtils, Validators |
+| **`flutter/lib/app/`** | **Flutter App-Shell** | GoRouter-Konfiguration, App-Shell mit NavigationBar, Theme-Setup |
+| **`flutter/web/`** | **Flutter Web-Assets** | PWA manifest, index.html fuer Web-Build |
+| **`flutter/.github/`** | **Flutter CI/CD** | GitHub Actions Workflow (Web WASM + Android APK + iOS) |
 
 ---
 
@@ -186,8 +96,9 @@ c:\git\webapps_docs\
 |------|-------|
 | `backend/app/main.py` | FastAPI App, Lifespan, Router-Registrierung, Static Mount |
 | `backend/mcp_server.py` | MCP-Server fuer Claude-Integration (stdio/SSE) |
-| `android/app/src/main/java/.../MainActivity.kt` | Android App Einstiegspunkt |
-| `backend/app/static/index.html` | SPA Haupt-HTML |
+| **`flutter/lib/main.dart`** | **Flutter App Einstiegspunkt (Cross-Platform)** |
+| `ANDROID/MainActivity.kt` | Android App Einstiegspunkt (Legacy) |
+| `backend/app/static/index.html` | SPA Haupt-HTML (Legacy) |
 
 ### Konfigurationsdateien
 | Pfad | Konfiguriert |
@@ -200,6 +111,9 @@ c:\git\webapps_docs\
 | `backend/alembic.ini` | Alembic Migrations-Konfiguration |
 | `backend/requirements.txt` | Python-Abhaengigkeiten |
 | `backend/requirements-mcp.txt` | MCP-spezifische Abhaengigkeiten |
+| **`flutter/pubspec.yaml`** | **Flutter-Abhaengigkeiten (Riverpod, Dio, Drift, GoRouter, etc.)** |
+| **`flutter/Dockerfile`** | **Flutter Web Container Build (Nginx)** |
+| **`flutter/nginx.conf`** | **Nginx-Konfiguration fuer Flutter Web + API-Proxy** |
 | `.gitignore` | Git-Ausschluesse |
 
 ### Zentrale Typdefinitionen
@@ -225,15 +139,19 @@ c:\git\webapps_docs\
 | `backend/app/routers/categories.py` | `/api/categories` | CRUD |
 | `backend/app/routers/family_members.py` | `/api/family-members` | CRUD |
 
-### Schema-Dateien
-| Pfad | Zeilen |
-|------|--------|
+### Infrastruktur-Dateien
+| Pfad | Zweck |
+|------|-------|
 | `backend/app/database.py` | Async Engine, SessionMaker, Base, get_db |
 | `backend/alembic/env.py` | Alembic async Migration-Umgebung |
 
 ---
 
 ## 5. Modul- und Komponentenkarte
+
+> Backend-Pfade relativ zu `backend/app/`. Android-Pfade relativ zu `ANDROID/`. Flutter-Pfade relativ zu `flutter/lib/`.
+
+### Backend-Module
 
 | Modul | Zweck | Hauptdateien | Abhaengigkeiten |
 |-------|-------|-------------|-----------------|
@@ -244,21 +162,46 @@ c:\git\webapps_docs\
 | **Proposals** | Terminvorschlaege fuer Mehrpersonen-Todos | `routers/proposals.py`, `models/proposal.py`, `schemas/proposal.py` | Auth, Todos, FamilyMembers |
 | **Rezepte** | Rezeptverwaltung mit Zutaten | `routers/recipes.py`, `models/recipe.py`, `models/ingredient.py`, `schemas/recipe.py` | Auth |
 | **Essensplanung** | Wochenplan (7 Tage, Mittag/Abend) | `routers/meals.py`, `models/meal_plan.py`, `models/cooking_history.py`, `schemas/meal_plan.py` | Auth, Rezepte |
-| **Einkaufsliste** | Aus Wochenplan generiert, manuell erweiterbar, KI-Sortierung nach Supermarkt | `routers/shopping.py`, `models/shopping_list.py`, `schemas/shopping.py` | Auth, Rezepte, Essensplanung, anthropic |
+| **Einkaufsliste** | Aus Wochenplan generiert, KI-Sortierung | `routers/shopping.py`, `models/shopping_list.py`, `schemas/shopping.py` | Auth, Rezepte, Essensplanung, anthropic |
 | **Familienmitglieder** | Personenverwaltung | `routers/family_members.py`, `models/family_member.py`, `schemas/family_member.py` | Auth |
 | **Kategorien** | Event/Todo-Kategorien | `routers/categories.py`, `models/category.py`, `schemas/category.py` | Auth |
 | **Cookidoo** | Thermomix Rezept-Import | `routers/cookidoo.py`, `integrations/cookidoo/client.py`, `integrations/cookidoo/importer.py` | Auth, Rezepte, cookidoo-api |
 | **Knuspr** | Online-Supermarkt Integration | `routers/knuspr.py`, `integrations/knuspr/client.py`, `integrations/knuspr/cart.py` | Auth, Einkaufsliste, knuspr-api |
-| **AI** | KI-Essensplanung via Claude mit Preview/Confirm/Undo + Cookidoo-Rezeptpool | `routers/ai.py` | Auth, Rezepte, Cookidoo (optional), anthropic |
+| **AI** | KI-Essensplanung via Claude (Preview/Confirm/Undo) | `routers/ai.py` | Auth, Rezepte, Cookidoo (optional), anthropic |
 | **MCP-Server** | Claude Desktop Integration | `mcp_server.py` | Alle Backend-Models, mcp SDK |
-| **Frontend** | Vanilla JS SPA | `static/js/*.js`, `static/css/style.css`, `static/index.html` | Backend-API |
-| **Android Auth** | Login, Register, Family Onboarding | `ui/auth/LoginScreen.kt`, `ui/auth/FamilyOnboardingScreen.kt` | AuthRepository, TokenManager |
-| **Android Kalender** | Multi-Mode Kalenderansicht | `ui/calendar/CalendarScreen.kt`, `ui/calendar/CalendarViewModel.kt`, `ui/calendar/EventEditDialog.kt` | EventRepository, CategoryRepository |
-| **Android Todos** | Todo-Liste mit Sub-Todos und Proposals | `ui/todos/TodosScreen.kt`, `ui/todos/TodosViewModel.kt`, `ui/todos/ProposalDetailDialog.kt` | TodoRepository |
-| **Android Kueche** | Wochenplan, Rezepte, Einkauf, Vorrat, AI | `ui/meals/MealsScreen.kt` (Host), `ui/meals/WeekPlanTab.kt`, `ui/meals/RecipesTab.kt`, `ui/meals/ShoppingTab.kt`, `ui/meals/PantryTab.kt` | MealPlanRepository, RecipeRepository, ShoppingRepository, PantryRepository, AiRepository |
-| **Android AI** | KI-Essensplan + Sprachbefehle | `ui/meals/AiMealPlanSheet.kt`, `ui/meals/AiMealPlanViewModel.kt`, `ui/voice/VoiceOverlay.kt`, `ui/voice/VoiceViewModel.kt` | AiRepository, SpeechRecognizer |
-| **Android Kategorien** | Kategorie-CRUD mit Farbauswahl | `ui/categories/CategoriesScreen.kt`, `ui/categories/CategoriesViewModel.kt` | CategoryRepository |
-| **Android Data Layer** | Room + Retrofit + Offline-Queue | `data/local/`, `data/remote/`, `data/repository/`, `sync/SyncWorker.kt` | Room 2.6.1, Retrofit 2.11, WorkManager |
+
+### Flutter-Module (Cross-Platform)
+
+| Modul | Zweck | Hauptdateien | Abhaengigkeiten |
+|-------|-------|-------------|-----------------|
+| **Flutter Core/API** | Dio HTTP-Client, Endpoints, Auth-Interceptor | `core/api/api_client.dart`, `core/api/endpoints.dart`, `core/auth/auth_interceptor.dart` | Dio |
+| **Flutter Auth** | Login, Register, JWT-Persistenz, AuthState | `core/auth/auth_provider.dart`, `features/auth/presentation/login_screen.dart`, `features/auth/domain/user.dart` | Riverpod, flutter_secure_storage |
+| **Flutter Family** | Familie erstellen/beitreten Onboarding | `features/family/presentation/family_onboarding_screen.dart` | Auth |
+| **Flutter Kalender** | Monatsansicht, Day-Detail, Event CRUD | `features/calendar/domain/event.dart`, `features/calendar/data/event_repository.dart`, `features/calendar/presentation/calendar_screen.dart` | Auth, Members, Categories |
+| **Flutter Todos** | Todo CRUD, Proposals, Quick-Add, Filter | `features/todos/domain/todo.dart`, `features/todos/data/todo_repository.dart`, `features/todos/presentation/todo_list_screen.dart` | Auth, Categories, Members |
+| **Flutter Rezepte** | Rezept CRUD, URL-Import, Cookidoo-Browser | `features/recipes/domain/recipe.dart`, `features/recipes/data/recipe_repository.dart`, `features/recipes/presentation/recipe_list_screen.dart` | Auth |
+| **Flutter Essensplanung** | Wochenplan, Slot-Zuweisung, Gekocht-Markierung | `features/meals/domain/meal_plan.dart`, `features/meals/data/meal_repository.dart`, `features/meals/presentation/week_plan_screen.dart` | Auth, Rezepte |
+| **Flutter Einkaufsliste** | Generieren, KI-Sort, Items CRUD | `features/shopping/domain/shopping.dart`, `features/shopping/data/shopping_repository.dart`, `features/shopping/presentation/shopping_list_screen.dart` | Auth, Rezepte, Essensplanung |
+| **Flutter Vorratskammer** | Pantry CRUD, Bulk-Add, Alerts | `features/pantry/domain/pantry_item.dart`, `features/pantry/data/pantry_repository.dart`, `features/pantry/presentation/pantry_screen.dart` | Auth |
+| **Flutter AI** | KI-Essensplan Wizard, Voice FAB | `features/ai/domain/ai_models.dart`, `features/ai/data/ai_repository.dart`, `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/presentation/voice_fab.dart` | Auth, Rezepte, speech_to_text |
+| **Flutter Cookidoo** | Collections browsen, Rezept-Import | `features/cookidoo/domain/cookidoo.dart`, `features/cookidoo/data/cookidoo_repository.dart`, `features/cookidoo/presentation/cookidoo_browser.dart` | Auth, Rezepte |
+| **Flutter Knuspr** | Produktsuche, Warenkorb, Lieferslots | `features/knuspr/domain/knuspr.dart`, `features/knuspr/data/knuspr_repository.dart`, `features/knuspr/presentation/knuspr_screen.dart` | Auth, Einkaufsliste |
+| **Flutter Settings** | Theme, Server-URL, User/Family Info | `features/settings/presentation/settings_screen.dart` | Auth |
+| **Flutter Offline/Sync** | Drift DB, Pending-Queue, Background Sync | `core/database/app_database.dart`, `core/database/tables/tables.dart`, `core/sync/sync_service.dart`, `core/sync/pending_change.dart` | Drift, workmanager |
+| **Flutter Theme** | Material 3 Light/Dark, AppColors | `core/theme/app_theme.dart`, `core/theme/colors.dart` | — |
+| **Flutter Shared** | Wiederverwendbare Widgets, Utils | `shared/widgets/` (Toast, Skeleton, MemberChip, etc.), `shared/utils/` (DateUtils, Validators) | — |
+
+### Legacy-Module (Web + Android)
+
+| Modul | Zweck | Hauptdateien | Abhaengigkeiten |
+|-------|-------|-------------|-----------------|
+| **Frontend (Legacy)** | Vanilla JS SPA | `static/js/*.js`, `static/css/style.css`, `static/index.html` | Backend-API |
+| **Android Auth (Legacy)** | Login, Register, Family Onboarding | `ui/auth/LoginScreen.kt`, `ui/auth/FamilyOnboardingScreen.kt` | AuthRepository, TokenManager |
+| **Android Kalender (Legacy)** | Multi-Mode Kalenderansicht | `ui/calendar/CalendarScreen.kt`, `ui/calendar/CalendarViewModel.kt` | EventRepository, CategoryRepository |
+| **Android Todos (Legacy)** | Todo-Liste mit Sub-Todos und Proposals | `ui/todos/TodosScreen.kt`, `ui/todos/TodosViewModel.kt` | TodoRepository |
+| **Android Kueche (Legacy)** | Wochenplan, Rezepte, Einkauf, Vorrat, AI | `ui/meals/MealsScreen.kt` (Host), `ui/meals/WeekPlanTab.kt`, `ui/meals/RecipesTab.kt`, `ui/meals/ShoppingTab.kt`, `ui/meals/PantryTab.kt` | MealPlanRepository, RecipeRepository, ShoppingRepository, PantryRepository, AiRepository |
+| **Android AI (Legacy)** | KI-Essensplan + Sprachbefehle | `ui/meals/AiMealPlanSheet.kt`, `ui/voice/VoiceOverlay.kt`, `ui/voice/VoiceViewModel.kt` | AiRepository, SpeechRecognizer |
+| **Android Data Layer (Legacy)** | Room + Retrofit + Offline-Queue | `data/local/`, `data/remote/`, `data/repository/`, `sync/SyncWorker.kt` | Room 2.6.1, Retrofit 2.11, WorkManager |
 
 ---
 
@@ -266,15 +209,19 @@ c:\git\webapps_docs\
 
 ### Naming Conventions
 - **Python-Dateien**: snake_case (`meal_plan.py`, `cooking_history.py`)
-- **JS-Dateien**: snake_case (`meals.js`, `shopping.js`)
+- **Dart-Dateien**: snake_case (`meal_plan.dart`, `ai_models.dart`)
+- **JS-Dateien**: snake_case (`meals.js`, `shopping.js`) (Legacy)
 - **Klassen**: PascalCase (`MealPlan`, `ShoppingItem`, `CookingHistory`)
-- **Funktionen**: snake_case (Python), camelCase (JS)
+- **Funktionen**: snake_case (Python), camelCase (Dart, JS)
+- **Dart-Variablen**: camelCase, private mit `_` Prefix
 - **API-Pfade**: kebab-case (`/family-members/`, `/link-member`)
 - **DB-Tabellen**: snake_case Plural (`recipes`, `shopping_items`, `meal_plan`)
+- **Drift-Tabellen**: PascalCase Plural (`CachedEvents`, `PendingChanges`)
 
 ### Fehlerbehandlung
 - Backend: `HTTPException` mit spezifischen Status-Codes und deutschen Fehlermeldungen
-- Frontend: try/catch in async Funktionen, Fehleranzeige in `.modal-error` Elementen oder `alert()`
+- Flutter: try/catch um Repository-Calls, `ApiException` Klasse, Toast-Benachrichtigungen (`showAppToast`)
+- Frontend (Legacy): try/catch in async Funktionen, Fehleranzeige in `.modal-error` Elementen oder `alert()`
 - Externe Integrationen: Graceful Degradation (Cookidoo/Knuspr optional, `ImportError`-Guards)
 
 ### Logging
@@ -289,11 +236,15 @@ c:\git\webapps_docs\
 
 ### State Management
 - Backend: SQLAlchemy async Sessions, commit in `get_db` Dependency
-- Frontend: IIFE-Module mit Closure-Variablen (`recipes`, `weekData`, `allRecipes`)
-- Android: Room DB + EncryptedSharedPreferences (TokenManager) + StateFlow/Flow in ViewModels
-- Android Offline: `PendingChangeEntity` Queue → `SyncWorker` Replay (POST/PUT/PATCH/DELETE)
-- Android DI: Manueller Service-Locator in `FamilienkalenderApp` (kein Hilt/Koin)
-- Android Navigation: Jetpack Compose Navigation mit `NavHost`, sealed `Screen` Routen
+- **Flutter**: Riverpod 2 (`StateNotifierProvider`, `FutureProvider`); Drift/SQLite fuer lokale DB; `flutter_secure_storage` fuer JWT
+- **Flutter Offline**: `PendingChanges` Drift-Tabelle → `SyncService` Replay (alle Module konsistent)
+- **Flutter DI**: Riverpod Providers (kein Service-Locator)
+- **Flutter Navigation**: GoRouter mit `ShellRoute`, Auth-Redirect, `NoTransitionPage`
+- Frontend (Legacy): IIFE-Module mit Closure-Variablen (`recipes`, `weekData`, `allRecipes`)
+- Android (Legacy): Room DB + EncryptedSharedPreferences (TokenManager) + StateFlow/Flow in ViewModels
+- Android Offline (Legacy): `PendingChangeEntity` Queue → `SyncWorker` Replay (inkonsistent, nicht alle Module)
+- Android DI (Legacy): Manueller Service-Locator in `FamilienkalenderApp` (kein Hilt/Koin)
+- Android Navigation (Legacy): Jetpack Compose Navigation mit `NavHost`, sealed `Screen` Routen
 
 ### Testing
 - **Keine automatisierten Tests vorhanden** (kein pytest, unittest, oder Test-Dateien)
@@ -319,7 +270,18 @@ c:\git\webapps_docs\
 | knuspr-api | 0.3.0 | Knuspr.de Integration |
 | anthropic | >=0.42.0 | Claude AI API |
 | mcp[cli] | (requirements-mcp.txt) | MCP Server SDK |
-| **Android Dependencies** | | |
+| **Flutter (Cross-Platform)** | | |
+| flutter_riverpod | ^2.5.0 | State Management (Riverpod 2) |
+| dio | ^5.4.0 | HTTP Client |
+| go_router | ^14.0.0 | Deklaratives Routing |
+| drift + sqlite3_flutter_libs | ^2.15.0 | Lokale SQLite DB (Offline-Cache) |
+| flutter_secure_storage | ^9.0.0 | Sichere Token-Persistenz |
+| workmanager | ^0.5.0 | Background Sync (Android/iOS) |
+| speech_to_text | ^6.6.0 | Spracherkennung |
+| cached_network_image | ^3.3.0 | Bild-Caching |
+| intl | ^0.19.0 | Datumsformatierung/Lokalisierung |
+| uuid | ^4.0.0 | UUID-Generierung |
+| **Android (Legacy)** | | |
 | Compose BOM | 2024.12.01 | Jetpack Compose UI |
 | Navigation Compose | 2.8.5 | Screen-Navigation |
 | Retrofit | 2.11.0 | HTTP Client |
@@ -357,62 +319,99 @@ c:\git\webapps_docs\
 
 ## 8. Haeufige Aufgaben → Dateipfade
 
+> Backend-Pfade vollstaendig ab Repo-Root. Flutter-Pfade relativ zu `flutter/lib/`. Android-Pfade relativ zu `ANDROID/` (s. Dateikopf).
+
+### Backend
+
 | Aufgabe | Relevante Dateien |
 |---------|-------------------|
 | Neues DB-Model anlegen | `backend/app/models/`, `backend/app/models/__init__.py` |
 | Neuen API-Endpunkt hinzufuegen | `backend/app/routers/`, `backend/app/main.py` (Router registrieren) |
 | Pydantic Schema aendern | `backend/app/schemas/` |
-| Neuen Frontend-View anlegen | `backend/app/static/index.html` (HTML), `backend/app/static/js/` (JS), `backend/app/static/css/style.css` |
 | Auth/JWT aendern | `backend/app/auth.py`, `backend/app/routers/auth.py` |
 | Cookidoo-Integration erweitern | `backend/integrations/cookidoo/client.py`, `backend/app/routers/cookidoo.py` |
 | Knuspr-Integration erweitern | `backend/integrations/knuspr/client.py`, `backend/app/routers/knuspr.py` |
-| Rezeptverwaltung aendern | `backend/app/routers/recipes.py`, `backend/app/static/js/recipes.js` |
-| Essensplanung aendern | `backend/app/routers/meals.py`, `backend/app/static/js/meals.js` |
-| KI-Essensplanung aendern | `backend/app/routers/ai.py`, `backend/app/static/js/meals.js` (AI-Dialog ab Z.232) |
-| Einkaufsliste aendern | `backend/app/routers/shopping.py`, `backend/app/static/js/shopping.js` |
 | MCP-Tools hinzufuegen | `backend/mcp_server.py` |
-| Docker-Konfiguration | `backend/Dockerfile`, `backend/Dockerfile.mcp`, `backend/docker-compose.yml` |
+| Docker-Konfiguration (Backend) | `backend/Dockerfile`, `backend/Dockerfile.mcp`, `backend/docker-compose.yml` |
 | Umgebungsvariablen aendern | `backend/app/config.py`, `backend/.env` |
-| CSS/Styling aendern | `backend/app/static/css/style.css` |
-| Android UI aendern | `android/app/src/main/java/.../ui/` |
-| Android neues Feature hinzufuegen | DTO (`data/remote/dto/`), API (`data/remote/api/`), Entity+DAO (`data/local/db/`), Repository (`data/repository/`), ViewModel+Screen (`ui/`), `AppDatabase.kt`, `FamilienkalenderApp.kt`, `RetrofitClient.kt` |
-| Android Vorratskammer aendern | `ui/meals/PantryTab.kt`, `ui/meals/PantryViewModel.kt`, `data/remote/api/PantryApi.kt`, `data/repository/PantryRepository.kt` |
-| Android KI-Essensplanung aendern | `ui/meals/AiMealPlanSheet.kt`, `ui/meals/AiMealPlanViewModel.kt`, `data/remote/api/AiApi.kt`, `data/repository/AiRepository.kt` |
-| Android Sprachbefehle aendern | `ui/voice/VoiceOverlay.kt`, `ui/voice/VoiceViewModel.kt`, `ui/navigation/AppNavigation.kt` (FAB) |
-| Android Kategorie-Verwaltung | `ui/categories/CategoriesScreen.kt`, `ui/categories/CategoriesViewModel.kt` |
-| Android Navigation/Shell aendern | `ui/navigation/AppNavigation.kt`, `MainActivity.kt` |
-| Android Offline-Sync aendern | `sync/SyncWorker.kt`, `data/local/db/entity/PendingChangeEntity.kt`, Repositories |
-| Cache-Busting erhoehen | `backend/app/static/index.html` (Query-Parameter `?v=N` an allen `<script>` und `<link>`) |
 | Datenbank zuruecksetzen | `docker-compose exec db psql` (PostgreSQL zuruecksetzen) |
+
+### Flutter (Cross-Platform — Primaer)
+
+| Aufgabe | Relevante Dateien |
+|---------|-------------------|
+| Flutter neues Feature | Domain (`features/<name>/domain/`), Repository (`features/<name>/data/`), Screen (`features/<name>/presentation/`), Endpoint (`core/api/endpoints.dart`), ggf. Drift-Tabelle (`core/database/tables/tables.dart`) |
+| Flutter Kalender aendern | `features/calendar/presentation/calendar_screen.dart`, `features/calendar/data/event_repository.dart`, `features/calendar/domain/event.dart` |
+| Flutter Todos aendern | `features/todos/presentation/todo_list_screen.dart`, `features/todos/data/todo_repository.dart`, `features/todos/domain/todo.dart` |
+| Flutter Rezepte aendern | `features/recipes/presentation/recipe_list_screen.dart`, `features/recipes/data/recipe_repository.dart`, `features/recipes/domain/recipe.dart` |
+| Flutter Essensplanung | `features/meals/presentation/week_plan_screen.dart`, `features/meals/data/meal_repository.dart`, `features/meals/domain/meal_plan.dart` |
+| Flutter KI-Essensplanung | `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/data/ai_repository.dart`, `features/ai/domain/ai_models.dart` |
+| Flutter Einkaufsliste | `features/shopping/presentation/shopping_list_screen.dart`, `features/shopping/data/shopping_repository.dart`, `features/shopping/domain/shopping.dart` |
+| Flutter Vorratskammer | `features/pantry/presentation/pantry_screen.dart`, `features/pantry/data/pantry_repository.dart`, `features/pantry/domain/pantry_item.dart` |
+| Flutter Sprachbefehle | `features/ai/presentation/voice_fab.dart`, `features/ai/data/ai_repository.dart` |
+| Flutter Cookidoo | `features/cookidoo/presentation/cookidoo_browser.dart`, `features/cookidoo/data/cookidoo_repository.dart` |
+| Flutter Knuspr | `features/knuspr/presentation/knuspr_screen.dart`, `features/knuspr/data/knuspr_repository.dart` |
+| Flutter Auth aendern | `core/auth/auth_provider.dart`, `core/auth/auth_interceptor.dart`, `features/auth/presentation/login_screen.dart` |
+| Flutter Navigation/Shell | `app/router.dart`, `app/app_shell.dart` |
+| Flutter Theme/Styling | `core/theme/app_theme.dart`, `core/theme/colors.dart` |
+| Flutter Offline-Sync | `core/sync/sync_service.dart`, `core/sync/pending_change.dart`, `core/database/tables/tables.dart`, `core/database/app_database.dart` |
+| Flutter Shared Widgets | `shared/widgets/` (Toast, Skeleton, MemberChip, CategoryPicker, PriorityBadge, etc.) |
+| Flutter Docker (Web) | `flutter/Dockerfile`, `flutter/nginx.conf` |
+| Flutter CI/CD | `flutter/.github/workflows/build.yml` |
+| Flutter Abhaengigkeiten | `flutter/pubspec.yaml` |
+
+### Legacy (Web + Android)
+
+| Aufgabe | Relevante Dateien |
+|---------|-------------------|
+| Web Frontend-View (Legacy) | `backend/app/static/index.html`, `backend/app/static/js/`, `backend/app/static/css/style.css` |
+| CSS/Styling (Legacy) | `backend/app/static/css/style.css` |
+| Cache-Busting (Legacy) | `backend/app/static/index.html` (`?v=N` an `<script>` und `<link>`) |
+| Android UI (Legacy) | `ui/` |
+| Android neues Feature (Legacy) | DTO (`data/remote/dto/`), API (`data/remote/api/`), Entity+DAO (`data/local/db/`), Repository (`data/repository/`), ViewModel+Screen (`ui/`), `AppDatabase.kt`, `FamilienkalenderApp.kt`, `RetrofitClient.kt` |
+| Android Offline-Sync (Legacy) | `sync/SyncWorker.kt`, `data/local/db/entity/PendingChangeEntity.kt`, Repositories |
 
 ---
 
 ## 9. Bekannte Besonderheiten
 
-- **Kein Alembic-Migrationen**: Schema wird per `create_all` beim Start erstellt. Bei Schema-Aenderungen muss die DB manuell zurueckgesetzt werden (PostgreSQL: DROP/CREATE oder Alembic nutzen)
-- **Frontend ist kein Build-System**: Reines Vanilla JS, kein Bundler, kein TypeScript. Cache-Busting manuell per `?v=N` Query-Parameter
+### Backend
+- **Kein Alembic-Migrationen**: Schema wird per `create_all` beim Start erstellt. Bei Schema-Aenderungen muss die DB manuell zurueckgesetzt werden
 - **Externe Integrationen optional**: Cookidoo und Knuspr funktionieren nur mit installierten Libraries und konfigurierten Credentials. App funktioniert vollstaendig ohne
 - **MCP-Server eigene DB-Session**: `mcp_server.py` erstellt eigene SQLAlchemy-Engine, teilt sich keine Sessions mit der FastAPI-App
 - **CORS**: Komplett offen (`allow_origins=["*"]`), nur fuer Entwicklung geeignet
 - **bcrypt direkt statt passlib**: Wegen Python 3.14 / bcrypt>=5.0.0 Inkompatibilitaet mit passlib
-- **Cookidoo-API hat keine Suchfunktion**: Import erfolgt ueber Collections durchblaettern oder Shopping-List. Fuer KI-Essensplanung werden Rezeptnamen aus Collections als Zusatzpool an Claude gesendet
-- **AI-Essensplanung ist Preview-basiert**: generate-meal-plan speichert nicht direkt, sondern liefert Vorschlaege. Erst confirm-meal-plan schreibt in die DB. Undo per meal_ids moeglich (60s Timeout im Frontend)
-- **Datumsformatierung im Frontend**: `formatDateISO` nutzt lokale Datumskomponenten statt `toISOString()` um UTC-Verschiebung zu vermeiden
-- **Keine automatisierten Tests vorhanden**
-- **Multi-Tenancy per Row-Level family_id**: Alle Kern-Tabellen haben eine `family_id`-Spalte. Die `require_family_id` Dependency in `auth.py` stellt sicher, dass User nur auf Daten ihrer Familie zugreifen. MCP-Server nutzt konfigurierbare `MCP_FAMILY_ID` Umgebungsvariable
-- **Family-Erstellung seedet Default-Kategorien**: Beim Anlegen einer neuen Familie werden automatisch 5 Standard-Kategorien (Arbeit, Familie, Gesundheit, Einkauf, Sonstiges) erstellt
-- **Android: Kein DI-Framework**: Manueller Service-Locator in `FamilienkalenderApp.kt` statt Hilt/Koin. Alle Repositories werden in `onCreate()` instanziiert
-- **Android: Room `fallbackToDestructiveMigration()`**: Schema-Aenderungen loeschen lokale Daten. Aktuell Room Version 2 (nach Pantry-Entity-Hinzufuegung)
-- **Android: Offline-Queue inkonsistent**: Events, Todos, Recipes, Categories, Members haben Offline-Queue (`PendingChangeEntity`); MealPlan und Shopping nicht
-- **Android: `usesCleartextTraffic="true"`**: Fuer LAN-Entwicklung; muss fuer Produktion geaendert werden
-- **Android: HTTP-Logging Level BODY**: Im Release-Build via ProGuard strip oder Level aendern
-- **Android: 60s Timeouts**: Retrofit Timeouts auf 60s fuer AI-Calls (Claude kann langsam sein)
-- **Android: Voice FAB global**: Sprachbefehle via FAB in AppNavigation verfuegbar, nicht nur in einzelnen Screens
-- **Android: Family Onboarding Flow**: Login → Family-Check → Onboarding (erstellen/beitreten) → App. Flow in `MainActivity.kt`
+- **Cookidoo-API hat keine Suchfunktion**: Import erfolgt ueber Collections durchblaettern oder Shopping-List
+- **AI-Essensplanung ist Preview-basiert**: generate-meal-plan speichert nicht direkt, erst confirm-meal-plan schreibt in die DB. Undo per meal_ids moeglich
+- **Multi-Tenancy per Row-Level family_id**: Alle Kern-Tabellen haben eine `family_id`-Spalte. `require_family_id` Dependency in `auth.py` sichert Zugriff
+- **Family-Erstellung seedet Default-Kategorien**: 5 Standard-Kategorien bei Familien-Erstellung
+
+### Flutter (Cross-Platform — Neu)
+- **Ersetzt 3 separate Codebases**: Flutter-App (`flutter/`) ersetzt Web (Vanilla JS), Android (Kotlin), iOS (Swift) — Reduktion von ~26.600 auf ~8.100 LOC (~70%)
+- **Kein Flutter SDK fuer Generierung noetig**: Projektstruktur wurde manuell erstellt, `flutter pub get` und Build erfordern Flutter SDK
+- **Drift Code-Generierung**: `app_database.g.dart` muss per `dart run build_runner build` generiert werden
+- **Material 3**: Durchgehend Material 3 Design mit Light/Dark-Mode, `ColorScheme.fromSeed`
+- **Offline konsistent**: Anders als Android-Legacy hat Flutter Offline-Queue fuer ALLE Module (Events, Todos, Recipes, Categories, Members, Shopping, Pantry)
+- **GoRouter Auth-Redirect**: Unauthentifizierte User werden automatisch zu `/login` umgeleitet, User ohne Familie zu `/family-onboarding`
+- **Voice FAB global**: `VoiceFAB` in `AppShell` eingebunden, auf allen Screens verfuegbar
+- **Server-URL konfigurierbar**: User kann Backend-URL in Login-Screen und Settings aendern (gespeichert in Secure Storage)
+- **PWA-faehig**: Web-Build inkludiert `manifest.json`, Service-Worker-ready
+- **Nginx-Proxy**: Flutter Web Docker-Container proxied `/api/` Requests an Backend (kein CORS noetig)
+- **CI/CD**: GitHub Actions baut Web (WASM), Android (APK), iOS (no-codesign) bei Push auf `main`
+
+### Legacy (Web + Android)
+- **Web Frontend kein Build-System**: Reines Vanilla JS, kein Bundler. Cache-Busting manuell per `?v=N`
+- **Android: Kein DI-Framework**: Manueller Service-Locator in `FamilienkalenderApp.kt` statt Hilt/Koin
+- **Android: Room `fallbackToDestructiveMigration()`**: Schema-Aenderungen loeschen lokale Daten
+- **Android: Offline-Queue inkonsistent**: Nur Events, Todos, Recipes, Categories, Members
+- **Android: `usesCleartextTraffic="true"`**: Fuer LAN-Entwicklung
+- **Android: 60s Timeouts**: Retrofit Timeouts auf 60s fuer AI-Calls
 
 ---
 
-## 10. Methodenkarte fuer grosse Dateien (>300 Zeilen)
+## 10. Methodenkarte fuer grosse Dateien
+
+> Fuer Dateien >300 Zeilen. Ermoeglicht gezieltes Lesen per Zeilen-Offset statt gesamte Datei.
 
 ### `backend/app/routers/ai.py` (494 Zeilen)
 
@@ -426,45 +425,18 @@ c:\git\webapps_docs\
 
 ### `backend/mcp_server.py` (1171 Zeilen)
 
-| Methode | Zeile | Zweck |
-|---------|-------|-------|
-| `get_db` | 54 | Async SQLAlchemy Session oeffnen |
-| `get_events` | 186 | MCP Tool: Events mit optionalem Datumsbereich und Kategorie-Filter |
-| `create_event` | 214 | MCP Tool: Event erstellen |
-| `update_event` | 249 | MCP Tool: Event teilweise aktualisieren |
-| `delete_event` | 293 | MCP Tool: Event loeschen |
-| `get_todos` | 312 | MCP Tool: Todos mit Filtern |
-| `create_todo` | 341 | MCP Tool: Todo erstellen |
-| `complete_todo` | 376 | MCP Tool: Todo abschliessen/oeffnen |
-| `delete_todo` | 399 | MCP Tool: Todo loeschen |
-| `get_agenda` | 418 | MCP Tool: Agenda (Events + Todos) fuer Zeitraum |
-| `get_open_todos_by_category` | 465 | MCP Tool: Offene Todos nach Kategorie gruppiert |
-| `link_todo_to_event` | 489 | MCP Tool: Todo mit Event verknuepfen |
-| `get_meal_plan` | 517 | MCP Tool: Wochenplan abrufen |
-| `set_meal_slot` | 556 | MCP Tool: Slot mit Rezept belegen |
-| `mark_as_cooked` | 608 | MCP Tool: Als gekocht markieren + History |
-| `get_cooking_history` | 664 | MCP Tool: Kochhistorie eines Rezepts |
-| `get_recipe_suggestions` | 700 | MCP Tool: Rezeptvorschlaege |
-| `get_shopping_list` | 763 | MCP Tool: Aktive Einkaufsliste |
-| `generate_shopping_list` | 798 | MCP Tool: Einkaufsliste aus Wochenplan generieren |
-| `add_shopping_item` | 875 | MCP Tool: Manuellen Artikel hinzufuegen |
-| `check_shopping_item` | 919 | MCP Tool: Artikel abhaken |
-| `get_cookidoo_recipe` | 941 | MCP Tool: Cookidoo-Rezeptdetails |
-| `import_recipe_to_plan` | 956 | MCP Tool: Cookidoo-Rezept importieren |
-| `sync_cookidoo_week` | 978 | MCP Tool: Cookidoo-Kalender abrufen |
-| `search_knuspr_product` | 994 | MCP Tool: Knuspr-Produktsuche |
-| `add_to_knuspr_cart` | 1009 | MCP Tool: Produkt in Knuspr-Warenkorb |
-| `send_shopping_list_to_knuspr` | 1025 | MCP Tool: Einkaufsliste an Knuspr senden |
-| `get_knuspr_delivery_slots` | 1042 | MCP Tool: Knuspr-Lieferslots |
-| `clear_knuspr_cart` | 1055 | MCP Tool: Knuspr-Warenkorb leeren |
-| `resource_today` | 1073 | MCP Resource: `calendar://today` |
-| `resource_week` | 1080 | MCP Resource: `calendar://week` |
-| `resource_open_todos` | 1089 | MCP Resource: `todos://open` |
-| `resource_high_priority` | 1095 | MCP Resource: `todos://high-priority` |
-| `resource_shopping_list` | 1101 | MCP Resource: `shopping://current-list` |
-| `resource_shopping_week_plan` | 1107 | MCP Resource: `shopping://week-plan` |
-| `resource_recipe_suggestions` | 1118 | MCP Resource: `recipes://suggestions` |
-| `resource_cooking_history_90d` | 1124 | MCP Resource: `recipes://history` |
+| Bereich | Methoden | Zeilen |
+|---------|----------|--------|
+| Setup | `get_db` | 54 |
+| Events | `get_events`, `create_event`, `update_event`, `delete_event` | 186–310 |
+| Todos | `get_todos`, `create_todo`, `complete_todo`, `delete_todo` | 312–416 |
+| Agenda/Links | `get_agenda`, `get_open_todos_by_category`, `link_todo_to_event` | 418–515 |
+| Meals | `get_meal_plan`, `set_meal_slot`, `mark_as_cooked` | 517–662 |
+| Recipes | `get_cooking_history`, `get_recipe_suggestions` | 664–761 |
+| Shopping | `get_shopping_list`, `generate_shopping_list`, `add_shopping_item`, `check_shopping_item` | 763–938 |
+| Cookidoo | `get_cookidoo_recipe`, `import_recipe_to_plan`, `sync_cookidoo_week` | 941–992 |
+| Knuspr | `search_knuspr_product`, `add_to_knuspr_cart`, `send_shopping_list_to_knuspr`, `get_knuspr_delivery_slots`, `clear_knuspr_cart` | 994–1070 |
+| Resources | `resource_today`, `resource_week`, `resource_open_todos`, `resource_high_priority`, `resource_shopping_list`, `resource_shopping_week_plan`, `resource_recipe_suggestions`, `resource_cooking_history_90d` | 1073–1130 |
 
 ### `backend/app/static/js/app.js` (315 Zeilen)
 
@@ -539,26 +511,26 @@ c:\git\webapps_docs\
 
 ### `backend/app/static/css/style.css` (1699 Zeilen)
 
-| Bereich | Zeile (ca.) | Inhalt |
-|---------|-------------|--------|
-| CSS-Variablen | 1-20 | Farben, Schatten, Radien |
-| Basis-Layout | 20-60 | Body, Topbar, Navigation |
-| Auth-Screen | 60-120 | Login/Register |
-| Kalender | 120-250 | Monatsgrid, Tageszellen, Events |
-| Todos | 250-400 | Liste, Items, Sub-Todos, Badges |
-| Modal | 480-510 | Overlay, Modal-Box, Header, Footer |
-| Familienmitglieder | 510-570 | Karten-Grid |
-| Wochenplan | 580-710 | Week-Grid, Slots, Diff-Badges |
-| Einkaufsliste | 710-780 | Kategorien, Items, Check-Buttons |
-| Shopping Store Picker (KI-Sort) | 922-980 | Store-Picker, Sort-Badge, Section-Header |
-| Rezepte | 980-1060 | Grid-Karten, Bilder, Badges |
-| Zutaten-Formular | 1060-1090 | Ingredient-Rows |
-| Cookidoo-Browser | 1090-1320 | Collections, Karten, Vorschau, Spinner |
-| AI Meal Plan Dialog | 1320-1550 | Slot-Grid, Cookidoo-Toggle, Preview-Tabelle, Source-Badges, Undo-Bar |
-| AI Reasoning Popup | 1600-1665 | Begruendungs-Button, Overlay-Popup, Animation |
-| Responsive | 1668-1699 | Mobile Breakpoints (inkl. AI-Responsive) |
+| Bereich | Zeilen (ca.) | Inhalt |
+|---------|--------------|--------|
+| CSS-Variablen | 1–20 | Farben, Schatten, Radien |
+| Basis-Layout | 20–60 | Body, Topbar, Navigation |
+| Auth-Screen | 60–120 | Login/Register |
+| Kalender | 120–250 | Monatsgrid, Tageszellen, Events |
+| Todos | 250–400 | Liste, Items, Sub-Todos, Badges |
+| Modal | 480–510 | Overlay, Modal-Box, Header, Footer |
+| Familienmitglieder | 510–570 | Karten-Grid |
+| Wochenplan | 580–710 | Week-Grid, Slots, Diff-Badges |
+| Einkaufsliste | 710–780 | Kategorien, Items, Check-Buttons |
+| Shopping Store Picker | 922–980 | Store-Picker, Sort-Badge, Section-Header |
+| Rezepte | 980–1060 | Grid-Karten, Bilder, Badges |
+| Zutaten-Formular | 1060–1090 | Ingredient-Rows |
+| Cookidoo-Browser | 1090–1320 | Collections, Karten, Vorschau, Spinner |
+| AI Meal Plan Dialog | 1320–1550 | Slot-Grid, Cookidoo-Toggle, Preview-Tabelle, Source-Badges, Undo-Bar |
+| AI Reasoning Popup | 1600–1665 | Begruendungs-Button, Overlay-Popup, Animation |
+| Responsive | 1668–1699 | Mobile Breakpoints (inkl. AI-Responsive) |
 
-### `android/.../ui/meals/RecipesTab.kt` (571 Zeilen)
+### `ANDROID/ui/meals/RecipesTab.kt` (571 Zeilen)
 
 | Funktion | Zeile | Zweck |
 |----------|-------|-------|
@@ -568,7 +540,7 @@ c:\git\webapps_docs\
 | `StatChip` | 392 | Kleine Info-Chips (Schwierigkeit, Zeit) |
 | `RecipeFormDialog` | 404 | Erstellen/Bearbeiten-Modal mit Zutatenformular |
 
-### `android/.../ui/calendar/CalendarScreen.kt` (485 Zeilen)
+### `ANDROID/ui/calendar/CalendarScreen.kt` (485 Zeilen)
 
 | Funktion | Zeile | Zweck |
 |----------|-------|-------|
@@ -584,7 +556,7 @@ c:\git\webapps_docs\
 | `DayCell` | 391 | Einzelne Tageszelle im Monatsgrid |
 | `EventItem` | 433 | Event-Zeile mit Kategorie-Farbe |
 
-### `android/.../ui/navigation/AppNavigation.kt` (398 Zeilen)
+### `ANDROID/ui/navigation/AppNavigation.kt` (398 Zeilen)
 
 | Funktion/Klasse | Zeile | Zweck |
 |-----------------|-------|-------|
@@ -593,14 +565,7 @@ c:\git\webapps_docs\
 | `PendingProposalsDialog` | 293 | Dialog: Offene Terminvorschlaege |
 | `PendingProposalRow` | 363 | Einzelne Vorschlag-Zeile mit Antwort-Button |
 
-### `android/.../ui/todos/TodosScreen.kt` (354 Zeilen)
-
-| Funktion | Zeile | Zweck |
-|----------|-------|-------|
-| `TodosScreen` | (Datei-Anfang) | Todo-Liste mit Filter, FAB, Sub-Todos |
-| `TodoItem` | (Mitte) | Einzelnes Todo mit Checkbox und Expand |
-
-### `android/.../ui/meals/WeekPlanTab.kt` (348 Zeilen)
+### `ANDROID/ui/meals/WeekPlanTab.kt` (348 Zeilen)
 
 | Funktion | Zeile | Zweck |
 |----------|-------|-------|
@@ -609,7 +574,7 @@ c:\git\webapps_docs\
 | `SlotCard` | 203 | Einzelner Slot (leer oder mit Rezept) |
 | `MarkCookedDialog` | 300 | Als-gekocht-markieren mit Bewertung |
 
-### `android/.../ui/meals/ShoppingTab.kt` (329 Zeilen)
+### `ANDROID/ui/meals/ShoppingTab.kt` (329 Zeilen)
 
 | Funktion | Zeile | Zweck |
 |----------|-------|-------|
@@ -619,13 +584,7 @@ c:\git\webapps_docs\
 | `ShoppingItemRow` | 243 | Einzelner Artikel mit Check/Delete |
 | `AddShoppingItemDialog` | 281 | Manuelles Hinzufuegen |
 
-### `android/.../ui/meals/CookidooBrowser.kt` (330 Zeilen)
-
-| Funktion | Zeile | Zweck |
-|----------|-------|-------|
-| `CookidooBrowserDialog` | (Datei-Anfang) | Browser: Sammlungen + Einkaufsliste + Vorschau |
-
-### `android/.../ui/meals/PantryTab.kt` (312 Zeilen)
+### `ANDROID/ui/meals/PantryTab.kt` (312 Zeilen)
 
 | Funktion | Zeile | Zweck |
 |----------|-------|-------|
@@ -636,13 +595,7 @@ c:\git\webapps_docs\
 | `PantryFormDialog` | 266 | Erstellen/Bearbeiten-Dialog mit MHD + Mindestbestand |
 | `categoryLabel` | 306 | Kategorie-Code → deutsches Label mit Emoji |
 
-### `android/.../ui/todos/ProposalDetailDialog.kt` (310 Zeilen)
-
-| Funktion | Zeile | Zweck |
-|----------|-------|-------|
-| `ProposalDetailDialog` | (Datei-Anfang) | Vorschlags-Timeline, Antworten, Gegenvorschlaege |
-
-### `android/.../ui/meals/MealsViewModel.kt` (252 Zeilen)
+### `ANDROID/ui/meals/MealsViewModel.kt` (252 Zeilen)
 
 | Methode | Zeile | Zweck |
 |---------|-------|-------|
@@ -663,9 +616,12 @@ c:\git\webapps_docs\
 | Pfad | Beschreibung | Themen (→ Abschnitt 8) |
 |------|-------------|------------------------|
 | `PROJECT_INDEX.md` | Projektstruktur-Dokumentation (dieses Dokument) | Alle Aufgaben |
-| `FEATURES.md` | Funktionsuebersicht aller Features nach Plattform (Web, Android, MCP, API) | Alle Aufgaben |
+| `FEATURES.md` | Funktionsuebersicht aller Features nach Plattform (Web, Flutter, Android, MCP, API) | Alle Aufgaben |
 | `IMPROVEMENTS.md` | Verbesserungsvorschlaege mit Priorisierung und Roadmap | Alle Aufgaben |
-| `ANDROID_APP_PLAN.md` | Detaillierter Implementierungsplan fuer die Android App mit DTOs, APIs, Architecture | Android-Aufgaben |
+| `flutter/README.md` | Flutter-App Dokumentation: Tech-Stack, Architektur, Getting Started, Docker, CI/CD | Flutter-Aufgaben |
+| `ANDROID_APP_PLAN.md` | Detaillierter Implementierungsplan fuer die Android App (Legacy) | Android-Aufgaben |
+| `IOS_APP_PLAN.md` | Implementierungsplan fuer die iOS App (Legacy, ersetzt durch Flutter) | iOS-Aufgaben |
+| `plans/cross_platform_migration_*.plan.md` | Migrationsplan: Analyse Web/Android/iOS → Flutter Cross-Platform | Flutter-Migration |
 
 ---
 
@@ -681,7 +637,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 cd backend
 python mcp_server.py
 
-# Docker (Produktion)
+# Docker (Produktion — Backend)
 cd backend
 docker-compose up -d
 
@@ -692,26 +648,74 @@ docker-compose exec db psql -U kalender -c "DROP SCHEMA public CASCADE; CREATE S
 cd backend
 docker-compose up -d db
 
-# Abhaengigkeiten installieren
+# Abhaengigkeiten installieren (Backend)
 cd backend
 pip install -r requirements.txt
 ```
 
+### Flutter (Cross-Platform)
+```bash
+# Flutter Abhaengigkeiten installieren
+cd flutter
+flutter pub get
+
+# Code-Generierung (Drift DB)
+cd flutter
+dart run build_runner build --delete-conflicting-outputs
+
+# Flutter Web starten (Entwicklung)
+cd flutter
+flutter run -d chrome
+
+# Flutter Android/iOS starten
+cd flutter
+flutter run
+
+# Flutter Web bauen (WASM, Produktion)
+cd flutter
+flutter build web --wasm
+
+# Flutter Android bauen (APK)
+cd flutter
+flutter build apk
+
+# Flutter Docker (Web)
+cd flutter
+docker build -t familienkalender-flutter .
+
+# Flutter Tests
+cd flutter
+flutter test
+```
+
+| Einstellung | Wert |
+|-------------|------|
+| Flutter SDK | >=3.24.0 |
+| Dart SDK | >=3.3.0 |
+| Dart-Dateien | 69 |
+| Gesamt-Zeilen | ~8.100 |
+| Plattformen | Web (WASM), Android, iOS |
+| State Management | Riverpod 2 |
+| Lokale DB | Drift (SQLite) |
+| Routing | GoRouter |
+
 ### Ports und URLs
 | Service | Port | URL |
 |---------|------|-----|
-| FastAPI (API + Frontend) | 8000 | `http://localhost:8000` |
+| FastAPI (API + Legacy Frontend) | 8000 | `http://localhost:8000` |
+| Flutter Web (Nginx) | 80 | `http://localhost` |
 | MCP-Server (SSE) | 8001 | `http://localhost:8001/sse` |
 | OpenAPI Docs | 8000 | `http://localhost:8000/docs` |
 | PostgreSQL | 5432 | `localhost:5432` |
 
 ### Deployment
 - **Zielplattform**: Synology NAS (Docker)
-- **Container**: `familienkalender-db` (Port 5432), `familienkalender-api` (Port 8000), `familienkalender-mcp` (Port 8001)
+- **Container**: `familienkalender-db` (Port 5432), `familienkalender-api` (Port 8000), `familienkalender-mcp` (Port 8001), `familienkalender-flutter` (Port 80, Nginx)
 - **Datenbank-Volume**: `pgdata` (PostgreSQL Docker Volume)
 - **Env-File**: `backend/.env` (nicht im Git)
+- **Flutter Web**: Nginx serviert Flutter WASM Build, proxied `/api/` an Backend
 
-### Android
+### Android (Legacy)
 ```bash
 # Android App bauen (Debug)
 cd android
@@ -732,5 +736,5 @@ cd android
 | Kotlin-Dateien | 93 |
 | Gesamt-Zeilen | ~11.500 |
 
-### Cache-Busting
+### Cache-Busting (Legacy Web)
 Aktueller Stand: `?v=21` (in `index.html` fuer alle JS/CSS Referenzen)

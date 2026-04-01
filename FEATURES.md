@@ -1,6 +1,6 @@
 # Familienkalender — Funktionsuebersicht
 
-Letzte Aktualisierung: 2026-03-25
+Letzte Aktualisierung: 2026-03-30
 
 ---
 
@@ -9,9 +9,13 @@ Letzte Aktualisierung: 2026-03-25
 | Plattform | Technologie | Pfad |
 |-----------|-------------|------|
 | **Backend API** | Python 3.12, FastAPI, SQLAlchemy, PostgreSQL | `backend/app/` |
-| **Web-Frontend** | Vanilla JS SPA, CSS | `backend/app/static/` |
-| **Android App** | Kotlin, Jetpack Compose, Room, Retrofit | `android/` |
+| **Web-Frontend** | Vanilla JS SPA, CSS (Legacy) | `backend/app/static/` |
+| **Flutter App** | Dart 3.3+, Flutter 3.24, Riverpod, Drift | `flutter/` |
+| **Android App** | Kotlin, Jetpack Compose, Room, Retrofit (Legacy) | `android/` |
+| **iOS App** | Swift 6+, SwiftUI (Legacy) | `ios/` |
 | **MCP-Server** | Python, FastMCP SDK | `backend/mcp_server.py` |
+
+> **Migration:** Die drei separaten Client-Codebases (Web/Android/iOS) werden durch eine einheitliche Flutter-App (`flutter/`) ersetzt. Die Legacy-Codebases bleiben waehrend der Uebergangsphase bestehen.
 
 ---
 

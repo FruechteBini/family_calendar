@@ -146,13 +146,18 @@ class _RecipeListScreenState extends ConsumerState<RecipeListScreen> {
     );
     if (url == null || url.isEmpty) return;
     try {
-      final recipe = await ref.read(recipeRepositoryProvider).parseUrl(url);
+      final preview = await ref.read(recipeRepositoryProvider).parseUrl(url);
       if (mounted) {
-        showAppToast(context, message: '${recipe.name} importiert', type: ToastType.success);
+        await showDialog(
+          context: context,
+          builder: (ctx) => RecipeFormDialog(recipe: preview),
+        );
         ref.invalidate(recipesProvider);
       }
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
+    } catch (e) {
+      if (mounted) showAppToast(context, message: 'Fehler beim Parsen: $e', type: ToastType.error);
     }
   }
 

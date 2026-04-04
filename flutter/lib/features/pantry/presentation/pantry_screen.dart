@@ -39,19 +39,19 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                color: theme.colorScheme.secondaryContainer.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.colorScheme.secondaryContainer),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.warning_amber, color: Colors.orange, size: 18),
+                      Icon(Icons.warning_amber, color: theme.colorScheme.secondary, size: 18),
                       const SizedBox(width: 8),
                       Text('${alerts.length} Warnung${alerts.length == 1 ? '' : 'en'}',
-                          style: theme.textTheme.titleSmall?.copyWith(color: Colors.orange)),
+                          style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.secondary)),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -255,18 +255,18 @@ class _PantryTile extends StatelessWidget {
           if (item.quantity != null) Text('${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}', style: theme.textTheme.bodySmall),
           if (item.expiryDate != null) ...[
             const SizedBox(width: 8),
-            Icon(Icons.schedule, size: 14, color: isExpiring ? Colors.orange : theme.colorScheme.outline),
+            Icon(Icons.schedule, size: 14, color: isExpiring ? theme.colorScheme.secondary : theme.colorScheme.outline),
             const SizedBox(width: 2),
             Text(utils.AppDateUtils.formatDate(item.expiryDate!),
-                style: theme.textTheme.bodySmall?.copyWith(color: isExpiring ? Colors.orange : null)),
+                style: theme.textTheme.bodySmall?.copyWith(color: isExpiring ? theme.colorScheme.secondary : null)),
           ],
         ],
       ),
       leading: CircleAvatar(
-        backgroundColor: isLowStock ? Colors.orange.withOpacity(0.2) : theme.colorScheme.primaryContainer,
+        backgroundColor: isLowStock ? theme.colorScheme.secondaryContainer.withOpacity(0.4) : theme.colorScheme.primaryContainer,
         child: Icon(
           isLowStock ? Icons.warning_amber : Icons.inventory_2,
-          color: isLowStock ? Colors.orange : theme.colorScheme.primary,
+          color: isLowStock ? theme.colorScheme.secondary : theme.colorScheme.primary,
           size: 18,
         ),
       ),

@@ -10,11 +10,11 @@ class Endpoints {
   static const authFamilyJoin = '/api/auth/family/join';
 
   // Events
-  static const events = '/api/events';
+  static const events = '/api/events/';
   static String event(int id) => '/api/events/$id';
 
   // Todos
-  static const todos = '/api/todos';
+  static const todos = '/api/todos/';
   static String todo(int id) => '/api/todos/$id';
   static String todoComplete(int id) => '/api/todos/$id/complete';
   static String todoLinkEvent(int id) => '/api/todos/$id/link-event';
@@ -25,7 +25,7 @@ class Endpoints {
   static const proposalsPending = '/api/proposals/pending';
 
   // Recipes
-  static const recipes = '/api/recipes';
+  static const recipes = '/api/recipes/';
   static String recipe(int id) => '/api/recipes/$id';
   static const recipeSuggestions = '/api/recipes/suggestions';
   static const recipeParseUrl = '/api/recipes/parse-url';
@@ -47,7 +47,7 @@ class Endpoints {
   static const shoppingSort = '/api/shopping/sort';
 
   // Pantry
-  static const pantry = '/api/pantry';
+  static const pantry = '/api/pantry/';
   static const pantryBulk = '/api/pantry/bulk';
   static String pantryItem(int id) => '/api/pantry/$id';
   static const pantryAlerts = '/api/pantry/alerts';
@@ -81,10 +81,10 @@ class Endpoints {
   static const aiVoiceCommand = '/api/ai/voice-command';
 
   // Categories
-  static const categories = '/api/categories';
+  static const categories = '/api/categories/';
   static String category(int id) => '/api/categories/$id';
 
   // Family Members
-  static const familyMembers = '/api/family-members';
+  static const familyMembers = '/api/family-members/';
   static String familyMember(int id) => '/api/family-members/$id';
 }

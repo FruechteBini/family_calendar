@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../api/api_client.dart';
+import '../api/api_client.dart' show serverUrlProvider, ApiException;
 import '../api/endpoints.dart';
 import '../../features/auth/domain/user.dart';
 
@@ -55,6 +55,14 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Dio _authedDio() {
+    final serverUrl = _ref.read(serverUrlProvider);
+    return Dio(BaseOptions(
+      baseUrl: serverUrl,
+      headers: {'Authorization': 'Bearer ${state.token}'},
+    ));
+  }
+
   Future<User> _fetchCurrentUser(String token) async {
     final serverUrl = _ref.read(serverUrlProvider);
     final dio = Dio(BaseOptions(
@@ -72,11 +80,10 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       final dio = Dio(BaseOptions(baseUrl: serverUrl));
       final response = await dio.post(
         Endpoints.authLogin,
-        data: FormData.fromMap({
+        data: {
           'username': username,
           'password': password,
-        }),
-        options: Options(contentType: 'application/x-www-form-urlencoded'),
+        },
       );
       final token = response.data['access_token'] as String;
       await _storage.write(key: _tokenKey, value: token);
@@ -105,14 +112,14 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> createFamily(String name) async {
-    final dio = _ref.read(dioProvider);
+    final dio = _authedDio();
     final response = await dio.post(Endpoints.authFamily, data: {'name': name});
     final user = state.user?.copyWith(familyId: response.data['id'] as int);
     state = state.copyWith(user: user);
   }
 
   Future<void> joinFamily(String inviteCode) async {
-    final dio = _ref.read(dioProvider);
+    final dio = _authedDio();
     final response = await dio.post(
       Endpoints.authFamilyJoin,
       data: {'invite_code': inviteCode},
@@ -122,7 +129,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> linkMember(int memberId) async {
-    final dio = _ref.read(dioProvider);
+    final dio = _authedDio();
     await dio.patch(Endpoints.authLinkMember, data: {'member_id': memberId});
     final user = state.user?.copyWith(memberId: memberId);
     state = state.copyWith(user: user);

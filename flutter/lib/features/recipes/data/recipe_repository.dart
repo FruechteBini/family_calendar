@@ -63,7 +63,22 @@ class RecipeRepository {
         Endpoints.recipeParseUrl,
         data: {'url': url},
       );
-      return Recipe.fromJson(response.data);
+      final d = response.data as Map<String, dynamic>;
+      // UrlImportPreview uses 'title', Recipe uses 'name'; no id yet
+      final activeMin = d['prep_time_active_minutes'] as int? ?? 0;
+      final passiveMin = d['prep_time_passive_minutes'] as int? ?? 0;
+      return Recipe(
+        id: 0,
+        name: d['title'] as String? ?? '',
+        difficulty: const {'easy': 'einfach', 'medium': 'mittel', 'hard': 'schwer'}[d['difficulty']] ?? 'mittel',
+        prepTime: (activeMin + passiveMin) > 0 ? activeMin + passiveMin : null,
+        imageUrl: d['image_url'] as String?,
+        sourceUrl: d['source_url'] as String?,
+        ingredients: (d['ingredients'] as List<dynamic>?)
+                ?.map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

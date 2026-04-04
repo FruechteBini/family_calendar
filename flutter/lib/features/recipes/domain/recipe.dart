@@ -32,7 +32,7 @@ class Recipe {
       id: json['id'] as int,
       name: json['name'] as String,
       description: json['description'] as String?,
-      difficulty: json['difficulty'] as String? ?? 'mittel',
+      difficulty: const {'easy': 'einfach', 'medium': 'mittel', 'hard': 'schwer'}[json['difficulty']] ?? json['difficulty'] as String? ?? 'mittel',
       prepTime: json['prep_time'] as int?,
       imageUrl: json['image_url'] as String?,
       sourceUrl: json['source_url'] as String?,
@@ -50,10 +50,11 @@ class Recipe {
   }
 
   Map<String, dynamic> toJson() {
+    const diffMap = {'einfach': 'easy', 'mittel': 'medium', 'schwer': 'hard'};
     return {
       'name': name,
       if (description != null) 'description': description,
-      'difficulty': difficulty,
+      'difficulty': diffMap[difficulty] ?? difficulty,
       if (prepTime != null) 'prep_time': prepTime,
       if (imageUrl != null) 'image_url': imageUrl,
       if (sourceUrl != null) 'source_url': sourceUrl,

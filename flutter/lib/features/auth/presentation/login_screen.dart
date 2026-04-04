@@ -20,6 +20,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isRegister = false;
   bool _showServerConfig = false;
   bool _obscurePassword = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    setState(() => _errorMessage = null);
     final auth = ref.read(authStateProvider.notifier);
     try {
       if (_showServerConfig) {
@@ -54,7 +56,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     } on ApiException catch (e) {
-      if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
+      if (mounted) {
+        setState(() => _errorMessage = e.message);
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
     }
   }
 
@@ -129,6 +134,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           keyboardType: TextInputType.url,
                           validator: Validators.serverUrl,
+                        ),
+                      ],
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.onErrorContainer,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onErrorContainer,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                       const SizedBox(height: 24),

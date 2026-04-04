@@ -268,6 +268,3 @@ final pendingCountProvider = FutureProvider<int>((ref) {
   return PendingChangeService(ref.watch(appDatabaseProvider)).count();
 });
 
-// Import for Dio
-import 'package:dio/dio.dart';
-import '../api/api_client.dart';

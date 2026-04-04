@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 import bcrypt
@@ -11,6 +12,7 @@ from .config import settings
 from .database import get_db, utcnow
 from .models.user import User
 
+logger = logging.getLogger("kalender")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
@@ -35,6 +37,7 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    logger.info(f"[AUTH] get_current_user called, token length={len(token) if token else 0}")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token ungueltig oder abgelaufen",
@@ -43,15 +46,20 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str | None = payload.get("sub")
+        logger.info(f"[AUTH] Token decoded, sub={username}")
         if username is None:
+            logger.warning("[AUTH] No sub in token")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        logger.warning(f"[AUTH] JWT decode error: {e}")
         raise credentials_exception
 
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
     if user is None:
+        logger.warning(f"[AUTH] User '{username}' not found in DB")
         raise credentials_exception
+    logger.info(f"[AUTH] User '{username}' authenticated (family_id={user.family_id})")
     return user
 
 

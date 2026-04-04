@@ -1,0 +1,35 @@
+R_DEF: Internal format may change without notice
+local
+color background
+color blue
+color green
+color orange
+color red
+color text_primary
+color text_secondary
+color white
+drawable ic_launcher_background
+drawable ic_launcher_foreground
+mipmap ic_launcher
+mipmap ic_launcher_round
+string add
+string app_name
+string cancel
+string delete
+string edit
+string error_login
+string error_network
+string loading
+string login
+string members
+string offline_banner
+string password
+string register
+string save
+string server_url
+string settings
+string tab_calendar
+string tab_meals
+string tab_todos
+string username
+style Theme.Familienkalender

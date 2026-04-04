@@ -79,10 +79,10 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
         'description': _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        'start_time': _allDay
+        'start': _allDay
             ? AppDateUtils.startOfDay(_startDate).toIso8601String()
             : _combine(_startDate, _startTime).toIso8601String(),
-        'end_time': _allDay
+        'end': _allDay
             ? AppDateUtils.endOfDay(_endDate).toIso8601String()
             : _combine(_endDate, _endTime).toIso8601String(),
         'all_day': _allDay,

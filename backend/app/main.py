@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -14,7 +14,7 @@ from .routers import ai, auth, categories, cookidoo, events, family_members, knu
 logger = logging.getLogger("kalender")
 
 
-async def _add_missing_columns(conn):
+def _add_missing_columns(conn):
     """Add columns that were added after initial table creation."""
     from sqlalchemy import text, inspect as sa_inspect
     inspector = sa_inspect(conn)

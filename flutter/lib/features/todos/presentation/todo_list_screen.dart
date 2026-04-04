@@ -89,20 +89,29 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Aufgaben'),
+        backgroundColor: theme.colorScheme.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'Aufgaben',
+          style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.primary),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.schedule_outlined),
+            icon: Icon(Icons.schedule_outlined, color: theme.colorScheme.primary),
             onPressed: _showProposals,
             tooltip: 'Terminvorschlaege',
           ),
           IconButton(
-            icon: Icon(showCompleted ? Icons.visibility : Icons.visibility_off),
+            icon: Icon(
+              showCompleted ? Icons.visibility : Icons.visibility_off,
+              color: theme.colorScheme.primary,
+            ),
             onPressed: () => ref.read(_showCompletedProvider.notifier).state = !showCompleted,
             tooltip: showCompleted ? 'Erledigte ausblenden' : 'Erledigte anzeigen',
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list),
+            icon: Icon(Icons.filter_list, color: theme.colorScheme.primary),
             onSelected: (v) => ref.read(_filterPriorityProvider.notifier).state = v == 'all' ? null : v,
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'all', child: Text('Alle Prioritaeten')),

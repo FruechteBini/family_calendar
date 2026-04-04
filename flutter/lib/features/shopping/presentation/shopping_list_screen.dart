@@ -74,7 +74,17 @@ class _ShoppingListScreenState extends ConsumerState<ShoppingListScreen> {
     final listAsync = ref.watch(shoppingListProvider);
     final theme = Theme.of(context);
 
-    return Column(
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: theme.colorScheme.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'Einkaufsliste',
+          style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.primary),
+        ),
+      ),
+      body: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -157,6 +167,7 @@ class _ShoppingListScreenState extends ConsumerState<ShoppingListScreen> {
           ),
         ),
       ],
+      ),
     );
   }
 }

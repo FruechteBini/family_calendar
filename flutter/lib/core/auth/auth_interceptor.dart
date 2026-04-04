@@ -19,7 +19,7 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.response?.statusCode == 401) {
+    if (err.response?.statusCode == 401 && token != null) {
       final isLogin = _publicPaths.any((p) => err.requestOptions.path.endsWith(p));
       if (!isLogin) {
         onUnauthorized();

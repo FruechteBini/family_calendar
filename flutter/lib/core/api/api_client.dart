@@ -15,9 +15,18 @@ final dioProvider = Provider<Dio>((ref) {
     headers: {'Content-Type': 'application/json'},
   ));
 
+  // Capture the token at Dio creation time so we can detect stale 401s
+  final capturedToken = authState.token;
   dio.interceptors.add(AuthInterceptor(
-    token: authState.token,
-    onUnauthorized: () => ref.read(authStateProvider.notifier).logout(),
+    token: capturedToken,
+    onUnauthorized: () {
+      // Only logout if the token hasn't changed since this Dio was created.
+      // Prevents stale in-flight requests from logging out after re-login.
+      final currentToken = ref.read(authStateProvider).token;
+      if (currentToken == capturedToken) {
+        ref.read(authStateProvider.notifier).logout();
+      }
+    },
   ));
 
   dio.interceptors.add(LogInterceptor(

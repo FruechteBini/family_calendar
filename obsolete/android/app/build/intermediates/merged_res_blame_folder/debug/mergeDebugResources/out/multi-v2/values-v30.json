@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "de.familienkalender.app-mergeDebugResources-64:/values-v30/values-v30.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\korbi\\.gradle\\caches\\8.11.1\\transforms\\338193ca01f5483852bf6c19ff0fe041\\transformed\\material3-release\\res\\values-v30\\values-v30.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "72",
+                        "endOffsets": "123"
+                    }
+                }
+            ]
+        }
+    ]
+}

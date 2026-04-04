@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Calendar icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,20 L78,20 Q82,20 82,24 L82,84 Q82,88 78,88 L30,88 Q26,88 26,84 L26,24 Q26,20 30,20 Z"/>
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M34,44 L74,44 L74,80 L34,80 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,52 L50,52 L50,62 L38,62 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M56,52 L68,52 L68,62 L56,62 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,66 L50,66 L50,76 L38,76 Z"/>
+    <!-- Top bar -->
+    <path
+        android:fillColor="#003d99"
+        android:pathData="M26,24 Q26,20 30,20 L78,20 Q82,20 82,24 L82,44 L26,44 Z"/>
+    <!-- Calendar pins -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,16 Q40,12 44,12 Q48,12 48,16 L48,26 Q48,28 44,28 Q40,28 40,26 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,16 Q60,12 64,12 Q68,12 68,16 L68,26 Q68,28 64,28 Q60,28 60,26 Z"/>
+</vector>

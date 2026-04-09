@@ -1,9 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Column, ForeignKey, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base, utcnow
+
+recipe_tag_assignments = Table(
+    "recipe_tag_assignments",
+    Base.metadata,
+    Column("recipe_id", ForeignKey("recipes.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", ForeignKey("recipe_tags.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Recipe(Base):
@@ -26,9 +33,18 @@ class Recipe(Base):
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     image_url: Mapped[str | None] = mapped_column(String(500), default=None)
     ai_accessible: Mapped[bool] = mapped_column(default=True)
+    recipe_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recipe_categories.id", ondelete="SET NULL"), default=None
+    )
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
+    category = relationship("RecipeCategory", lazy="selectin")
+    tags = relationship(
+        "RecipeTag",
+        secondary=recipe_tag_assignments,
+        lazy="selectin",
+    )
     ingredients = relationship(
         "Ingredient",
         back_populates="recipe",

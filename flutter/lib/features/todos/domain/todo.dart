@@ -1,5 +1,8 @@
 class Todo {
   final int id;
+  final bool isPersonal;
+  final int? createdByMemberId;
+  final TodoMember? createdBy;
   final String title;
   final String? description;
   final String priority; // none, low, medium, high
@@ -17,6 +20,9 @@ class Todo {
 
   const Todo({
     required this.id,
+    this.isPersonal = false,
+    this.createdByMemberId,
+    this.createdBy,
     required this.title,
     this.description,
     this.priority = 'none',
@@ -34,8 +40,24 @@ class Todo {
   });
 
   factory Todo.fromJson(Map<String, dynamic> json) {
+    final category = json['category'];
+    final catId = json['category_id'] as int? ??
+        (category is Map<String, dynamic> ? category['id'] as int? : null);
+    final catName = json['category_name'] as String? ??
+        (category is Map<String, dynamic> ? category['name'] as String? : null);
+
+    final membersRaw = (json['members'] as List<dynamic>?)
+            ?.whereType<Map<String, dynamic>>()
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
     return Todo(
       id: json['id'] as int,
+      isPersonal: json['is_personal'] as bool? ?? false,
+      createdByMemberId: json['created_by_member_id'] as int?,
+      createdBy: (json['created_by'] is Map<String, dynamic>)
+          ? TodoMember.fromJson(json['created_by'] as Map<String, dynamic>)
+          : null,
       title: json['title'] as String,
       description: json['description'] as String?,
       priority: json['priority'] as String? ?? 'none',
@@ -43,19 +65,16 @@ class Todo {
       dueDate: json['due_date'] != null
           ? DateTime.parse(json['due_date'] as String)
           : null,
-      categoryId: json['category_id'] as int?,
-      categoryName: json['category_name'] as String?,
+      categoryId: catId,
+      categoryName: catName,
       eventId: json['event_id'] as int?,
       parentId: json['parent_id'] as int?,
       requiresMultiple: json['requires_multiple'] as bool? ?? false,
       memberIds: (json['member_ids'] as List<dynamic>?)
               ?.map((e) => e as int)
               .toList() ??
-          [],
-      members: (json['members'] as List<dynamic>?)
-              ?.map((e) => TodoMember.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+          membersRaw.map((m) => m['id'] as int).toList(),
+      members: membersRaw.map(TodoMember.fromJson).toList(),
       subtodos: (json['subtodos'] as List<dynamic>?)
               ?.map((e) => Todo.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -73,6 +92,7 @@ class Todo {
       if (categoryId != null) 'category_id': categoryId,
       if (parentId != null) 'parent_id': parentId,
       'requires_multiple': requiresMultiple,
+      'is_personal': isPersonal,
       'member_ids': memberIds,
     };
   }
@@ -89,7 +109,7 @@ class TodoMember {
     return TodoMember(
       id: json['id'] as int,
       name: json['name'] as String,
-      emoji: json['emoji'] as String?,
+      emoji: json['emoji'] as String? ?? json['avatar_emoji'] as String?,
     );
   }
 }
@@ -120,12 +140,18 @@ class Proposal {
   });
 
   factory Proposal.fromJson(Map<String, dynamic> json) {
+    final proposer = json['proposer'];
+    final proposerId = (json['proposer_id'] as int?) ??
+        (proposer is Map<String, dynamic> ? proposer['id'] as int? : null) ??
+        0;
+    final proposerName = (json['proposer_name'] as String?) ??
+        (proposer is Map<String, dynamic> ? proposer['name'] as String? : null);
     return Proposal(
       id: json['id'] as int,
       todoId: json['todo_id'] as int,
       todoTitle: json['todo_title'] as String?,
-      proposerId: json['proposer_id'] as int,
-      proposerName: json['proposer_name'] as String?,
+      proposerId: proposerId,
+      proposerName: proposerName,
       proposedDate: DateTime.parse(json['proposed_date'] as String),
       message: json['message'] as String?,
       status: json['status'] as String? ?? 'pending',

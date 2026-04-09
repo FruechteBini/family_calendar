@@ -11,10 +11,12 @@ class CategoryUpdate(BaseModel):
     name: str | None = None
     color: str | None = None
     icon: str | None = None
+    position: int | None = None
 
 
 class CategoryResponse(BaseModel):
     id: int
+    position: int
     name: str
     color: str
     icon: str

@@ -1,0 +1,74 @@
+---
+description: 
+alwaysApply: true
+---
+
+# Safety Guardrails
+
+## Absolute Prohibitions — NEVER execute these commands
+
+The following commands are **strictly forbidden** under all circumstances. Never run them, even if the user asks you to:
+
+### File Deletion (recursive / broad)
+- `rm -rf /`, `rm -rf *`, `rm -rf ~`, `rm -rf C:\`, `rm -rf "C:\"` and any variation
+- `Remove-Item -Recurse -Force \`, `Remove-Item -Recurse -Force C:\`, `Remove-Item -Recurse -Force ~`
+- `rd /s /q C:\`, `rd /s /q "C:\"`, `del /s /q C:\*`
+- `rmdir /s /q C:\`
+- Any recursive delete targeting `C:\`, `C:\Windows`, `C:\Program Files`, `C:\Users`, or the user's home directory
+- `format C:`, `format D:`, or any `format` command on any drive letter
+
+### System Destruction
+- `diskpart`, `diskmgmt.msc` (disk partitioning tools via CLI)
+- `sfc /scannow`, `DISM` (system file manipulation unless explicitly asked and confirmed)
+- `bcdedit`, `bootrec` (boot configuration)
+- `reg delete HKLM`, `reg delete HKCU` (bulk registry deletion)
+- `net user /delete`, `net localgroup administrators` (user/account manipulation)
+- `cipher /w:C:\` (drive wiping)
+- `wbadmin delete catalog` (backup destruction)
+- `gpupdate /force` with registry overrides
+
+### Package Manager / System Installs (destructive potential)
+- `winget uninstall --all` or any bulk uninstall
+- `npm uninstall -g` (without explicit list)
+- `pip uninstall -y` on critical packages
+- `choco uninstall all`
+
+### Service / Process Manipulation
+- `taskkill /f /im svchost.exe`, `taskkill /f /im explorer.exe`, `taskkill /f /im lsass.exe`
+- `Stop-Process -Name svchost`, `Stop-Process -Name explorer`, `Stop-Process -Name csrss`
+- `sc delete` on critical Windows services
+- `net stop` on critical services (EventLog, WinDefend, etc.)
+
+### Network / Security
+- `netsh advfirewall set allprofiles state off` (disable firewall)
+- `netsh interface set interface "Ethernet" disable` (disable network)
+- `Set-NetFirewallProfile -Enabled False`
+- `net user administrator /active:yes` (unless explicitly requested)
+
+### Malware-like Behavior
+- `Invoke-WebRequest` downloading `.exe`, `.bat`, `.ps1`, `.cmd`, `.vbs` from untrusted sources
+- `Start-Process` on downloaded executables without user confirmation
+- `iex (irm ...)` / `Invoke-Expression` on remote scripts without user review
+- Any encoded command: `powershell -enc ...`
+
+## Allowed Commands (everything else)
+
+All other commands are permitted, including but not limited to:
+- Git commands (`git add`, `git commit`, `git push`, `git pull`, `git checkout`, etc.)
+- Package management (`npm install`, `pip install`, `flutter pub get`, etc.)
+- Docker commands (`docker build`, `docker-compose up`, etc.)
+- File creation and editing (via tools, not destructive shell commands)
+- Directory navigation (`cd`, `ls`, `dir`, `pwd`)
+- Development servers (`flutter run`, `uvicorn`, `npm run dev`)
+- Build commands (`flutter build`, `gradlew assembleDebug`)
+- Non-destructive system queries (`Get-Process`, `Get-Service`, `systeminfo`, etc.)
+- Database operations within Docker containers
+
+## Confirmation Required (ask before running)
+
+For these commands, always ask the user for explicit confirmation before executing:
+- `docker system prune`, `docker volume prune` (removes data)
+- `DROP TABLE`, `DROP SCHEMA`, `DROP DATABASE` (database destruction)
+- `npm publish`, `flutter pub publish` (public package publishing)
+- Any `rm -rf` or `Remove-Item -Recurse -Force` on project subdirectories
+- Any command the user hasn't explicitly requested that modifies files outside the project directory

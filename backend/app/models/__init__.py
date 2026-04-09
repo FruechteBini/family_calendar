@@ -5,12 +5,19 @@ from .category import Category
 from .event import Event, event_members
 from .todo import Todo, todo_members
 from .proposal import TodoProposal, ProposalResponse
-from .recipe import Recipe
+from .recipe import Recipe, recipe_tag_assignments
+from .recipe_category import RecipeCategory
+from .recipe_tag import RecipeTag
 from .ingredient import Ingredient
 from .meal_plan import MealPlan
 from .cooking_history import CookingHistory
 from .shopping_list import ShoppingList, ShoppingItem
 from .pantry_item import PantryItem
+from .note_category import NoteCategory
+from .note_tag import NoteTag
+from .note import Note, note_tag_assignments
+from .note_comment import NoteComment
+from .note_attachment import NoteAttachment
 
 __all__ = [
     "Family",
@@ -24,10 +31,19 @@ __all__ = [
     "TodoProposal",
     "ProposalResponse",
     "Recipe",
+    "recipe_tag_assignments",
+    "RecipeCategory",
+    "RecipeTag",
     "Ingredient",
     "MealPlan",
     "CookingHistory",
     "ShoppingList",
     "ShoppingItem",
     "PantryItem",
+    "NoteCategory",
+    "NoteTag",
+    "Note",
+    "note_tag_assignments",
+    "NoteComment",
+    "NoteAttachment",
 ]

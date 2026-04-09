@@ -16,8 +16,8 @@ class EventRepository {
   }) async {
     try {
       final params = <String, dynamic>{};
-      if (startDate != null) params['start_date'] = startDate.toIso8601String();
-      if (endDate != null) params['end_date'] = endDate.toIso8601String();
+      if (startDate != null) params['date_from'] = startDate.toIso8601String();
+      if (endDate != null) params['date_to'] = endDate.toIso8601String();
       if (categoryId != null) params['category_id'] = categoryId;
 
       final response = await _dio.get(

@@ -1,9 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../data/recipe_category_repository.dart';
 import '../data/recipe_repository.dart';
+import '../data/recipe_tag_repository.dart';
 import '../domain/recipe.dart';
+import '../domain/recipe_category.dart';
+import '../domain/recipe_tag.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/labeled_multiline_field.dart';
+import '../../../shared/widgets/form_input_decoration.dart';
 import '../../../core/api/api_client.dart';
+
+final _formRecipeCategoriesProvider =
+    FutureProvider<List<RecipeCategory>>((ref) {
+  return ref.watch(recipeCategoryRepositoryProvider).getCategories();
+});
+
+final _formRecipeTagsProvider = FutureProvider<List<RecipeTag>>((ref) {
+  return ref.watch(recipeTagRepositoryProvider).getTags();
+});
 
 class RecipeFormDialog extends ConsumerStatefulWidget {
   final Recipe? recipe;
@@ -19,10 +35,13 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
   late TextEditingController _descController;
   String _difficulty = 'mittel';
   int? _prepTime;
+  String? _imageUrl;
   final List<_IngredientEntry> _ingredients = [];
   bool _saving = false;
+  int? _categoryId;
+  final Set<int> _selectedTagIds = {};
 
-  bool get _isEditing => widget.recipe != null;
+  bool get _isEditing => widget.recipe != null && (widget.recipe!.id != 0);
 
   @override
   void initState() {
@@ -32,7 +51,10 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     _descController = TextEditingController(text: r?.description ?? '');
     _difficulty = r?.difficulty ?? 'mittel';
     _prepTime = r?.prepTime;
+    _imageUrl = r?.imageUrl;
     if (r != null) {
+      _categoryId = r.categoryId;
+      _selectedTagIds.addAll(r.tags.map((t) => t.id));
       _ingredients.addAll(r.ingredients.map((i) => _IngredientEntry(
         nameController: TextEditingController(text: i.name),
         amountController: TextEditingController(text: i.amount?.toString() ?? ''),
@@ -52,6 +74,57 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
       i.unitController.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _showCreateTagDialog() async {
+    final nameController = TextEditingController();
+    final colorController = TextEditingController(text: '#6B7280');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Neues Rezept-Tag'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LabeledOutlineTextField(
+              label: 'Name',
+              controller: nameController,
+              prefixIcon: const Icon(Icons.label_outline),
+            ),
+            const SizedBox(height: 12),
+            LabeledOutlineTextField(
+              label: 'Farbe (Hex)',
+              controller: colorController,
+              hintText: '#6B7280',
+              prefixIcon: const Icon(Icons.palette_outlined),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Erstellen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || nameController.text.trim().isEmpty) return;
+    try {
+      final created = await ref.read(recipeTagRepositoryProvider).createTag({
+        'name': nameController.text.trim(),
+        'color': colorController.text.trim(),
+      });
+      ref.invalidate(_formRecipeTagsProvider);
+      setState(() => _selectedTagIds.add(created.id));
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
+    }
   }
 
   void _addIngredient() {
@@ -74,12 +147,17 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                 'unit': i.unitController.text.trim().isEmpty ? null : i.unitController.text.trim(),
               })
           .toList();
-      final data = {
-        'name': _nameController.text.trim(),
-        'description': _descController.text.trim().isEmpty ? null : _descController.text.trim(),
-        'difficulty': _difficulty,
-        'prep_time': _prepTime,
+      const diffMap = {'einfach': 'easy', 'mittel': 'medium', 'schwer': 'hard'};
+      final data = <String, dynamic>{
+        'title': _nameController.text.trim(),
+        'notes': _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+        'difficulty': diffMap[_difficulty] ?? 'medium',
+        'prep_time_active_minutes': _prepTime,
+        if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) 'image_url': _imageUrl!.trim(),
+        if (!_isEditing && widget.recipe?.sourceUrl != null) 'source': 'web',
         'ingredients': ingredients,
+        'recipe_category_id': _categoryId,
+        'tag_ids': _selectedTagIds.toList(),
       };
       final repo = ref.read(recipeRepositoryProvider);
       if (_isEditing) {
@@ -96,13 +174,14 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
   }
 
   Future<void> _delete() async {
+    if (!_isEditing) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Rezept loeschen?'),
+        title: const Text('Rezept löschen?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Loeschen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen')),
         ],
       ),
     );
@@ -136,9 +215,32 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: CachedNetworkImage(
+                          imageUrl: _imageUrl!,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.restaurant),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name'), validator: (v) => v == null || v.trim().isEmpty ? 'Name erforderlich' : null),
                   const SizedBox(height: 12),
-                  TextFormField(controller: _descController, decoration: const InputDecoration(labelText: 'Beschreibung'), maxLines: 2),
+                  LabeledMultilineTextField(
+                    label: 'Beschreibung',
+                    controller: _descController,
+                    hintText:
+                        'Optional — Tipps zur Zubereitung, Varianten, Portionshinweise …',
+                  ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: _difficulty,
@@ -153,6 +255,82 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                     keyboardType: TextInputType.number,
                     onChanged: (v) => _prepTime = int.tryParse(v),
                   ),
+                  const SizedBox(height: 16),
+                  ref.watch(_formRecipeCategoriesProvider).when(
+                        data: (cats) => DropdownButtonFormField<int?>(
+                          value: _categoryId,
+                          decoration: appFormInputDecoration(
+                            context,
+                            labelText: 'Rezept-Kategorie',
+                            prefixIcon: const Icon(Icons.restaurant_menu_outlined),
+                          ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('Keine Kategorie'),
+                            ),
+                            ...cats.map(
+                              (c) => DropdownMenuItem<int?>(
+                                value: c.id,
+                                child: Text('${c.icon} ${c.name}'),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) => setState(() => _categoryId = v),
+                        ),
+                        loading: () => const LinearProgressIndicator(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Tags',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _saving ? null : _showCreateTagDialog,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Neu'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ref.watch(_formRecipeTagsProvider).when(
+                        data: (tags) {
+                          if (tags.isEmpty) {
+                            return Text(
+                              'Keine Tags — unter Rezepten verwalten oder KI nutzen.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            );
+                          }
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: tags
+                                .map(
+                                  (t) => FilterChip(
+                                    label: Text(t.name),
+                                    selected: _selectedTagIds.contains(t.id),
+                                    onSelected: (sel) {
+                                      setState(() {
+                                        if (sel) {
+                                          _selectedTagIds.add(t.id);
+                                        } else {
+                                          _selectedTagIds.remove(t.id);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
                   const SizedBox(height: 16),
                   Row(
                     children: [

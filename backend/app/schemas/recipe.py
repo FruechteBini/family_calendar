@@ -3,6 +3,9 @@ from enum import Enum
 
 from pydantic import BaseModel
 
+from .recipe_category import RecipeCategoryResponse
+from .recipe_tag import RecipeTagResponse
+
 
 class RecipeSource(str, Enum):
     cookidoo = "cookidoo"
@@ -53,6 +56,8 @@ class RecipeCreate(BaseModel):
     notes: str | None = None
     image_url: str | None = None
     ai_accessible: bool = True
+    recipe_category_id: int | None = None
+    tag_ids: list[int] = []
     ingredients: list[IngredientCreate] = []
 
 
@@ -66,6 +71,8 @@ class RecipeUpdate(BaseModel):
     notes: str | None = None
     image_url: str | None = None
     ai_accessible: bool | None = None
+    recipe_category_id: int | None = None
+    tag_ids: list[int] | None = None
     ingredients: list[IngredientCreate] | None = None
 
 
@@ -84,6 +91,9 @@ class RecipeResponse(BaseModel):
     notes: str | None
     image_url: str | None
     ai_accessible: bool
+    recipe_category_id: int | None
+    category: RecipeCategoryResponse | None
+    tags: list[RecipeTagResponse]
     ingredients: list[IngredientResponse]
     created_at: datetime
     updated_at: datetime

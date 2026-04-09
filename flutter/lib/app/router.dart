@@ -4,14 +4,19 @@ import 'package:go_router/go_router.dart';
 import '../core/auth/auth_provider.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/family/presentation/family_onboarding_screen.dart';
-import '../features/today/presentation/today_screen.dart';
-import '../features/calendar/presentation/calendar_screen.dart';
+import '../features/today/presentation/today_screen_real.dart';
+import '../features/calendar/presentation/calendar_screen_real.dart';
 import '../features/todos/presentation/todo_list_screen.dart';
 import '../features/meals/presentation/meals_screen.dart';
-import '../features/shopping/presentation/shopping_list_screen.dart';
 import '../features/members/presentation/members_screen.dart';
 import '../features/categories/presentation/categories_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/info/presentation/info_screen.dart';
+import '../features/notes/presentation/notes_screen.dart';
+import '../features/notes/presentation/note_categories_screen.dart';
+import '../features/notes/presentation/note_tags_screen.dart';
+import '../features/knuspr/presentation/knuspr_screen.dart';
+import '../features/recipes/presentation/recipe_detail_screen.dart';
 import 'app_shell.dart';
 
 /// Bridges Riverpod [authStateProvider] to GoRouter's [refreshListenable]
@@ -90,9 +95,45 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: MealsScreen()),
           ),
           GoRoute(
-            path: '/shopping',
+            path: '/notes',
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ShoppingListScreen()),
+                const NoTransitionPage(child: NotesScreen()),
+          ),
+          GoRoute(
+            path: '/info',
+            redirect: (context, state) => '/settings',
+          ),
+          GoRoute(
+            path: '/app-info',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: InfoScreen()),
+          ),
+          GoRoute(
+            path: '/note-categories',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: NoteCategoriesScreen()),
+          ),
+          GoRoute(
+            path: '/note-tags',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: NoteTagsScreen()),
+          ),
+          GoRoute(
+            path: '/recipes/:id',
+            pageBuilder: (context, state) {
+              final idStr = state.pathParameters['id'] ?? '';
+              final id = int.tryParse(idStr) ?? 0;
+              return NoTransitionPage(child: RecipeDetailScreen(recipeId: id));
+            },
+          ),
+          GoRoute(
+            path: '/shopping',
+            redirect: (context, state) => '/meals?tab=einkauf',
+          ),
+          GoRoute(
+            path: '/knuspr',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: KnusprScreen()),
           ),
           GoRoute(
             path: '/members',

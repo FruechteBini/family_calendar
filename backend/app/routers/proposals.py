@@ -24,7 +24,7 @@ def _get_member_or_fail(user: User) -> FamilyMember:
     if not user.member_id or not user.member:
         raise HTTPException(
             status_code=400,
-            detail="Dein Account ist noch nicht mit einem Familienmitglied verknuepft.",
+            detail="Dein Account ist noch nicht mit einem Familienmitglied verknüpft.",
         )
     return user.member
 
@@ -49,7 +49,7 @@ async def create_proposal(
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
     if not todo.requires_multiple:
-        raise HTTPException(status_code=400, detail="Terminvorschlaege nur fuer Mehrpersonen-Todos")
+        raise HTTPException(status_code=400, detail="Terminvorschläge nur für Mehrpersonen-Todos")
 
     proposal = TodoProposal(
         todo_id=todo_id,

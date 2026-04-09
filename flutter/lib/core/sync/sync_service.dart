@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/api_client.dart';
 import '../database/app_database.dart';
 import 'pending_change.dart';
 
@@ -81,6 +83,7 @@ class SyncService {
     try {
       await _refreshMembers();
       await _refreshCategories();
+      await _refreshRecipeCategories();
       await _refreshEvents();
       await _refreshTodos();
       await _refreshRecipes();
@@ -122,6 +125,25 @@ class SyncService {
             color: Value(item['color'] as String?),
           ),
         );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _refreshRecipeCategories() async {
+    try {
+      final response = await _dio.get('/api/recipe-categories/');
+      final items = (response.data as List);
+      await _db.delete(_db.cachedRecipeCategories).go();
+      for (final item in items) {
+        await _db.into(_db.cachedRecipeCategories).insert(
+              CachedRecipeCategoriesCompanion.insert(
+                id: Value(item['id'] as int),
+                name: item['name'] as String,
+                color: Value(item['color'] as String?),
+                icon: Value(item['icon'] as String?),
+                position: Value(item['position'] as int? ?? 0),
+              ),
+            );
       }
     } catch (_) {}
   }
@@ -186,18 +208,35 @@ class SyncService {
       final items = (response.data as List);
       await _db.delete(_db.cachedRecipes).go();
       for (final item in items) {
+        final title =
+            item['title'] as String? ?? item['name'] as String? ?? '';
+        final notes = item['notes'] as String?;
+        final active = item['prep_time_active_minutes'] as int? ?? 0;
+        final passive = item['prep_time_passive_minutes'] as int? ?? 0;
+        final prepTotal =
+            (active + passive) > 0 ? active + passive : item['prep_time'] as int?;
+        final source = item['source'] as String?;
+        final cat = item['category'] as Map<String, dynamic>?;
+        final tags = item['tags'] as List<dynamic>? ?? [];
         await _db.into(_db.cachedRecipes).insert(
-          CachedRecipesCompanion.insert(
-            id: Value(item['id'] as int),
-            name: item['name'] as String,
-            description: Value(item['description'] as String?),
-            difficulty: Value(item['difficulty'] as String? ?? 'mittel'),
-            prepTime: Value(item['prep_time'] as int?),
-            imageUrl: Value(item['image_url'] as String?),
-            isCookidoo: Value(item['is_cookidoo'] as bool? ?? false),
-            ingredientsJson: Value(jsonEncode(item['ingredients'] ?? [])),
-          ),
-        );
+              CachedRecipesCompanion.insert(
+                id: Value(item['id'] as int),
+                name: title,
+                description: Value(notes ?? item['description'] as String?),
+                difficulty: Value(item['difficulty'] as String? ?? 'mittel'),
+                prepTime: Value(prepTotal),
+                imageUrl: Value(item['image_url'] as String?),
+                isCookidoo: Value(
+                    source == 'cookidoo' ||
+                        (item['is_cookidoo'] as bool? ?? false)),
+                ingredientsJson: Value(jsonEncode(item['ingredients'] ?? [])),
+                recipeCategoryId: Value(
+                    cat?['id'] as int? ??
+                        item['recipe_category_id'] as int?),
+                recipeCategoryName: Value(cat?['name'] as String?),
+                tagsJson: Value(jsonEncode(tags)),
+              ),
+            );
       }
     } catch (_) {}
   }
@@ -259,6 +298,10 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   final dio = ref.watch(dioProvider);
   return SyncService(db, dio);
 });
+
+/// Increment this to force refetching API-backed providers after mutations
+/// that happen outside the usual screens (e.g. voice commands).
+final syncTickProvider = StateProvider<int>((ref) => 0);
 
 final syncStatusProvider = StateProvider<SyncStatus>((ref) => SyncStatus.idle);
 

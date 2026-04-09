@@ -41,7 +41,7 @@ async def send_list_to_cart(shopping_list_id: int, db: AsyncSession) -> dict[str
                 await kn.add_to_cart(product["product_id"], quantity=1)
                 added.append({"item": item.name, "product": product["name"]})
             else:
-                failed.append({"item": item.name, "reason": "Nicht gefunden oder nicht verfuegbar"})
+                failed.append({"item": item.name, "reason": "Nicht gefunden oder nicht verfügbar"})
         except Exception as e:
             failed.append({"item": item.name, "reason": str(e)})
 

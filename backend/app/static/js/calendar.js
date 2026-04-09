@@ -28,7 +28,7 @@ const Calendar = (() => {
   async function render() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    const monthNames = ['Januar','Februar','Maerz','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+    const monthNames = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
     document.getElementById('cal-title').textContent = `${monthNames[month]} ${year}`;
 
     const firstDay = new Date(year, month, 1);
@@ -118,12 +118,12 @@ const Calendar = (() => {
       container.innerHTML = dayEvents.map(ev => `
         <div class="day-event-item">
           <div class="day-event-dot" style="background:${ev.category ? ev.category.color : '#6B778C'}"></div>
-          <span class="day-event-time">${ev.all_day ? 'Ganztaegig' : App.formatTime(ev.start) + ' - ' + App.formatTime(ev.end)}</span>
+          <span class="day-event-time">${ev.all_day ? 'Ganztägig' : App.formatTime(ev.start) + ' - ' + App.formatTime(ev.end)}</span>
           <span class="day-event-title">${esc(ev.title)}</span>
           <span class="day-event-members">${ev.members.map(m => m.avatar_emoji).join(' ')}</span>
           <div class="day-event-actions">
             <button class="btn-icon" onclick="Calendar.editEvent(${ev.id})" title="Bearbeiten">&#9998;</button>
-            <button class="btn-icon" onclick="Calendar.deleteEvent(${ev.id})" title="Loeschen">&times;</button>
+            <button class="btn-icon" onclick="Calendar.deleteEvent(${ev.id})" title="Löschen">&times;</button>
           </div>
         </div>
       `).join('');
@@ -179,15 +179,15 @@ const Calendar = (() => {
     `).join('');
 
     const isEmpty = !existing && !pending;
-    const emptyMsg = isEmpty ? '<div class="linked-todo-empty">Keine zugehoerigen Aufgaben.</div>' : '';
+    const emptyMsg = isEmpty ? '<div class="linked-todo-empty">Keine zugehörigen Aufgaben.</div>' : '';
 
     return `
       <div class="linked-todos-section">
-        <label>Zugehoerige Aufgaben</label>
+        <label>Zugehörige Aufgaben</label>
         <div class="linked-todo-list" id="linked-todos-container">
           ${existing}${pending}${emptyMsg}
         </div>
-        <button type="button" class="btn-small" id="add-linked-todo-btn" style="margin-top:0.4rem">+ Aufgabe hinzufuegen</button>
+        <button type="button" class="btn-small" id="add-linked-todo-btn" style="margin-top:0.4rem">+ Aufgabe hinzufügen</button>
       </div>`;
   }
 
@@ -213,7 +213,7 @@ const Calendar = (() => {
     `).join('');
 
     const isEmpty = !existing && !pending;
-    container.innerHTML = existing + pending + (isEmpty ? '<div class="linked-todo-empty">Keine zugehoerigen Aufgaben.</div>' : '');
+    container.innerHTML = existing + pending + (isEmpty ? '<div class="linked-todo-empty">Keine zugehörigen Aufgaben.</div>' : '');
 
     container.querySelectorAll('.linked-todo-remove').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -227,7 +227,7 @@ const Calendar = (() => {
     const html = `<form>
       <label>Titel</label>
       <input name="title" required placeholder="Aufgabe...">
-      <label>Prioritaet</label>
+      <label>Priorität</label>
       <select name="priority">
         <option value="medium">Mittel</option>
         <option value="high">Hoch</option>
@@ -237,11 +237,11 @@ const Calendar = (() => {
       ${App.memberChipsHtml([])}
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        <button type="submit" class="btn-small btn-primary">Hinzufuegen</button>
+        <button type="submit" class="btn-small btn-primary">Hinzufügen</button>
       </div>
     </form>`;
 
-    App.openSecondaryModal('Aufgabe fuer Event', html, async (fd) => {
+    App.openSecondaryModal('Aufgabe für Event', html, async (fd) => {
       const memberChips = document.querySelectorAll('#modal-body-2 .chip.selected');
       const memberIds = [...memberChips].map(c => parseInt(c.dataset.id));
       pendingTodos.push({
@@ -280,7 +280,7 @@ const Calendar = (() => {
 
       <div class="event-allday">
         <input type="checkbox" name="all_day" id="event-allday-cb" ${isAllDay ? 'checked' : ''}>
-        <label for="event-allday-cb">Ganztaegig</label>
+        <label for="event-allday-cb">Ganztägig</label>
       </div>
 
       <div class="event-datetime-row">
@@ -309,7 +309,7 @@ const Calendar = (() => {
 
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        ${isEdit ? '<button type="button" class="btn-small btn-danger" id="modal-delete-event">Loeschen</button>' : ''}
+        ${isEdit ? '<button type="button" class="btn-small btn-danger" id="modal-delete-event">Löschen</button>' : ''}
         <button type="submit" class="btn-small btn-primary">${isEdit ? 'Speichern' : 'Erstellen'}</button>
       </div>
     </form>`;
@@ -361,7 +361,7 @@ const Calendar = (() => {
 
     if (isEdit) {
       document.getElementById('modal-delete-event')?.addEventListener('click', async () => {
-        if (confirm('Event wirklich loeschen?')) {
+        if (confirm('Event wirklich löschen?')) {
           try {
             await API.delete(`/api/events/${event.id}`);
             App.closeModal();
@@ -401,7 +401,7 @@ const Calendar = (() => {
   }
 
   async function deleteEvent(id) {
-    if (confirm('Event wirklich loeschen?')) {
+    if (confirm('Event wirklich löschen?')) {
       try {
         await API.delete(`/api/events/${id}`);
         await render();

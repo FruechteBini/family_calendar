@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/utils/date_utils.dart' as utils;
+import '../../../shared/utils/app_time_picker.dart';
 import '../../../core/api/api_client.dart';
 
 final _pendingProvider = FutureProvider<List<Proposal>>((ref) {
@@ -30,7 +32,7 @@ class ProposalSheet extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Expanded(child: Text('Terminvorschlaege', style: theme.textTheme.titleMedium)),
+                  Expanded(child: Text('Terminvorschläge', style: theme.textTheme.titleMedium)),
                   IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                 ],
               ),
@@ -39,7 +41,7 @@ class ProposalSheet extends ConsumerWidget {
             Expanded(
               child: proposals.when(
                 data: (list) => list.isEmpty
-                    ? const Center(child: Text('Keine offenen Vorschlaege'))
+                    ? const Center(child: Text('Keine offenen Vorschläge'))
                     : ListView.builder(
                         controller: scrollController,
                         itemCount: list.length,
@@ -113,7 +115,10 @@ class _ProposalTile extends ConsumerWidget {
 
   Future<void> _respond(BuildContext context, WidgetRef ref, String status) async {
     try {
-      await ref.read(todoRepositoryProvider).respondToProposal(proposal.id, status: status);
+      await ref.read(todoRepositoryProvider).respondToProposal(
+            proposal.id,
+            response: status,
+          );
       onRespond();
       if (context.mounted) showAppToast(context, message: status == 'accepted' ? 'Angenommen' : 'Abgelehnt', type: ToastType.success);
     } on ApiException catch (e) {
@@ -143,7 +148,13 @@ class _ProposalTile extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(controller: messageController, decoration: const InputDecoration(labelText: 'Nachricht'), maxLines: 2),
+              LabeledMultilineTextField(
+                label: 'Nachricht',
+                controller: messageController,
+                hintText: 'Optional — Kurzer Hinweis zum Gegenvorschlag …',
+                minLines: 3,
+                maxLines: 6,
+              ),
             ],
           ),
           actions: [
@@ -157,9 +168,9 @@ class _ProposalTile extends ConsumerWidget {
     try {
       await ref.read(todoRepositoryProvider).respondToProposal(
         proposal.id,
-        status: 'counter',
+        response: 'rejected',
         counterDate: counterDate,
-        counterMessage: messageController.text.trim().isEmpty ? null : messageController.text.trim(),
+        message: messageController.text.trim().isEmpty ? null : messageController.text.trim(),
       );
       onRespond();
     } on ApiException catch (e) {
@@ -177,8 +188,8 @@ Future<DateTime?> showDateTimePicker(BuildContext context, DateTime initial) asy
   );
   if (date == null) return null;
   if (!context.mounted) return null;
-  final time = await showTimePicker(
-    context: context,
+  final time = await showAppTimePicker(
+    context,
     initialTime: TimeOfDay.fromDateTime(initial),
   );
   if (time == null) return null;

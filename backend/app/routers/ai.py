@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,6 +15,8 @@ from ..config import settings
 from ..database import get_db, utcnow
 from ..models.meal_plan import MealPlan
 from ..models.recipe import Recipe
+from ..models.recipe_category import RecipeCategory
+from ..models.recipe_tag import RecipeTag
 from ..models.category import Category
 from ..models.event import Event, event_members
 from ..models.family_member import FamilyMember
@@ -23,11 +25,21 @@ from ..models.pantry_item import PantryItem
 from ..models.shopping_list import ShoppingItem, ShoppingList
 from ..models.todo import Todo, todo_members
 from ..schemas.ai import (
+    ApplyRecipeCategorizationRequest,
+    ApplyRecipeCategorizationResponse,
+    ApplyTodoPrioritiesRequest,
+    ApplyTodoPrioritiesResponse,
     ConfirmMealPlanRequest,
     ConfirmMealPlanResponse,
     GenerateMealPlanRequest,
     MealSuggestion,
     PreviewMealPlanResponse,
+    RecipeCategorizationAssignment,
+    RecipeCategorizationPreview,
+    RecipeNewCategorySpec,
+    RecipeNewTagSpec,
+    TodoPrioritizeResponse,
+    TodoPrioritization,
     UndoMealPlanRequest,
     VoiceCommandAction,
     VoiceCommandRequest,
@@ -85,44 +97,44 @@ def _build_prompt(
     slots_text = "\n".join(f"- {s['day']} ({s['date']}) {s['label']}" for s in target_slots)
 
     preferences_text = (
-        f"\n\nBesondere Wuensche des Nutzers: {preferences}"
+        f"\n\nBesondere Wünsche des Nutzers: {preferences}"
         if preferences else ""
     )
 
     if include_cookidoo and cookidoo_lookup:
         source_instruction = (
             '- Du kannst sowohl LOKALE als auch COOKIDOO Rezepte verwenden\n'
-            '- Fuer lokale Rezepte: "source": "local", "recipe_id": <Integer>\n'
-            '- Fuer Cookidoo Rezepte: "source": "cookidoo", "cookidoo_id": "<String>"\n'
-            '- Bevorzuge lokale Rezepte (da Zutaten bekannt), nutze Cookidoo fuer Abwechslung'
+            '- Für lokale Rezepte: "source": "local", "recipe_id": <Integer>\n'
+            '- Für Cookidoo Rezepte: "source": "cookidoo", "cookidoo_id": "<String>"\n'
+            '- Bevorzuge lokale Rezepte (da Zutaten bekannt), nutze Cookidoo für Abwechslung'
         )
     else:
         source_instruction = '- Verwende NUR lokale Rezept-IDs ("source": "local")'
 
-    return f"""Du bist ein Essensplaner fuer eine Familie. Erstelle einen Wochenplan fuer die folgenden freien Slots.
+    return f"""Du bist ein Essensplaner für eine Familie. Erstelle einen Wochenplan für die folgenden freien Slots.
 
-## Verfuegbare Rezepte
+## Verfügbare Rezepte
 {recipes_text}
 
-## Freie Slots (diese muessen gefuellt werden)
+## Freie Slots (diese müssen gefüllt werden)
 {slots_text}
 
 ## Regeln
 {source_instruction}
-- Bevorzuge Rezepte, die laenger nicht gekocht wurden (Abwechslung!)
+- Bevorzuge Rezepte, die länger nicht gekocht wurden (Abwechslung!)
 - Vermeide das gleiche Rezept mehrfach in einer Woche
-- Beruecksichtige eine gute Mischung aus einfachen und aufwendigeren Gerichten
-- Plane aufwendigere Gerichte eher fuers Wochenende
+- Berücksichtige eine gute Mischung aus einfachen und aufwendigeren Gerichten
+- Plane aufwendigere Gerichte eher fürs Wochenende
 - Portionen pro Mahlzeit: {servings}{preferences_text}
 
 ## Antwort-Format
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt. Keine Erklaerung, kein Markdown, nur das JSON.
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt. Keine Erklärung, kein Markdown, nur das JSON.
 Das Objekt hat zwei Felder:
 - "plan": Ein Array mit den Mahlzeiten. Jedes Element hat: "date" (YYYY-MM-DD), "slot" ("lunch" oder "dinner"), "source" ("local" oder "cookidoo"), "recipe_id" (Integer, nur bei local) ODER "cookidoo_id" (String, nur bei cookidoo), "recipe_title" (String), "servings_planned" (Integer)
-- "reasoning": Ein String mit 3-5 Saetzen, der erklaert WARUM du diese Rezepte ausgewaehlt und so verteilt hast (z.B. Abwechslung, Schwierigkeitsgrad-Verteilung, Nutzerwuensche, lange nicht gekochte Gerichte).
+- "reasoning": Ein String mit 3-5 Sätzen, der erklärt WARUM du diese Rezepte ausgewählt und so verteilt hast (z.B. Abwechslung, Schwierigkeitsgrad-Verteilung, Nutzerwünsche, lange nicht gekochte Gerichte).
 
 Beispiel:
-{{"plan": [{{"date": "2026-03-23", "slot": "lunch", "source": "local", "recipe_id": 5, "recipe_title": "Spaghetti Bolognese", "servings_planned": 4}}], "reasoning": "Ich habe Spaghetti Bolognese gewaehlt, weil es ein einfaches Gericht ist und schon lange nicht mehr gekocht wurde."}}
+{{"plan": [{{"date": "2026-03-23", "slot": "lunch", "source": "local", "recipe_id": 5, "recipe_title": "Spaghetti Bolognese", "servings_planned": 4}}], "reasoning": "Ich habe Spaghetti Bolognese gewählt, weil es ein einfaches Gericht ist und schon lange nicht mehr gekocht wurde."}}
 """
 
 
@@ -131,15 +143,15 @@ async def _call_claude(prompt: str, max_tokens: int = 2000) -> str:
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=settings.ANTHROPIC_MODEL,
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
     except anthropic.AuthenticationError:
-        raise HTTPException(status_code=503, detail="Ungueltiger ANTHROPIC_API_KEY")
+        raise HTTPException(status_code=503, detail="Ungültiger ANTHROPIC_API_KEY")
     except anthropic.APIError as e:
         logger.error("Claude API error: %s", e)
-        raise HTTPException(status_code=502, detail="Claude API Fehler")
+        raise HTTPException(status_code=502, detail=f"Claude API Fehler: {e}")
 
     return response.content[0].text.strip()
 
@@ -158,7 +170,7 @@ def _parse_claude_json(raw_text: str) -> tuple[list[dict], str | None]:
         logger.error("Claude returned invalid JSON: %s", text[:500])
         raise HTTPException(
             status_code=502,
-            detail="KI hat ungueltiges Format zurueckgegeben. Bitte erneut versuchen.",
+            detail="KI hat ungültiges Format zurückgegeben. Bitte erneut versuchen.",
         )
 
     reasoning: str | None = None
@@ -167,7 +179,7 @@ def _parse_claude_json(raw_text: str) -> tuple[list[dict], str | None]:
         result = result.get("plan", [])
 
     if not isinstance(result, list):
-        raise HTTPException(status_code=502, detail="KI hat ungueltiges Format zurueckgegeben.")
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
     return result, reasoning
 
 
@@ -382,7 +394,7 @@ async def generate_meal_plan(
                     })
 
     if not target_slots:
-        raise HTTPException(status_code=400, detail="Keine freien Slots ausgewaehlt.")
+        raise HTTPException(status_code=400, detail="Keine freien Slots ausgewählt.")
 
     now = utcnow()
     recipe_descriptions = _build_recipe_descriptions(recipes, now)
@@ -407,7 +419,7 @@ async def generate_meal_plan(
             logger.warning("Cookidoo fetch for AI failed: %s", e)
 
     if not recipe_descriptions:
-        raise HTTPException(status_code=400, detail="Keine Rezepte verfuegbar.")
+        raise HTTPException(status_code=400, detail="Keine Rezepte verfügbar.")
 
     prompt = _build_prompt(
         recipe_descriptions, target_slots, data.servings,
@@ -519,7 +531,7 @@ async def undo_meal_plan(
 ):
     """Remove AI-generated meal plan entries."""
     if not data.meal_ids:
-        raise HTTPException(status_code=400, detail="Keine Eintraege zum Rueckgaengigmachen")
+        raise HTTPException(status_code=400, detail="Keine Einträge zum Rückgängigmachen")
 
     stmt = select(MealPlan).where(
         MealPlan.id.in_(data.meal_ids), MealPlan.family_id == family_id
@@ -532,7 +544,7 @@ async def undo_meal_plan(
         await db.delete(meal)
         deleted += 1
 
-    return {"message": f"{deleted} Mahlzeiten rueckgaengig gemacht.", "deleted": deleted}
+    return {"message": f"{deleted} Mahlzeiten rückgängig gemacht.", "deleted": deleted}
 
 
 # ── Voice Command ─────────────────────────────────────────
@@ -664,17 +676,17 @@ def _build_voice_prompt(
 
         todos_text = "\n".join(
             f"- ID {t['id']}: \"{t['title']}\" (Prio: {t['priority']}"
-            + (f", Faellig: {t['due_date']}" if t['due_date'] else "")
+            + (f", Fällig: {t['due_date']}" if t['due_date'] else "")
             + (f", Event-ID: {t['event_id']}" if t['event_id'] else "")
             + ")"
             for t in context["todos"]
         ) or "Keine offenen Todos vorhanden"
 
         existing_context_block = f"""
-## Bestehende Termine (zum Bearbeiten/Verschieben/Loeschen)
+## Bestehende Termine (zum Bearbeiten/Verschieben/Löschen)
 {events_text}
 
-## Offene Todos (zum Bearbeiten/Erledigen/Loeschen)
+## Offene Todos (zum Bearbeiten/Erledigen/Löschen)
 {todos_text}
 """
 
@@ -692,7 +704,7 @@ Parameter:
 - "member_ids" (Array von Integers, optional - ERSETZT die aktuelle Zuordnung)
 
 ### update_todo
-Bearbeitet ein bestehendes Todo (z.B. umbenennen, Prioritaet aendern, Faelligkeitsdatum setzen).
+Bearbeitet ein bestehendes Todo (z.B. umbenennen, Priorität ändern, Fälligkeitsdatum setzen).
 Parameter:
 - "todo_id" (Integer, PFLICHT - verwende ID aus "Offene Todos")
 - "title" (String, optional)
@@ -700,7 +712,7 @@ Parameter:
 - "priority" (String: "low", "medium", "high", optional)
 - "due_date" (ISO-Datum, optional)
 - "category_id" (Integer, optional)
-- "event_id" (Integer, optional - mit Event verknuepfen oder null zum Entknuepfen)
+- "event_id" (Integer, optional - mit Event verknüpfen oder null zum Entknüpfen)
 - "member_ids" (Array von Integers, optional)
 
 ### complete_todo
@@ -709,12 +721,12 @@ Parameter:
 - "todo_id" (Integer, PFLICHT - verwende ID aus "Offene Todos")
 
 ### delete_event
-Loescht einen Kalendereintrag.
+Löscht einen Kalendereintrag.
 Parameter:
 - "event_id" (Integer, PFLICHT - verwende ID aus "Bestehende Termine")
 
 ### delete_todo
-Loescht ein Todo.
+Löscht ein Todo.
 Parameter:
 - "todo_id" (Integer, PFLICHT - verwende ID aus "Offene Todos")
 """
@@ -728,16 +740,16 @@ Analysiere die Anweisung und erstelle die passenden Aktionen.
 - Wenn der Nutzer "Montag" sagt, meine den NAECHSTEN Montag (oder heute, falls heute Montag ist).
   Nutze den Wochentag relativ zu heute um das Datum zu berechnen.
 
-## Verfuegbare Familienmitglieder
+## Verfügbare Familienmitglieder
 {members_text}
 
-## Verfuegbare Kategorien
+## Verfügbare Kategorien
 {categories_text}
 
-## Verfuegbare Rezepte (fuer Essensplanung)
+## Verfügbare Rezepte (für Essensplanung)
 {recipes_text}
 {existing_context_block}
-## Verfuegbare Aktionstypen
+## Verfügbare Aktionstypen
 
 ### create_event
 Erstellt einen einzelnen Kalendereintrag.
@@ -751,8 +763,8 @@ Parameter:
 - "member_ids" (Array von Integers, optional - verwende IDs aus Mitgliederliste)
 
 ### create_recurring_event
-Erstellt einen Serientermin (z.B. woechentlich, taeglich). Das Backend generiert automatisch alle Einzeltermine.
-WICHTIG: Verwende diesen Typ IMMER wenn ein wiederkehrender Termin gemeint ist (z.B. "jeden Mittwoch", "taeglich", "jeden Monat am 1.").
+Erstellt einen Serientermin (z.B. wöchentlich, täglich). Das Backend generiert automatisch alle Einzeltermine.
+WICHTIG: Verwende diesen Typ IMMER wenn ein wiederkehrender Termin gemeint ist (z.B. "jeden Mittwoch", "täglich", "jeden Monat am 1.").
 Parameter:
 - "title" (String, PFLICHT)
 - "description" (String, optional)
@@ -777,7 +789,7 @@ Parameter:
 - "category_id" (Integer, optional)
 - "event_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Event, z.B. "evt1")
 - "event_id" (Integer, optional - ID eines existierenden Events)
-- "parent_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Todo, fuer Sub-Todos)
+- "parent_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Todo, für Sub-Todos)
 - "member_ids" (Array von Integers, optional)
 
 ### create_recipe
@@ -799,21 +811,21 @@ Parameter:
 - "servings_planned" (Integer, default 4)
 
 ### add_shopping_item
-Fuegt einen Artikel zur Einkaufsliste hinzu.
+Fügt einen Artikel zur Einkaufsliste hinzu.
 Parameter:
 - "name" (String, PFLICHT)
 - "amount" (String, optional, z.B. "500")
-- "unit" (String, optional, z.B. "g", "ml", "Stueck")
+- "unit" (String, optional, z.B. "g", "ml", "Stück")
 - "category" (String: "kuehlregal", "obst_gemuese", "trockenware", "drogerie", "sonstiges", default "sonstiges")
 
 ### add_pantry_items
-Fuegt Artikel zur Vorratskammer hinzu. Verwende diesen Typ wenn der Nutzer sagt was er im Vorrat/Schrank/Speisekammer hat.
+Fügt Artikel zur Vorratskammer hinzu. Verwende diesen Typ wenn der Nutzer sagt was er im Vorrat/Schrank/Speisekammer hat.
 Erkennung: "Wir haben noch...", "Im Vorrat haben wir...", "Auf Lager...", "In der Vorratskammer...", "Daheim haben wir noch..."
 Parameter:
 - "items" (Array von Objekten, PFLICHT) - jedes mit:
   - "name" (String, PFLICHT - z.B. "Tomaten gehackt")
   - "amount" (Float, optional - z.B. 20)
-  - "unit" (String, optional - z.B. "Dosen", "kg", "Stueck")
+  - "unit" (String, optional - z.B. "Dosen", "kg", "Stück")
   - "category" (String: "kuehlregal", "obst_gemuese", "trockenware", "drogerie", "sonstiges", default "sonstiges")
   - "expiry_date" (ISO-Datum "YYYY-MM-DD", optional - bei "reicht bis Juni" setze den 1. des Monats, z.B. "2026-06-01")
 
@@ -826,59 +838,59 @@ Beispiel: "Wir haben noch: Salz, Pfeffer, 20 Dosen Tomaten gehackt, Mehl - das r
 ]}}}}
 
 ### generate_meal_plan
-Erstellt einen kompletten KI-Essensplan fuer eine Woche. Verwende diesen Typ wenn der Nutzer sagt, er moechte eine Woche (oder mehrere Tage) planen lassen, z.B. "plane mir die Woche", "mach mir einen Essensplan", "was sollen wir diese Woche kochen".
+Erstellt einen kompletten KI-Essensplan für eine Woche. Verwende diesen Typ wenn der Nutzer sagt, er möchte eine Woche (oder mehrere Tage) planen lassen, z.B. "plane mir die Woche", "mach mir einen Essensplan", "was sollen wir diese Woche kochen".
 WICHTIG: Dieser Typ generiert den Plan UND speichert ihn direkt. Es wird auch automatisch eine Einkaufsliste erstellt.
 Parameter:
-- "week_start" (ISO-Datum "YYYY-MM-DD", PFLICHT - der Montag der gewuenschten Woche. Wenn der Nutzer "diese Woche" sagt, verwende den aktuellen oder naechsten Montag)
+- "week_start" (ISO-Datum "YYYY-MM-DD", PFLICHT - der Montag der gewünschten Woche. Wenn der Nutzer "diese Woche" sagt, verwende den aktuellen oder nächsten Montag)
 - "servings" (Integer, default 4 - Portionen pro Mahlzeit)
-- "preferences" (String, optional - Besondere Wuensche des Nutzers, z.B. "vegetarisch", "ein neues Gericht und eins das wir schon kennen", "schnelle Gerichte unter der Woche")
+- "preferences" (String, optional - Besondere Wünsche des Nutzers, z.B. "vegetarisch", "ein neues Gericht und eins das wir schon kennen", "schnelle Gerichte unter der Woche")
 - "selected_slots" (Array von Objekten mit "date" (YYYY-MM-DD) und "slot" ("lunch" oder "dinner"), optional - wenn leer, werden ALLE freien Slots der Woche geplant. Wenn der Nutzer spezifische Tage/Mahlzeiten nennt, gib nur diese an)
 
 Beispiel: "Plane mir diese Woche, Montag Abend und Mittwoch Mittag soll was Neues sein"
 -> {{"type": "generate_meal_plan", "params": {{"week_start": "2026-03-23", "servings": 4, "preferences": "Montag Abend und Mittwoch Mittag sollen neue Gerichte sein, die wir noch nie gekocht haben", "selected_slots": [{{"date": "2026-03-23", "slot": "dinner"}}, {{"date": "2026-03-25", "slot": "lunch"}}]}}}}
 
-Beispiel: "Mach einen Essensplan fuer die ganze Woche, 3 Portionen, eher einfach"
+Beispiel: "Mach einen Essensplan für die ganze Woche, 3 Portionen, eher einfach"
 -> {{"type": "generate_meal_plan", "params": {{"week_start": "2026-03-23", "servings": 3, "preferences": "eher einfache Gerichte bevorzugen", "selected_slots": []}}}}
 {modify_actions_block}
 
 ## Referenz-System
 
-Wenn eine Aktion von einer anderen abhaengt (z.B. ein Todo soll mit einem Event verknuepft werden),
-verwende das "ref"-Feld als Platzhalter-ID und referenziere es in spaeteren Aktionen.
+Wenn eine Aktion von einer anderen abhängt (z.B. ein Todo soll mit einem Event verknüpft werden),
+verwende das "ref"-Feld als Platzhalter-ID und referenziere es in späteren Aktionen.
 
 Beispiel: Event erstellen und Todos daran linken:
 - Aktion 1: create_event mit "ref": "evt1"
-- Aktion 2: create_todo mit "event_ref": "evt1" (wird automatisch aufgeloest)
+- Aktion 2: create_todo mit "event_ref": "evt1" (wird automatisch aufgelöst)
 
-Fuer Sub-Todos:
+Für Sub-Todos:
 - Aktion 1: create_todo mit "ref": "todo1"
 - Aktion 2: create_todo mit "parent_ref": "todo1" (wird als Unteraufgabe angelegt)
 
 ## Antwort-Format
 
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt. Kein Markdown, keine Erklaerung.
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt. Kein Markdown, keine Erklärung.
 Das Objekt hat:
 - "actions": Array von Aktionsobjekten. Jedes hat:
   - "type": Der Aktionstyp (z.B. "create_event")
   - "ref": Optionaler Platzhalter-Name (z.B. "evt1", "todo1")
   - "params": Objekt mit den Parametern der Aktion
-- "summary": Ein kurzer deutscher Satz, der zusammenfasst was du gemacht hast (fuer den Benutzer)
+- "summary": Ein kurzer deutscher Satz, der zusammenfasst was du gemacht hast (für den Benutzer)
 
 ## Beispiel
 
-Eingabe: "Ich habe am Montag um 14 Uhr ein Meeting mit Michi und muss dafuer noch Kaffee vorbereiten und das Dokument ausfuellen"
+Eingabe: "Ich habe am Montag um 14 Uhr ein Meeting mit Michi und muss dafür noch Kaffee vorbereiten und das Dokument ausfüllen"
 
 Antwort:
 {{"actions": [
   {{"type": "create_event", "ref": "evt1", "params": {{"title": "Meeting mit Michi", "start": "2026-03-23T14:00:00", "end": "2026-03-23T15:00:00", "member_ids": [1]}}}},
   {{"type": "create_todo", "ref": "todo1", "params": {{"title": "Kaffee vorbereiten", "event_ref": "evt1", "due_date": "2026-03-23", "priority": "medium"}}}},
-  {{"type": "create_todo", "ref": "todo2", "params": {{"title": "Dokument ausfuellen", "event_ref": "evt1", "due_date": "2026-03-23", "priority": "medium"}}}}
-], "summary": "Meeting mit Michi am Montag um 14 Uhr erstellt und 2 Todos (Kaffee vorbereiten, Dokument ausfuellen) verknuepft."}}
+  {{"type": "create_todo", "ref": "todo2", "params": {{"title": "Dokument ausfüllen", "event_ref": "evt1", "due_date": "2026-03-23", "priority": "medium"}}}}
+], "summary": "Meeting mit Michi am Montag um 14 Uhr erstellt und 2 Todos (Kaffee vorbereiten, Dokument ausfüllen) verknüpft."}}
 
 ## Wichtig
-- Loese Wochentage immer zu konkreten Daten auf (basierend auf dem heutigen Datum).
-- Wenn keine Uhrzeit genannt wird, nutze 09:00 als Standard fuer Events.
-- Wenn Personen namentlich erwaehnt werden, versuche sie den Familienmitgliedern zuzuordnen (auch Teilnamen, z.B. "Michi" -> "Michael").
+- Löse Wochentage immer zu konkreten Daten auf (basierend auf dem heutigen Datum).
+- Wenn keine Uhrzeit genannt wird, nutze 09:00 als Standard für Events.
+- Wenn Personen namentlich erwähnt werden, versuche sie den Familienmitgliedern zuzuordnen (auch Teilnamen, z.B. "Michi" -> "Michael").
 - Erstelle NUR Aktionen, die sich klar aus der Anweisung ableiten lassen.
 - Die "summary" soll freundlich, kurz und auf Deutsch sein.
 
@@ -1530,16 +1542,16 @@ def _parse_voice_response(raw_text: str) -> tuple[list[dict], str]:
         logger.error("Voice command: invalid JSON: %s", text[:500])
         raise HTTPException(
             status_code=502,
-            detail="KI hat ungueltiges Format zurueckgegeben. Bitte erneut versuchen.",
+            detail="KI hat ungültiges Format zurückgegeben. Bitte erneut versuchen.",
         )
 
     if not isinstance(result, dict):
-        raise HTTPException(status_code=502, detail="KI hat ungueltiges Format zurueckgegeben.")
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
 
     actions = result.get("actions", [])
-    summary = result.get("summary", "Aktion ausgefuehrt.")
+    summary = result.get("summary", "Aktion ausgeführt.")
     if not isinstance(actions, list):
-        raise HTTPException(status_code=502, detail="KI hat ungueltiges Format zurueckgegeben.")
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
 
     return actions, summary
 
@@ -1569,3 +1581,527 @@ async def voice_command(
     executed = await _execute_voice_actions(actions_raw, db, family_id)
 
     return VoiceCommandResponse(summary=summary, actions=executed)
+
+
+# ── Todo Prioritization Endpoints ─────────────────────────────────────────
+
+
+def _build_todo_prioritize_prompt(
+    todos: list[Todo],
+    categories: list[Category],
+) -> str:
+    cats_text = "\n".join(f"- ID {c.id}: {c.name}" for c in categories) or "- (keine Kategorien)"
+
+    def _todo_line(t: Todo) -> str:
+        due = str(t.due_date) if t.due_date else "-"
+        cat = str(t.category_id) if t.category_id else "-"
+        who = ", ".join(m.name for m in t.members) if t.members else "-"
+        kind = "personal" if t.is_personal else "family"
+        return (
+            f"- ID {t.id} | {kind} | title={t.title!r} | "
+            f"priority={t.priority} | due={due} | category_id={cat} | members={who} | "
+            f"description={t.description!r}"
+        )
+
+    todos_text = "\n".join(_todo_line(t) for t in todos) or "- (keine Todos)"
+
+    return f"""Du bist ein Produktivitäts-Assistent für eine Familie.
+Du bekommst eine Liste von Todos und verfügbare Kategorien.
+
+## Kategorien (nur diese IDs sind erlaubt)
+{cats_text}
+
+## Todos
+{todos_text}
+
+## Aufgabe
+Priorisiere die Todos und schlage pro Todo vor:
+- suggested_priority: low|medium|high
+- suggested_category_id: eine Kategorie-ID aus der Liste oder null
+- urgency_score: Zahl von 0.0 bis 1.0
+- reasoning: kurze Begründung
+
+## Regeln
+- Nutze Fälligkeit (due), bestehende priority, Inhalt/Keywords, und sinnvolle Heuristiken.
+- Wenn ein Todo bereits eine passende Kategorie hat, lass suggested_category_id gleich (oder null, wenn keine Änderung nötig).
+- Gib ALLE Todos in items zurück.
+
+## Antwortformat
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown.
+Schema:
+{{\"summary\": \"...\", \"items\": [{{\"todo_id\": 1, \"suggested_priority\": \"high\", \"suggested_category_id\": 3, \"urgency_score\": 0.9, \"reasoning\": \"...\"}}]}}
+"""
+
+
+@router.post("/prioritize-todos", response_model=TodoPrioritizeResponse)
+async def prioritize_todos(
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY ist nicht konfiguriert")
+
+    todos_result = await db.execute(
+        select(Todo)
+        .where(Todo.family_id == family_id, Todo.parent_id.is_(None), Todo.completed.is_(False))
+        .options(selectinload(Todo.members))
+        .order_by(Todo.due_date.asc().nulls_last(), Todo.created_at.desc())
+    )
+    todos = todos_result.scalars().unique().all()
+
+    cats_result = await db.execute(
+        select(Category).where(Category.family_id == family_id).order_by(Category.name)
+    )
+    categories = cats_result.scalars().all()
+
+    prompt = _build_todo_prioritize_prompt(todos, categories)
+    raw_text = await _call_claude(prompt, max_tokens=4096)
+
+    # Parse expected dict shape (summary + items)
+    text = raw_text
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [ln for ln in lines if not ln.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        logger.error("Todo prioritize: invalid JSON: %s", text[:500])
+        raise HTTPException(
+            status_code=502,
+            detail="KI hat ungültiges Format zurückgegeben. Bitte erneut versuchen.",
+        )
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("items"), list):
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
+
+    valid_cat_ids = {c.id for c in categories}
+    valid_todo_ids = {t.id for t in todos}
+
+    items: list[TodoPrioritization] = []
+    for it in parsed.get("items", []):
+        if not isinstance(it, dict):
+            continue
+        todo_id = it.get("todo_id")
+        if not isinstance(todo_id, int) or todo_id not in valid_todo_ids:
+            continue
+        pr = it.get("suggested_priority")
+        if pr not in ("low", "medium", "high"):
+            pr = "medium"
+        cat_id = it.get("suggested_category_id")
+        if cat_id is not None and (not isinstance(cat_id, int) or cat_id not in valid_cat_ids):
+            cat_id = None
+        try:
+            score = float(it.get("urgency_score", 0.5))
+        except (TypeError, ValueError):
+            score = 0.5
+        score = max(0.0, min(1.0, score))
+        reasoning = it.get("reasoning")
+        if not isinstance(reasoning, str):
+            reasoning = ""
+        items.append(
+            TodoPrioritization(
+                todo_id=todo_id,
+                suggested_priority=pr,
+                suggested_category_id=cat_id,
+                urgency_score=score,
+                reasoning=reasoning[:500],
+            )
+        )
+
+    summary = parsed.get("summary")
+    if not isinstance(summary, str):
+        summary = ""
+
+    # Ensure every todo appears at least once (fallback defaults)
+    seen = {i.todo_id for i in items}
+    for t in todos:
+        if t.id in seen:
+            continue
+        items.append(
+            TodoPrioritization(
+                todo_id=t.id,
+                suggested_priority=t.priority if t.priority in ("low", "medium", "high") else "medium",
+                suggested_category_id=t.category_id,
+                urgency_score=0.5,
+                reasoning="",
+            )
+        )
+
+    return TodoPrioritizeResponse(items=items, summary=summary)
+
+
+@router.post("/apply-todo-priorities", response_model=ApplyTodoPrioritiesResponse)
+async def apply_todo_priorities(
+    data: ApplyTodoPrioritiesRequest,
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    updated = 0
+    for it in data.items:
+        todo = await db.get(Todo, it.todo_id)
+        if not todo or todo.family_id != family_id:
+            continue
+        if it.suggested_priority in ("low", "medium", "high"):
+            todo.priority = it.suggested_priority
+        todo.category_id = it.suggested_category_id
+        updated += 1
+
+    await db.flush()
+    return ApplyTodoPrioritiesResponse(updated=updated)
+
+
+# ── Recipe categorization + tags (Claude) ──────────────────────────────────
+
+
+def _strip_json_fence(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [ln for ln in lines if not ln.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+    return text
+
+
+def _recipe_categorize_line(r: Recipe) -> str:
+    ings = ", ".join(i.name for i in (r.ingredients or [])) or "-"
+    active = r.prep_time_active_minutes
+    passive = r.prep_time_passive_minutes
+    total = (active or 0) + (passive or 0)
+    prep = f"gesamt ca. {total}min (aktiv={active}, passiv={passive})"
+    notes = (r.notes or "")[:500]
+    inst = (r.instructions or "")[:500]
+    return (
+        f"- ID {r.id} | title={r.title!r} | difficulty={r.difficulty} | {prep} | "
+        f"notes={notes!r} | instructions_preview={inst!r} | ingredients={ings}"
+    )
+
+
+def _build_recipe_categorize_prompt(
+    recipes: list[Recipe],
+    categories: list[RecipeCategory],
+    tags: list[RecipeTag],
+) -> str:
+    cats_text = (
+        "\n".join(f"- ID {c.id}: {c.name}" for c in categories) or "- (keine Kategorien — du darfst neue vorschlagen)"
+    )
+    tags_text = "\n".join(f"- ID {t.id}: {t.name}" for t in tags) or "- (keine Tags — du darfst neue vorschlagen)"
+
+    recipes_text = "\n".join(_recipe_categorize_line(r) for r in recipes) or "- (keine Rezepte)"
+
+    return f"""Du bist ein erfahrener Koch und Food-Organisator für eine Familie.
+Du bekommst alle Rezepte und sollst sie **kategorisieren** und mit **Labels (Tags)** versehen.
+
+## Vorhandene Rezept-Kategorien (IDs beibehalten wenn passend)
+{cats_text}
+
+## Vorhandene Rezept-Tags (IDs beibehalten / Namen wiederverwenden)
+{tags_text}
+
+## Rezepte
+{recipes_text}
+
+## Aufgabe 1: Kategorien (genau eine pro Rezept)
+Ordne jedes Rezept **einer** Kategorie zu.
+- Primär nach **Küche / Herkunft**: z.B. "Asiatisch", "Italienisch", "Deutsch/Österreichisch",
+  "Mexikanisch", "Orientalisch/Mediterran", "Amerikanisch", "Indisch", "International"
+- Ergänzend: **Gerichtstyp** wenn sinnvoller als Herkunft: z.B. "Suppen & Eintöpfe",
+  "Salate & Bowls", "Aufläufe & Ofengerichte", "Desserts & Süßes", "Frühstück & Brunch"
+- Insgesamt **5–12** Kategorien im System anstreben (nicht pro Rezept neu erfinden — konsolidieren).
+- Wenn eine **bestehende Kategorie** passt: setze "suggested_category_id" auf ihre ID und "category_name" exakt gleich.
+- Wenn **neu nötig**: "suggested_category_id": null, "category_name" = neuer Name, und **new_categories** um {{name, color}} ergänzen (passende Hex-Farben, z.B. Italienisch #CE2B37).
+
+## Aufgabe 2: Tags (1–5 pro Rezept, übergreifend)
+Vergib passende Tags aus diesen **Dimensionen** (nur sinnvolle, nicht alle):
+- **Zeit**: "Schnell" (≤20 Min Gesamtzeit aus Daten schätzen), "30 Minuten", "Aufwendig" (>60 Min)
+- **Mahlzeit**: "Frühstück", "Hauptgericht", "Beilage", "Nachtisch", "Snack"
+- **Ernährung**: "Vegetarisch", "Vegan", "Low Carb", "Proteinreich"
+- **Anlass**: "Kinderfreundlich", "Meal Prep", "Comfort Food", "Festlich", "Sommer", "Winter", "Unter der Woche"
+Neue Tag-Namen in **new_tags** mit {{name, color}} aufnehmen. Bestehende Tags nach Namen wiederverwenden.
+
+## Antwortformat
+Antworte **AUSSCHLIESSLICH** mit JSON, **ohne** Markdown-Codeblöcke.
+Schema:
+{{
+  "summary": "Kurzfassung auf Deutsch",
+  "new_categories": [{{"name": "Italienisch", "color": "#CE2B37"}}],
+  "new_tags": [{{"name": "Schnell", "color": "#2A9D8F"}}],
+  "items": [
+    {{
+      "recipe_id": 1,
+      "category_name": "Italienisch",
+      "suggested_category_id": null,
+      "tag_names": ["Schnell", "Hauptgericht"]
+    }}
+  ]
+}}
+
+## Regeln
+- **Jedes** Rezept aus der Liste muss **genau einmal** in "items" vorkommen.
+- Tag-Namen konsistent und kurz (wie in den Dimensionen).
+- Bei Unsicherheit: Kategorie "International" oder "Sonstiges" und weniger Tags.
+"""
+
+
+def _normalize_name(s: str) -> str:
+    return " ".join(s.strip().lower().split())
+
+
+def _merge_recipe_categorization(
+    parsed: dict,
+    recipes: list[Recipe],
+    categories: list[RecipeCategory],
+    tags: list[RecipeTag],
+) -> RecipeCategorizationPreview:
+    valid_recipe_ids = {r.id for r in recipes}
+    cat_by_id = {c.id: c for c in categories}
+    cat_by_norm = {_normalize_name(c.name): c for c in categories}
+    tag_by_norm = {_normalize_name(t.name): t for t in tags}
+
+    new_cat_specs: dict[str, RecipeNewCategorySpec] = {}
+    new_tag_specs: dict[str, RecipeNewTagSpec] = {}
+
+    for nc in parsed.get("new_categories") or []:
+        if not isinstance(nc, dict):
+            continue
+        name = nc.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        color = nc.get("color") if isinstance(nc.get("color"), str) else "#0052CC"
+        if not color.startswith("#") or len(color) != 7:
+            color = "#0052CC"
+        new_cat_specs[_normalize_name(name)] = RecipeNewCategorySpec(name=name.strip(), color=color)
+
+    for nt in parsed.get("new_tags") or []:
+        if not isinstance(nt, dict):
+            continue
+        name = nt.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        color = nt.get("color") if isinstance(nt.get("color"), str) else "#6B7280"
+        if not color.startswith("#") or len(color) != 7:
+            color = "#6B7280"
+        new_tag_specs[_normalize_name(name)] = RecipeNewTagSpec(name=name.strip(), color=color)
+
+    assignments: list[RecipeCategorizationAssignment] = []
+    raw_items = parsed.get("items") if isinstance(parsed.get("items"), list) else []
+
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        rid = it.get("recipe_id")
+        if not isinstance(rid, int) or rid not in valid_recipe_ids:
+            continue
+        cat_name = it.get("category_name")
+        if not isinstance(cat_name, str) or not cat_name.strip():
+            cat_name = "Sonstiges"
+        cat_name = cat_name.strip()
+        cat_norm = _normalize_name(cat_name)
+
+        sug_id = it.get("suggested_category_id")
+        if sug_id is not None and (not isinstance(sug_id, int) or sug_id not in cat_by_id):
+            sug_id = None
+        if sug_id is None and cat_norm in cat_by_norm:
+            sug_id = cat_by_norm[cat_norm].id
+
+        if sug_id is None and cat_norm not in new_cat_specs:
+            new_cat_specs[cat_norm] = RecipeNewCategorySpec(name=cat_name, color="#6B7280")
+
+        raw_tags = it.get("tag_names") or []
+        tag_names: list[str] = []
+        if isinstance(raw_tags, list):
+            for tn in raw_tags:
+                if isinstance(tn, str) and tn.strip():
+                    tstrip = tn.strip()
+                    tag_names.append(tstrip)
+                    tn_norm = _normalize_name(tstrip)
+                    if tn_norm not in tag_by_norm and tn_norm not in new_tag_specs:
+                        new_tag_specs[tn_norm] = RecipeNewTagSpec(name=tstrip, color="#6B7280")
+
+        assignments.append(
+            RecipeCategorizationAssignment(
+                recipe_id=rid,
+                category_name=cat_name,
+                suggested_category_id=sug_id,
+                tag_names=tag_names,
+            )
+        )
+
+    seen_r = {a.recipe_id for a in assignments}
+    for r in recipes:
+        if r.id in seen_r:
+            continue
+        assignments.append(
+            RecipeCategorizationAssignment(
+                recipe_id=r.id,
+                category_name="Sonstiges",
+                suggested_category_id=None,
+                tag_names=[],
+            )
+        )
+        if _normalize_name("Sonstiges") not in cat_by_norm and _normalize_name("Sonstiges") not in new_cat_specs:
+            new_cat_specs[_normalize_name("Sonstiges")] = RecipeNewCategorySpec(
+                name="Sonstiges", color="#6B7280"
+            )
+
+    summary = parsed.get("summary")
+    if not isinstance(summary, str):
+        summary = ""
+
+    return RecipeCategorizationPreview(
+        new_categories=list(new_cat_specs.values()),
+        new_tags=list(new_tag_specs.values()),
+        assignments=assignments,
+        summary=summary,
+    )
+
+
+@router.post("/categorize-recipes", response_model=RecipeCategorizationPreview)
+async def categorize_recipes(
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY ist nicht konfiguriert")
+
+    recipes_result = await db.execute(
+        select(Recipe)
+        .where(Recipe.family_id == family_id)
+        .options(selectinload(Recipe.ingredients))
+        .order_by(Recipe.title)
+    )
+    recipes = list(recipes_result.scalars().unique().all())
+
+    if not recipes:
+        return RecipeCategorizationPreview(assignments=[], summary="Keine Rezepte vorhanden.")
+
+    cats_result = await db.execute(
+        select(RecipeCategory)
+        .where(RecipeCategory.family_id == family_id)
+        .order_by(RecipeCategory.position, RecipeCategory.name)
+    )
+    categories = list(cats_result.scalars().all())
+
+    tags_result = await db.execute(
+        select(RecipeTag).where(RecipeTag.family_id == family_id).order_by(RecipeTag.name)
+    )
+    tags = list(tags_result.scalars().all())
+
+    prompt = _build_recipe_categorize_prompt(recipes, categories, tags)
+    raw_text = await _call_claude(prompt, max_tokens=8192)
+    text = _strip_json_fence(raw_text)
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        logger.error("Recipe categorize: invalid JSON: %s", text[:500])
+        raise HTTPException(
+            status_code=502,
+            detail="KI hat ungültiges Format zurückgegeben. Bitte erneut versuchen.",
+        )
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
+
+    return _merge_recipe_categorization(parsed, recipes, categories, tags)
+
+
+@router.post("/apply-recipe-categorization", response_model=ApplyRecipeCategorizationResponse)
+async def apply_recipe_categorization(
+    data: ApplyRecipeCategorizationRequest,
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    categories_created = 0
+    tags_created = 0
+
+    for nc in data.new_categories:
+        name = nc.name.strip()
+        if not name:
+            continue
+        existing = await db.execute(
+            select(RecipeCategory).where(
+                RecipeCategory.family_id == family_id,
+                func.lower(RecipeCategory.name) == func.lower(name),
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+        max_pos = await db.scalar(
+            select(func.coalesce(func.max(RecipeCategory.position), 0)).where(
+                RecipeCategory.family_id == family_id
+            )
+        )
+        row = RecipeCategory(
+            family_id=family_id,
+            position=int(max_pos or 0) + 1,
+            name=name,
+            color=nc.color,
+            icon="🍽",
+        )
+        db.add(row)
+        categories_created += 1
+    await db.flush()
+
+    for nt in data.new_tags:
+        name = nt.name.strip()
+        if not name:
+            continue
+        existing = await db.execute(
+            select(RecipeTag).where(
+                RecipeTag.family_id == family_id,
+                func.lower(RecipeTag.name) == func.lower(name),
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+        db.add(RecipeTag(family_id=family_id, name=name, color=nt.color))
+        tags_created += 1
+    await db.flush()
+
+    cats_result = await db.execute(
+        select(RecipeCategory).where(RecipeCategory.family_id == family_id)
+    )
+    cats_list = list(cats_result.scalars().all())
+    cat_by_lower = {c.name.strip().lower(): c for c in cats_list}
+    cat_by_id = {c.id: c for c in cats_list}
+
+    tags_result = await db.execute(select(RecipeTag).where(RecipeTag.family_id == family_id))
+    tag_by_lower = {t.name.strip().lower(): t for t in tags_result.scalars().all()}
+
+    updated = 0
+    for a in data.assignments:
+        result = await db.execute(
+            select(Recipe)
+            .options(selectinload(Recipe.tags))
+            .where(Recipe.id == a.recipe_id, Recipe.family_id == family_id)
+        )
+        recipe = result.scalar_one_or_none()
+        if not recipe:
+            continue
+
+        cid = a.suggested_category_id
+        if cid is not None and cid not in cat_by_id:
+            cid = None
+        if cid is None:
+            c = cat_by_lower.get(a.category_name.strip().lower())
+            if c:
+                cid = c.id
+        if cid is None:
+            logger.warning("apply recipe categorization: skip recipe %s — no category", a.recipe_id)
+            continue
+
+        recipe.recipe_category_id = cid
+
+        tag_objs: list[RecipeTag] = []
+        for tn in a.tag_names:
+            t = tag_by_lower.get(tn.strip().lower())
+            if t:
+                tag_objs.append(t)
+        recipe.tags = tag_objs
+        updated += 1
+
+    await db.flush()
+    return ApplyRecipeCategorizationResponse(
+        updated=updated,
+        categories_created=categories_created,
+        tags_created=tags_created,
+    )

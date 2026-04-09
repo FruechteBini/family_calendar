@@ -20,14 +20,14 @@ const Voice = (() => {
     create_recipe: 'Rezept erstellt',
     set_meal_slot: 'Essensplan belegt',
     generate_meal_plan: 'Essensplan erstellt',
-    add_shopping_item: 'Einkaufsartikel hinzugefuegt',
+    add_shopping_item: 'Einkaufsartikel hinzugefügt',
     add_pantry_items: 'Vorrat aktualisiert',
     complete_todo: 'Aufgabe erledigt',
     mark_cooked: 'Als gekocht markiert',
     update_event: 'Termin bearbeitet',
     update_todo: 'Aufgabe bearbeitet',
-    delete_event: 'Termin geloescht',
-    delete_todo: 'Aufgabe geloescht',
+    delete_event: 'Termin gelöscht',
+    delete_todo: 'Aufgabe gelöscht',
   };
 
   function init() {
@@ -104,7 +104,7 @@ const Voice = (() => {
       isListening = true;
       btn.classList.add('listening');
       fabIcon.innerHTML = '&#9899;';
-      btn.title = 'Aufnahme laeuft... (klicken zum Stoppen)';
+      btn.title = 'Aufnahme läuft... (klicken zum Stoppen)';
       resetSilenceTimer();
     } catch { /* already started */ }
   }
@@ -163,7 +163,7 @@ const Voice = (() => {
         style="font-size:1rem;padding:0.6rem">
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        <button type="submit" class="btn-small btn-primary">Ausfuehren</button>
+        <button type="submit" class="btn-small btn-primary">Ausführen</button>
       </div>
     </form>`;
 
@@ -210,7 +210,7 @@ const Voice = (() => {
     popup.className = 'voice-result-overlay';
     popup.innerHTML = `<div class="voice-result-box">
       <div class="voice-result-header">
-        <span>&#127908; Sprachbefehl ausgefuehrt</span>
+        <span>&#127908; Sprachbefehl ausgeführt</span>
         <button class="btn-icon voice-result-close">&times;</button>
       </div>
       <div class="voice-result-body">

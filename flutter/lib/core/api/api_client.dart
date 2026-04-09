@@ -53,7 +53,26 @@ class ApiException implements Exception {
       final data = response.data;
       String message = 'Fehler';
       if (data is Map<String, dynamic> && data.containsKey('detail')) {
-        message = data['detail'].toString();
+        final detail = data['detail'];
+        if (detail is String) {
+          message = detail;
+        } else if (detail is List) {
+          // FastAPI/Pydantic validation errors: [{"loc":["query","week_start"],"msg":"Field required",...}, ...]
+          final parts = <String>[];
+          for (final item in detail) {
+            if (item is Map) {
+              final loc = item['loc'];
+              final msg = item['msg'];
+              final locStr = loc is List ? loc.join('.') : loc?.toString();
+              if (locStr != null && msg != null) {
+                parts.add('$locStr: $msg');
+              }
+            }
+          }
+          message = parts.isNotEmpty ? parts.join(' · ') : detail.toString();
+        } else {
+          message = detail.toString();
+        }
       } else {
         message = 'HTTP ${response.statusCode}';
       }
@@ -63,7 +82,7 @@ class ApiException implements Exception {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return ApiException('Zeitueberschreitung bei der Verbindung');
+        return ApiException('Zeitüberschreitung bei der Verbindung');
       case DioExceptionType.connectionError:
         return ApiException('Keine Verbindung zum Server');
       default:

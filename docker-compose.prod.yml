@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: familienkalender-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kalender}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-kalender}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kalender}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    container_name: familienkalender-api
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kalender}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-kalender}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.mcp
+    container_name: familienkalender-mcp
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kalender}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-kalender}
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  flutter:
+    build: ./flutter
+    container_name: familienkalender-flutter
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,6 +1,6 @@
 # Familienkalender — Funktionsuebersicht
 
-Letzte Aktualisierung: 2026-03-30
+Letzte Aktualisierung: 2026-04-09
 
 ---
 
@@ -58,7 +58,7 @@ Letzte Aktualisierung: 2026-03-30
 
 ---
 
-## 3. Aufgaben (Todos)
+## 3. Todos
 
 | Funktion | Web | Android | MCP | API-Endpunkt |
 |----------|:---:|:-------:|:---:|-------------|
@@ -71,10 +71,17 @@ Letzte Aktualisierung: 2026-03-30
 | Sub-Todos (Unteraufgaben) | ✅ | ✅ | – | `POST /api/todos/` (mit parent_id) |
 | Filter: Prioritaet | ✅ | ✅ | ✅ | Query-Parameter |
 | Filter: Mitglied | ✅ | – | ✅ | Query-Parameter |
+| Scopes: Alle / Meine / Familie | ✅ | ✅ | ✅ | Query `scope=all|personal|family` |
+| Familie: Todos eines Mitglieds mitsehen | ✅ | ✅ | – | Query `view_member_id=<id>` (nur scope=family) |
+| Persoenliche Todos | ✅ | ✅ | – | `is_personal=true` (Create), Sichtbarkeit nur Ersteller |
+| Familien-Todos (zuweisbar) | ✅ | ✅ | ✅ | `member_ids` (Create/Update) |
+| Berechtigung: Abhaken nur zugewiesen | ✅ | ✅ | – | Backend-Policy (family todos) |
 | Filter: Erledigte ein/ausblenden | ✅ | ✅ | ✅ | Query-Parameter |
 | Todo mit Event verknuepfen | ✅ | ✅ | ✅ | `PATCH /api/todos/{id}/link-event` |
 | Mehrpersonen-Markierung | ✅ | ✅ | – | `requires_multiple` Feld |
 | Offene Todos nach Kategorie | – | – | ✅ | `todos://open`, `todos://high-priority` |
+| KI: Priorisieren + Kategorien vorschlagen | ✅ | ✅ | – | `POST /api/ai/prioritize-todos` |
+| KI: Vorschlaege anwenden | ✅ | ✅ | – | `POST /api/ai/apply-todo-priorities` |
 
 ---
 
@@ -116,18 +123,56 @@ Letzte Aktualisierung: 2026-03-30
 
 ---
 
+## 6a. Notizen (eigene Kategorien, nicht Todo-Kategorien)
+
+| Funktion | Web | Android | MCP | API-Endpunkt |
+|----------|:---:|:-------:|:---:|-------------|
+| Notizen-Tab (Flutter) | – | ✅ | – | – |
+| Text-, Link-, Checklisten-Notizen | – | ✅ | – | `GET/POST/PUT/DELETE /api/notes/` |
+| Persoenlich vs. Familie (Default: Familie) | – | ✅ | – | `is_personal`, `scope` wie Todos |
+| Eigene Notiz-Kategorien + Tabs | – | ✅ | – | `/api/note-categories/` |
+| Tags (frei, mit Farbe) | – | ✅ | – | `/api/note-tags/` |
+| Link-Vorschau (Open Graph) | – | ✅ | – | `POST /api/notes/preview-link` |
+| Duplikat-Erkennung (URL) | – | ✅ | – | `GET /api/notes/check-duplicate-link` |
+| Anpinnen, Archiv, Kartenfarbe | – | ✅ | – | `PATCH .../pin`, `.../archive`, `.../color` |
+| Drag-and-Drop Sortierung | – | ✅ | – | `PUT /api/notes/reorder` |
+| Kommentare | – | ✅ | – | `POST/DELETE /api/notes/{id}/comments/...` |
+| Bild-Anhaenge (lokal, max. 10 MB) | – | ✅ | – | `POST .../attachments` + Download-Route |
+| Markdown im Text | – | ✅ | – | Flutter `flutter_markdown` |
+| Erinnerung (Datum/Zeit) | – | ✅ | – | `reminder_at` |
+| Notiz als Todo uebernehmen | – | ✅ | – | `POST /api/notes/{id}/convert-to-todo` |
+| Offline-Cache (Drift) | – | Tabellen `CachedNotes`, `CachedNoteCategories` | – | – |
+| Info-Screen (ehem. Tab) | – | ✅ unter Einstellungen | – | Route `/app-info` |
+
+---
+
 ## 7. Rezepte
 
 | Funktion | Web | Android | MCP | API-Endpunkt |
 |----------|:---:|:-------:|:---:|-------------|
 | Rezepte auflisten | ✅ | ✅ | ✅ | `GET /api/recipes/` |
+| Filter: Rezept-Kategorie | – | – | – | Query `recipe_category_id` |
+| Filter: Rezept-Tag | – | – | – | Query `tag_id` |
 | Rezept erstellen (mit Zutaten) | ✅ | ✅ | – | `POST /api/recipes/` |
 | Rezept bearbeiten | ✅ | ✅ | – | `PUT /api/recipes/{id}` |
+| Kategorie + Tags am Rezept | – | ✅ | – | Felder `recipe_category_id`, `tag_ids`; Response `category`, `tags` |
 | Rezept loeschen | ✅ | ✅ | – | `DELETE /api/recipes/{id}` |
 | Rezeptvorschlaege (selten gekocht) | – | – | ✅ | `GET /api/recipes/suggestions` |
 | Kochhistorie anzeigen | ✅ | ✅ | ✅ | `GET /api/meals/history` |
 | Bild-Anzeige (Cookidoo-Import) | ✅ | ✅ | – | `image_url` Feld |
 | URL-Import (beliebige Koch-Webseite) | ✅ | – | – | `POST /api/recipes/parse-url` |
+
+### Rezept-Kategorien & Tags (eigenstaendig von Todo-Kategorien)
+
+| Funktion | Web | Android | MCP | API-Endpunkt |
+|----------|:---:|:-------:|:---:|-------------|
+| Rezept-Kategorien CRUD | – | ✅ | – | `GET/POST /api/recipe-categories/`, `PUT/DELETE /api/recipe-categories/{id}` |
+| Rezept-Kategorien sortieren | – | ✅ | – | `PUT /api/recipe-categories/reorder` |
+| Rezept-Tags CRUD | – | ✅* | – | `GET/POST /api/recipe-tags/`, `PUT/DELETE /api/recipe-tags/{id}` |
+| KI: Kategorien + Tags vorschlagen (Preview) | – | ✅ | – | `POST /api/ai/categorize-recipes` |
+| KI: Vorschlag anwenden | – | ✅ | – | `POST /api/ai/apply-recipe-categorization` |
+
+\* Tags in der Flutter-App: Auswahl im Rezeptformular, Schnellanlage „Neu“; volles Tag-Management optional ueber API.
 
 ---
 
@@ -163,6 +208,7 @@ Letzte Aktualisierung: 2026-03-30
 | Plan rueckgaengig machen (Undo) | ✅ | – | – | `POST /api/ai/undo-meal-plan` |
 | Portionen + Wuensche konfigurieren | ✅ | – | – | Request-Parameter |
 | Essensplan per Sprachbefehl erstellen | ✅ | – | – | Voice-Action `generate_meal_plan` |
+| Rezepte per KI kategorisieren + labeln | – | ✅ | – | `categorize-recipes` / `apply-recipe-categorization` (siehe §7) |
 
 ---
 
@@ -305,6 +351,17 @@ Beim Generieren der Einkaufsliste aus dem Wochenplan wird automatisch die Vorrat
 
 ---
 
+## 15b. Flutter App (Cross-Platform UI)
+
+| Funktion | Beschreibung |
+|----------|--------------|
+| **Sekundärfarbe (Akzent)** | In **Einstellungen** per Color Picker wählbar; steuert u.a. aktive Navigation, Primary-Schaltflächen, Listen- und Kalender-Akzente (entspricht der Material-`ColorScheme.primary`-Familie, inkl. Gradient fuer Primary-Buttons). Wert wird lokal per `shared_preferences` gespeichert; **Standard** setzt die Werkfarbe zurueck. |
+| **Design-Modus** | Hell / Dunkel / System (wie bisher) |
+| **Rezepte: Kategorien & Tags** | Tab-Leiste nach Kategorie filtern (+ Verwalten / Anordnen), horizontale Tag-**FilterChips** (Mehrfachauswahl = Schnittmenge), Karten mit Kategoriefarbe und Tags; **KI**-Button oeffnet Vorschau-Bottom-Sheet zum Uebernehmen. |
+| **Offline-Cache Rezepte** | Drift `schemaVersion` 3: `CachedRecipeCategories`, erweiterte `CachedRecipes` (Kategorie + `tagsJson`); Sync laedt `/api/recipe-categories/` und Rezepte mit verschachtelter Kategorie/Tags. |
+
+---
+
 ## 16. KI-Sprachassistent (Voice Command)
 
 Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar ist. Spracheingabe wird per Browser Web Speech API transkribiert und an Claude gesendet, das die passenden Aktionen erkennt und ausfuehrt.
@@ -366,8 +423,8 @@ Alle Daten sind per `family_id` einer Familie zugeordnet. Jeder User gehoert zu 
 |---------|---------|
 | **Family** | Kern-Entity mit `id`, `name`, `invite_code` (auto-generiert) |
 | **User → Family** | `family_id` FK (nullable, bis User einer Familie beitritt) |
-| **Scoped Models** | FamilyMember, Category, Event, Todo, Recipe, MealPlan, ShoppingList, PantryItem |
-| **Indirekt scoped** | Ingredient (via Recipe), ShoppingItem (via ShoppingList), CookingHistory (via Recipe), TodoProposal (via Todo) |
+| **Scoped Models** | FamilyMember, Category, Event, Todo, Recipe, RecipeCategory, RecipeTag, MealPlan, ShoppingList, PantryItem |
+| **Indirekt scoped** | Ingredient (via Recipe), ShoppingItem (via ShoppingList), CookingHistory (via Recipe), TodoProposal (via Todo), Rezept-Tag-Zuordnungen (`recipe_tag_assignments`) |
 
 ### Flow
 
@@ -399,7 +456,7 @@ Alle Daten sind per `family_id` einer Familie zugeordnet. Jeder User gehoert zu 
 | pantry | `/api/pantry` | 8 |
 | cookidoo | `/api/cookidoo` | 6 |
 | knuspr | `/api/knuspr` | 5 |
-| ai | `/api/ai` | 5 |
+| ai | `/api/ai` | 7 |
 | categories | `/api/categories` | 4 |
 | family_members | `/api/family-members` | 4 |
-| **Gesamt** | | **72 Endpunkte** |
+| **Gesamt** | | **74 Endpunkte** |

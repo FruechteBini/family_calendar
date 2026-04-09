@@ -10,12 +10,16 @@ class AiRepository {
   AiRepository(this._dio);
 
   Future<AiAvailableRecipes> getAvailableRecipes({
+    required String weekStart, // YYYY-MM-DD (Monday)
     bool includeCookidoo = false,
   }) async {
     try {
       final response = await _dio.get(
         Endpoints.aiAvailableRecipes,
-        queryParameters: {'include_cookidoo': includeCookidoo},
+        queryParameters: {
+          'week_start': weekStart,
+          'include_cookidoo': includeCookidoo,
+        },
       );
       return AiAvailableRecipes.fromJson(
           response.data as Map<String, dynamic>);
@@ -25,6 +29,7 @@ class AiRepository {
   }
 
   Future<AiMealPlanPreview> generateMealPlan({
+    required String weekStart, // YYYY-MM-DD (Monday)
     required List<Map<String, String>> selectedSlots,
     bool includeCookidoo = false,
     int servings = 2,
@@ -34,6 +39,7 @@ class AiRepository {
       final response = await _dio.post(
         Endpoints.aiGenerateMealPlan,
         data: {
+          'week_start': weekStart,
           'selected_slots': selectedSlots,
           'include_cookidoo': includeCookidoo,
           'servings': servings,
@@ -49,18 +55,23 @@ class AiRepository {
   }
 
   Future<AiMealPlanConfirmResult> confirmMealPlan(
+    String weekStart, // YYYY-MM-DD (Monday)
     List<AiMealSuggestion> suggestions,
   ) async {
     try {
       final response = await _dio.post(
         Endpoints.aiConfirmMealPlan,
         data: {
-          'suggestions': suggestions
+          'week_start': weekStart,
+          'items': suggestions
               .map((s) => {
                     'date': s.date,
                     'slot': s.slot,
                     'recipe_id': s.recipeId,
                     if (s.cookidooId != null) 'cookidoo_id': s.cookidooId,
+                    'recipe_title': s.recipeName,
+                    'servings_planned': 2,
+                    'source': s.isCookidoo ? 'cookidoo' : 'local',
                   })
               .toList(),
         },
@@ -77,6 +88,37 @@ class AiRepository {
       await _dio.post(
         Endpoints.aiUndoMealPlan,
         data: {'meal_ids': mealIds},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<RecipeCategorizationPreview> categorizeRecipes() async {
+    try {
+      final response = await _dio.post(
+        Endpoints.aiCategorizeRecipes,
+        options: Options(receiveTimeout: const Duration(seconds: 120)),
+      );
+      return RecipeCategorizationPreview.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<ApplyRecipeCategorizationResult> applyRecipeCategorization(
+    RecipeCategorizationPreview preview,
+  ) async {
+    try {
+      final response = await _dio.post(
+        Endpoints.aiApplyRecipeCategorization,
+        data: preview.toApplyBody(),
+        options: Options(receiveTimeout: const Duration(seconds: 120)),
+      );
+      return ApplyRecipeCategorizationResult.fromJson(
+        response.data as Map<String, dynamic>,
       );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);

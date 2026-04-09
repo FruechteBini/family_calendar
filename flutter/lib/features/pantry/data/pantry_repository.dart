@@ -9,9 +9,12 @@ class PantryRepository {
 
   PantryRepository(this._dio);
 
-  Future<List<PantryItem>> getItems() async {
+  Future<List<PantryItem>> getItems({String? category, String? search}) async {
     try {
-      final response = await _dio.get(Endpoints.pantry);
+      final params = <String, dynamic>{};
+      if (category != null && category.trim().isNotEmpty) params['category'] = category.trim();
+      if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
+      final response = await _dio.get(Endpoints.pantry, queryParameters: params.isEmpty ? null : params);
       return (response.data as List)
           .map((e) => PantryItem.fromJson(e as Map<String, dynamic>))
           .toList();

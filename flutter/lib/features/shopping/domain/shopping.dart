@@ -24,7 +24,7 @@ class ShoppingList {
 class ShoppingItem {
   final int id;
   final String name;
-  final double? amount;
+  final String? amount;
   final String? unit;
   final bool checked;
   final bool isManual;
@@ -46,7 +46,7 @@ class ShoppingItem {
     return ShoppingItem(
       id: json['id'] as int,
       name: json['name'] as String,
-      amount: (json['amount'] as num?)?.toDouble(),
+      amount: json['amount']?.toString(),
       unit: json['unit'] as String?,
       checked: json['checked'] as bool? ?? false,
       isManual: json['is_manual'] as bool? ?? false,

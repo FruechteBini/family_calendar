@@ -68,7 +68,7 @@ const Recipes = (() => {
             <span>${r.cook_count}x gekocht</span>
           </div>
         </div>
-        <button class="recipe-card-delete" onclick="event.stopPropagation();Recipes.remove(${r.id})" title="Loeschen">&times;</button>
+        <button class="recipe-card-delete" onclick="event.stopPropagation();Recipes.remove(${r.id})" title="Löschen">&times;</button>
       </div>`;
     }).join('') + '</div>';
   }
@@ -211,7 +211,7 @@ const Recipes = (() => {
       </div>
 
       <label>Zubereitung</label>
-      <textarea name="instructions" rows="6" placeholder="Schritt-fuer-Schritt Anleitung...">${esc(instructions)}</textarea>
+      <textarea name="instructions" rows="6" placeholder="Schritt-für-Schritt Anleitung...">${esc(instructions)}</textarea>
 
       <label>Notizen</label>
       <textarea name="notes" rows="2" placeholder="Tipps, Varianten...">${esc(notes)}</textarea>
@@ -224,7 +224,7 @@ const Recipes = (() => {
 
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        ${isEdit ? `<button type="button" class="btn-small btn-danger" id="modal-delete-recipe">Loeschen</button>` : ''}
+        ${isEdit ? `<button type="button" class="btn-small btn-danger" id="modal-delete-recipe">Löschen</button>` : ''}
         <button type="submit" class="btn-small btn-primary">${isEdit ? 'Speichern' : 'Rezept anlegen'}</button>
       </div>
     </form>`;
@@ -257,7 +257,7 @@ const Recipes = (() => {
 
     if (isEdit) {
       document.getElementById('modal-delete-recipe')?.addEventListener('click', async () => {
-        if (confirm('Rezept wirklich loeschen?')) {
+        if (confirm('Rezept wirklich löschen?')) {
           try {
             await API.delete(`/api/recipes/${recipe.id}`);
             App.closeModal();
@@ -279,8 +279,8 @@ const Recipes = (() => {
       <input name="ing_unit_${idx}" placeholder="Einheit" value="${unit}" class="ing-unit">
       <select name="ing_cat_${idx}" class="ing-cat">
         <option value="sonstiges" ${cat==='sonstiges'?'selected':''}>Sonstiges</option>
-        <option value="kuehlregal" ${cat==='kuehlregal'?'selected':''}>Kuehlregal</option>
-        <option value="obst_gemuese" ${cat==='obst_gemuese'?'selected':''}>Obst/Gemuese</option>
+        <option value="kuehlregal" ${cat==='kuehlregal'?'selected':''}>Kühlregal</option>
+        <option value="obst_gemuese" ${cat==='obst_gemuese'?'selected':''}>Obst/Gemüse</option>
         <option value="trockenware" ${cat==='trockenware'?'selected':''}>Trockenware</option>
         <option value="drogerie" ${cat==='drogerie'?'selected':''}>Drogerie</option>
       </select>
@@ -337,7 +337,7 @@ const Recipes = (() => {
     return `<div id="import-home">
       <div class="url-import-section">
         <h4>&#127760; Link zu Rezept-Webseite</h4>
-        <p class="url-import-hint">Fuege einen Link von einer beliebigen Koch-Webseite ein (z.B. Chefkoch, Lecker, EatSmarter, ...)</p>
+        <p class="url-import-hint">Füge einen Link von einer beliebigen Koch-Webseite ein (z.B. Chefkoch, Lecker, EatSmarter, ...)</p>
         <form id="url-import-form" class="url-import-bar">
           <input type="url" id="url-import-input" placeholder="https://www.chefkoch.de/rezepte/..." required>
           <button type="submit" class="btn-small btn-primary" id="url-import-btn">Rezept laden</button>
@@ -379,7 +379,7 @@ const Recipes = (() => {
     _setModalWide(false);
 
     let html = '<div class="url-preview">';
-    html += `<button class="cd-back-btn" onclick="Recipes._backToImportHome()">&#8592; Zurueck</button>`;
+    html += `<button class="cd-back-btn" onclick="Recipes._backToImportHome()">&#8592; Zurück</button>`;
 
     if (data.image_url) {
       html += `<img class="cd-preview-hero" src="${esc(data.image_url)}" alt="" onerror="this.style.display='none'">`;
@@ -392,7 +392,7 @@ const Recipes = (() => {
     html += '</div>';
 
     if (data.ingredients && data.ingredients.length) {
-      html += `<div class="cd-preview-ing-header"><h5>Zutaten</h5><span class="cd-count">${data.ingredients.length} Stueck</span></div>`;
+      html += `<div class="cd-preview-ing-header"><h5>Zutaten</h5><span class="cd-count">${data.ingredients.length} Stück</span></div>`;
       html += '<div class="cd-preview-ingredients">';
       for (const ing of data.ingredients) {
         const desc = [ing.amount, ing.unit].filter(Boolean).join(' ');
@@ -477,9 +477,9 @@ const Recipes = (() => {
     if (!cookidooAvailable) {
       document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center;padding:3rem">
-          <button class="cd-back-btn" onclick="Recipes._backToImportHome()" style="margin-bottom:1rem">&#8592; Zurueck</button>
+          <button class="cd-back-btn" onclick="Recipes._backToImportHome()" style="margin-bottom:1rem">&#8592; Zurück</button>
           <div style="font-size:3rem;margin-bottom:1rem">&#128268;</div>
-          <h4 style="margin-bottom:0.75rem;color:var(--text)">Cookidoo nicht verfuegbar</h4>
+          <h4 style="margin-bottom:0.75rem;color:var(--text)">Cookidoo nicht verfügbar</h4>
           <p style="color:var(--text-light);max-width:400px;margin:0 auto;line-height:1.6">
             Die Verbindung zu Cookidoo konnte nicht hergestellt werden.<br>
             Bitte stelle sicher, dass die <strong>cookidoo-api</strong> installiert ist und
@@ -499,7 +499,7 @@ const Recipes = (() => {
     } catch (err) {
       document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center;padding:3rem">
-          <button class="cd-back-btn" onclick="Recipes._backToImportHome()" style="margin-bottom:1rem">&#8592; Zurueck</button>
+          <button class="cd-back-btn" onclick="Recipes._backToImportHome()" style="margin-bottom:1rem">&#8592; Zurück</button>
           <div style="font-size:3rem;margin-bottom:1rem">&#9888;</div>
           <h4 style="margin-bottom:0.75rem;color:var(--text)">Verbindungsfehler</h4>
           <p style="color:var(--text-light);max-width:400px;margin:0 auto">Cookidoo-Daten konnten nicht geladen werden: ${esc(err.message)}</p>
@@ -533,7 +533,7 @@ const Recipes = (() => {
     html += `<div class="cd-section">
       <div class="cd-section-header">
         <h4>&#128218; Sammlungen</h4>
-        <span class="cd-count">${collections.length} Kochbuecher</span>
+        <span class="cd-count">${collections.length} Kochbücher</span>
       </div>
       <div class="cd-collections-grid">`;
 
@@ -560,7 +560,7 @@ const Recipes = (() => {
     navStack = ['main', idx];
 
     let html = `<div id="cookidoo-browser">
-      <button class="cd-back-btn" onclick="Recipes._goBack()">&#8592; Zurueck zu Sammlungen</button>
+      <button class="cd-back-btn" onclick="Recipes._goBack()">&#8592; Zurück zu Sammlungen</button>
       <h4 style="margin:0.75rem 0">${esc(col.name)}</h4>`;
 
     if (col.description) {
@@ -635,7 +635,7 @@ const Recipes = (() => {
       const timePassive = (timeTotal && timeActive) ? Math.max(0, timeTotal - timeActive) : null;
 
       let html = '<div class="cd-preview">';
-      html += `<button class="cd-back-btn" onclick="Recipes._goBack()" style="margin-bottom:0.75rem">&#8592; Zurueck</button>`;
+      html += `<button class="cd-back-btn" onclick="Recipes._goBack()" style="margin-bottom:0.75rem">&#8592; Zurück</button>`;
 
       if (d.image) {
         html += `<img class="cd-preview-hero" src="${d.image}" alt="">`;
@@ -652,7 +652,7 @@ const Recipes = (() => {
       if (d.ingredients && d.ingredients.length) {
         html += `<div class="cd-preview-ing-header">
           <h5>Zutaten</h5>
-          <span class="cd-count">${d.ingredients.length} Stueck</span>
+          <span class="cd-count">${d.ingredients.length} Stück</span>
         </div>`;
         html += '<div class="cd-preview-ingredients">';
         for (const ing of d.ingredients) {
@@ -682,7 +682,7 @@ const Recipes = (() => {
       document.getElementById('modal-body').innerHTML = html;
     } catch (err) {
       document.getElementById('modal-body').innerHTML =
-        `<div style="padding:1rem"><button class="cd-back-btn" onclick="Recipes._goBack()">&#8592; Zurueck</button><p style="color:var(--red);margin-top:1rem">Fehler: ${esc(err.message)}</p></div>`;
+        `<div style="padding:1rem"><button class="cd-back-btn" onclick="Recipes._goBack()">&#8592; Zurück</button><p style="color:var(--red);margin-top:1rem">Fehler: ${esc(err.message)}</p></div>`;
       document.getElementById('modal-title').textContent = 'Fehler';
     }
   }
@@ -711,7 +711,7 @@ const Recipes = (() => {
   }
 
   async function remove(id) {
-    if (confirm('Rezept wirklich loeschen?')) {
+    if (confirm('Rezept wirklich löschen?')) {
       try {
         await API.delete(`/api/recipes/${id}`);
         await refresh();

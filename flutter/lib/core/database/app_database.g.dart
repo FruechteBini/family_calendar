@@ -1228,6 +1228,26 @@ class $CachedRecipesTable extends CachedRecipes
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('[]'));
+  static const VerificationMeta _recipeCategoryIdMeta =
+      const VerificationMeta('recipeCategoryId');
+  @override
+  late final GeneratedColumn<int> recipeCategoryId = GeneratedColumn<int>(
+      'recipe_category_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _recipeCategoryNameMeta =
+      const VerificationMeta('recipeCategoryName');
+  @override
+  late final GeneratedColumn<String> recipeCategoryName =
+      GeneratedColumn<String>('recipe_category_name', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _tagsJsonMeta =
+      const VerificationMeta('tagsJson');
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+      'tags_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -1237,7 +1257,10 @@ class $CachedRecipesTable extends CachedRecipes
         prepTime,
         imageUrl,
         isCookidoo,
-        ingredientsJson
+        ingredientsJson,
+        recipeCategoryId,
+        recipeCategoryName,
+        tagsJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1290,6 +1313,22 @@ class $CachedRecipesTable extends CachedRecipes
           ingredientsJson.isAcceptableOrUnknown(
               data['ingredients_json']!, _ingredientsJsonMeta));
     }
+    if (data.containsKey('recipe_category_id')) {
+      context.handle(
+          _recipeCategoryIdMeta,
+          recipeCategoryId.isAcceptableOrUnknown(
+              data['recipe_category_id']!, _recipeCategoryIdMeta));
+    }
+    if (data.containsKey('recipe_category_name')) {
+      context.handle(
+          _recipeCategoryNameMeta,
+          recipeCategoryName.isAcceptableOrUnknown(
+              data['recipe_category_name']!, _recipeCategoryNameMeta));
+    }
+    if (data.containsKey('tags_json')) {
+      context.handle(_tagsJsonMeta,
+          tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta));
+    }
     return context;
   }
 
@@ -1315,6 +1354,12 @@ class $CachedRecipesTable extends CachedRecipes
           .read(DriftSqlType.bool, data['${effectivePrefix}is_cookidoo'])!,
       ingredientsJson: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}ingredients_json'])!,
+      recipeCategoryId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}recipe_category_id']),
+      recipeCategoryName: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}recipe_category_name']),
+      tagsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tags_json'])!,
     );
   }
 
@@ -1333,6 +1378,9 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
   final String? imageUrl;
   final bool isCookidoo;
   final String ingredientsJson;
+  final int? recipeCategoryId;
+  final String? recipeCategoryName;
+  final String tagsJson;
   const CachedRecipe(
       {required this.id,
       required this.name,
@@ -1341,7 +1389,10 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
       this.prepTime,
       this.imageUrl,
       required this.isCookidoo,
-      required this.ingredientsJson});
+      required this.ingredientsJson,
+      this.recipeCategoryId,
+      this.recipeCategoryName,
+      required this.tagsJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1359,6 +1410,13 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
     }
     map['is_cookidoo'] = Variable<bool>(isCookidoo);
     map['ingredients_json'] = Variable<String>(ingredientsJson);
+    if (!nullToAbsent || recipeCategoryId != null) {
+      map['recipe_category_id'] = Variable<int>(recipeCategoryId);
+    }
+    if (!nullToAbsent || recipeCategoryName != null) {
+      map['recipe_category_name'] = Variable<String>(recipeCategoryName);
+    }
+    map['tags_json'] = Variable<String>(tagsJson);
     return map;
   }
 
@@ -1378,6 +1436,13 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
           : Value(imageUrl),
       isCookidoo: Value(isCookidoo),
       ingredientsJson: Value(ingredientsJson),
+      recipeCategoryId: recipeCategoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recipeCategoryId),
+      recipeCategoryName: recipeCategoryName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recipeCategoryName),
+      tagsJson: Value(tagsJson),
     );
   }
 
@@ -1393,6 +1458,10 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
       imageUrl: serializer.fromJson<String?>(json['imageUrl']),
       isCookidoo: serializer.fromJson<bool>(json['isCookidoo']),
       ingredientsJson: serializer.fromJson<String>(json['ingredientsJson']),
+      recipeCategoryId: serializer.fromJson<int?>(json['recipeCategoryId']),
+      recipeCategoryName:
+          serializer.fromJson<String?>(json['recipeCategoryName']),
+      tagsJson: serializer.fromJson<String>(json['tagsJson']),
     );
   }
   @override
@@ -1407,6 +1476,9 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
       'imageUrl': serializer.toJson<String?>(imageUrl),
       'isCookidoo': serializer.toJson<bool>(isCookidoo),
       'ingredientsJson': serializer.toJson<String>(ingredientsJson),
+      'recipeCategoryId': serializer.toJson<int?>(recipeCategoryId),
+      'recipeCategoryName': serializer.toJson<String?>(recipeCategoryName),
+      'tagsJson': serializer.toJson<String>(tagsJson),
     };
   }
 
@@ -1418,7 +1490,10 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
           Value<int?> prepTime = const Value.absent(),
           Value<String?> imageUrl = const Value.absent(),
           bool? isCookidoo,
-          String? ingredientsJson}) =>
+          String? ingredientsJson,
+          Value<int?> recipeCategoryId = const Value.absent(),
+          Value<String?> recipeCategoryName = const Value.absent(),
+          String? tagsJson}) =>
       CachedRecipe(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -1428,6 +1503,13 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
         imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
         isCookidoo: isCookidoo ?? this.isCookidoo,
         ingredientsJson: ingredientsJson ?? this.ingredientsJson,
+        recipeCategoryId: recipeCategoryId.present
+            ? recipeCategoryId.value
+            : this.recipeCategoryId,
+        recipeCategoryName: recipeCategoryName.present
+            ? recipeCategoryName.value
+            : this.recipeCategoryName,
+        tagsJson: tagsJson ?? this.tagsJson,
       );
   CachedRecipe copyWithCompanion(CachedRecipesCompanion data) {
     return CachedRecipe(
@@ -1444,6 +1526,13 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
       ingredientsJson: data.ingredientsJson.present
           ? data.ingredientsJson.value
           : this.ingredientsJson,
+      recipeCategoryId: data.recipeCategoryId.present
+          ? data.recipeCategoryId.value
+          : this.recipeCategoryId,
+      recipeCategoryName: data.recipeCategoryName.present
+          ? data.recipeCategoryName.value
+          : this.recipeCategoryName,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
     );
   }
 
@@ -1457,14 +1546,27 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
           ..write('prepTime: $prepTime, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('isCookidoo: $isCookidoo, ')
-          ..write('ingredientsJson: $ingredientsJson')
+          ..write('ingredientsJson: $ingredientsJson, ')
+          ..write('recipeCategoryId: $recipeCategoryId, ')
+          ..write('recipeCategoryName: $recipeCategoryName, ')
+          ..write('tagsJson: $tagsJson')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, description, difficulty, prepTime,
-      imageUrl, isCookidoo, ingredientsJson);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      description,
+      difficulty,
+      prepTime,
+      imageUrl,
+      isCookidoo,
+      ingredientsJson,
+      recipeCategoryId,
+      recipeCategoryName,
+      tagsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1476,7 +1578,10 @@ class CachedRecipe extends DataClass implements Insertable<CachedRecipe> {
           other.prepTime == this.prepTime &&
           other.imageUrl == this.imageUrl &&
           other.isCookidoo == this.isCookidoo &&
-          other.ingredientsJson == this.ingredientsJson);
+          other.ingredientsJson == this.ingredientsJson &&
+          other.recipeCategoryId == this.recipeCategoryId &&
+          other.recipeCategoryName == this.recipeCategoryName &&
+          other.tagsJson == this.tagsJson);
 }
 
 class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
@@ -1488,6 +1593,9 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
   final Value<String?> imageUrl;
   final Value<bool> isCookidoo;
   final Value<String> ingredientsJson;
+  final Value<int?> recipeCategoryId;
+  final Value<String?> recipeCategoryName;
+  final Value<String> tagsJson;
   const CachedRecipesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -1497,6 +1605,9 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
     this.imageUrl = const Value.absent(),
     this.isCookidoo = const Value.absent(),
     this.ingredientsJson = const Value.absent(),
+    this.recipeCategoryId = const Value.absent(),
+    this.recipeCategoryName = const Value.absent(),
+    this.tagsJson = const Value.absent(),
   });
   CachedRecipesCompanion.insert({
     this.id = const Value.absent(),
@@ -1507,6 +1618,9 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
     this.imageUrl = const Value.absent(),
     this.isCookidoo = const Value.absent(),
     this.ingredientsJson = const Value.absent(),
+    this.recipeCategoryId = const Value.absent(),
+    this.recipeCategoryName = const Value.absent(),
+    this.tagsJson = const Value.absent(),
   }) : name = Value(name);
   static Insertable<CachedRecipe> custom({
     Expression<int>? id,
@@ -1517,6 +1631,9 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
     Expression<String>? imageUrl,
     Expression<bool>? isCookidoo,
     Expression<String>? ingredientsJson,
+    Expression<int>? recipeCategoryId,
+    Expression<String>? recipeCategoryName,
+    Expression<String>? tagsJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1527,6 +1644,10 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
       if (imageUrl != null) 'image_url': imageUrl,
       if (isCookidoo != null) 'is_cookidoo': isCookidoo,
       if (ingredientsJson != null) 'ingredients_json': ingredientsJson,
+      if (recipeCategoryId != null) 'recipe_category_id': recipeCategoryId,
+      if (recipeCategoryName != null)
+        'recipe_category_name': recipeCategoryName,
+      if (tagsJson != null) 'tags_json': tagsJson,
     });
   }
 
@@ -1538,7 +1659,10 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
       Value<int?>? prepTime,
       Value<String?>? imageUrl,
       Value<bool>? isCookidoo,
-      Value<String>? ingredientsJson}) {
+      Value<String>? ingredientsJson,
+      Value<int?>? recipeCategoryId,
+      Value<String?>? recipeCategoryName,
+      Value<String>? tagsJson}) {
     return CachedRecipesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -1548,6 +1672,9 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
       imageUrl: imageUrl ?? this.imageUrl,
       isCookidoo: isCookidoo ?? this.isCookidoo,
       ingredientsJson: ingredientsJson ?? this.ingredientsJson,
+      recipeCategoryId: recipeCategoryId ?? this.recipeCategoryId,
+      recipeCategoryName: recipeCategoryName ?? this.recipeCategoryName,
+      tagsJson: tagsJson ?? this.tagsJson,
     );
   }
 
@@ -1578,6 +1705,15 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
     if (ingredientsJson.present) {
       map['ingredients_json'] = Variable<String>(ingredientsJson.value);
     }
+    if (recipeCategoryId.present) {
+      map['recipe_category_id'] = Variable<int>(recipeCategoryId.value);
+    }
+    if (recipeCategoryName.present) {
+      map['recipe_category_name'] = Variable<String>(recipeCategoryName.value);
+    }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
     return map;
   }
 
@@ -1591,7 +1727,10 @@ class CachedRecipesCompanion extends UpdateCompanion<CachedRecipe> {
           ..write('prepTime: $prepTime, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('isCookidoo: $isCookidoo, ')
-          ..write('ingredientsJson: $ingredientsJson')
+          ..write('ingredientsJson: $ingredientsJson, ')
+          ..write('recipeCategoryId: $recipeCategoryId, ')
+          ..write('recipeCategoryName: $recipeCategoryName, ')
+          ..write('tagsJson: $tagsJson')
           ..write(')'))
         .toString();
   }
@@ -1805,6 +1944,298 @@ class CachedCategoriesCompanion extends UpdateCompanion<CachedCategory> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('color: $color')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CachedRecipeCategoriesTable extends CachedRecipeCategories
+    with TableInfo<$CachedRecipeCategoriesTable, CachedRecipeCategory> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedRecipeCategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+      'color', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
+  @override
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+      'icon', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _positionMeta =
+      const VerificationMeta('position');
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+      'position', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, color, icon, position];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_recipe_categories';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<CachedRecipeCategory> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+          _colorMeta, color.isAcceptableOrUnknown(data['color']!, _colorMeta));
+    }
+    if (data.containsKey('icon')) {
+      context.handle(
+          _iconMeta, icon.isAcceptableOrUnknown(data['icon']!, _iconMeta));
+    }
+    if (data.containsKey('position')) {
+      context.handle(_positionMeta,
+          position.isAcceptableOrUnknown(data['position']!, _positionMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CachedRecipeCategory map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedRecipeCategory(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      color: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}color']),
+      icon: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}icon']),
+      position: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}position'])!,
+    );
+  }
+
+  @override
+  $CachedRecipeCategoriesTable createAlias(String alias) {
+    return $CachedRecipeCategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class CachedRecipeCategory extends DataClass
+    implements Insertable<CachedRecipeCategory> {
+  final int id;
+  final String name;
+  final String? color;
+  final String? icon;
+  final int position;
+  const CachedRecipeCategory(
+      {required this.id,
+      required this.name,
+      this.color,
+      this.icon,
+      required this.position});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
+    if (!nullToAbsent || icon != null) {
+      map['icon'] = Variable<String>(icon);
+    }
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  CachedRecipeCategoriesCompanion toCompanion(bool nullToAbsent) {
+    return CachedRecipeCategoriesCompanion(
+      id: Value(id),
+      name: Value(name),
+      color:
+          color == null && nullToAbsent ? const Value.absent() : Value(color),
+      icon: icon == null && nullToAbsent ? const Value.absent() : Value(icon),
+      position: Value(position),
+    );
+  }
+
+  factory CachedRecipeCategory.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedRecipeCategory(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      color: serializer.fromJson<String?>(json['color']),
+      icon: serializer.fromJson<String?>(json['icon']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'color': serializer.toJson<String?>(color),
+      'icon': serializer.toJson<String?>(icon),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  CachedRecipeCategory copyWith(
+          {int? id,
+          String? name,
+          Value<String?> color = const Value.absent(),
+          Value<String?> icon = const Value.absent(),
+          int? position}) =>
+      CachedRecipeCategory(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        color: color.present ? color.value : this.color,
+        icon: icon.present ? icon.value : this.icon,
+        position: position ?? this.position,
+      );
+  CachedRecipeCategory copyWithCompanion(CachedRecipeCategoriesCompanion data) {
+    return CachedRecipeCategory(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      color: data.color.present ? data.color.value : this.color,
+      icon: data.icon.present ? data.icon.value : this.icon,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedRecipeCategory(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, color, icon, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedRecipeCategory &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.color == this.color &&
+          other.icon == this.icon &&
+          other.position == this.position);
+}
+
+class CachedRecipeCategoriesCompanion
+    extends UpdateCompanion<CachedRecipeCategory> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String?> color;
+  final Value<String?> icon;
+  final Value<int> position;
+  const CachedRecipeCategoriesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.position = const Value.absent(),
+  });
+  CachedRecipeCategoriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.position = const Value.absent(),
+  }) : name = Value(name);
+  static Insertable<CachedRecipeCategory> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? color,
+    Expression<String>? icon,
+    Expression<int>? position,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (color != null) 'color': color,
+      if (icon != null) 'icon': icon,
+      if (position != null) 'position': position,
+    });
+  }
+
+  CachedRecipeCategoriesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? name,
+      Value<String?>? color,
+      Value<String?>? icon,
+      Value<int>? position}) {
+    return CachedRecipeCategoriesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      color: color ?? this.color,
+      icon: icon ?? this.icon,
+      position: position ?? this.position,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedRecipeCategoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('position: $position')
           ..write(')'))
         .toString();
   }
@@ -2851,6 +3282,1143 @@ class CachedPantryItemsCompanion extends UpdateCompanion<CachedPantryItem> {
   }
 }
 
+class $CachedNotesTable extends CachedNotes
+    with TableInfo<$CachedNotesTable, CachedNote> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedNotesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+      'type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('text'));
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+      'url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _linkTitleMeta =
+      const VerificationMeta('linkTitle');
+  @override
+  late final GeneratedColumn<String> linkTitle = GeneratedColumn<String>(
+      'link_title', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _linkThumbnailUrlMeta =
+      const VerificationMeta('linkThumbnailUrl');
+  @override
+  late final GeneratedColumn<String> linkThumbnailUrl = GeneratedColumn<String>(
+      'link_thumbnail_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _linkDomainMeta =
+      const VerificationMeta('linkDomain');
+  @override
+  late final GeneratedColumn<String> linkDomain = GeneratedColumn<String>(
+      'link_domain', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _checklistJsonMeta =
+      const VerificationMeta('checklistJson');
+  @override
+  late final GeneratedColumn<String> checklistJson = GeneratedColumn<String>(
+      'checklist_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _isPinnedMeta =
+      const VerificationMeta('isPinned');
+  @override
+  late final GeneratedColumn<bool> isPinned = GeneratedColumn<bool>(
+      'is_pinned', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_pinned" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _isArchivedMeta =
+      const VerificationMeta('isArchived');
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+      'is_archived', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_archived" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+      'color', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _categoryIdMeta =
+      const VerificationMeta('categoryId');
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+      'category_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _categoryNameMeta =
+      const VerificationMeta('categoryName');
+  @override
+  late final GeneratedColumn<String> categoryName = GeneratedColumn<String>(
+      'category_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _tagsJsonMeta =
+      const VerificationMeta('tagsJson');
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+      'tags_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _positionMeta =
+      const VerificationMeta('position');
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+      'position', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _reminderAtMeta =
+      const VerificationMeta('reminderAt');
+  @override
+  late final GeneratedColumn<DateTime> reminderAt = GeneratedColumn<DateTime>(
+      'reminder_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _isPersonalMeta =
+      const VerificationMeta('isPersonal');
+  @override
+  late final GeneratedColumn<bool> isPersonal = GeneratedColumn<bool>(
+      'is_personal', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_personal" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        type,
+        content,
+        url,
+        linkTitle,
+        linkThumbnailUrl,
+        linkDomain,
+        checklistJson,
+        isPinned,
+        isArchived,
+        color,
+        categoryId,
+        categoryName,
+        tagsJson,
+        position,
+        reminderAt,
+        isPersonal
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_notes';
+  @override
+  VerificationContext validateIntegrity(Insertable<CachedNote> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+          _typeMeta, type.isAcceptableOrUnknown(data['type']!, _typeMeta));
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+          _urlMeta, url.isAcceptableOrUnknown(data['url']!, _urlMeta));
+    }
+    if (data.containsKey('link_title')) {
+      context.handle(_linkTitleMeta,
+          linkTitle.isAcceptableOrUnknown(data['link_title']!, _linkTitleMeta));
+    }
+    if (data.containsKey('link_thumbnail_url')) {
+      context.handle(
+          _linkThumbnailUrlMeta,
+          linkThumbnailUrl.isAcceptableOrUnknown(
+              data['link_thumbnail_url']!, _linkThumbnailUrlMeta));
+    }
+    if (data.containsKey('link_domain')) {
+      context.handle(
+          _linkDomainMeta,
+          linkDomain.isAcceptableOrUnknown(
+              data['link_domain']!, _linkDomainMeta));
+    }
+    if (data.containsKey('checklist_json')) {
+      context.handle(
+          _checklistJsonMeta,
+          checklistJson.isAcceptableOrUnknown(
+              data['checklist_json']!, _checklistJsonMeta));
+    }
+    if (data.containsKey('is_pinned')) {
+      context.handle(_isPinnedMeta,
+          isPinned.isAcceptableOrUnknown(data['is_pinned']!, _isPinnedMeta));
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+          _isArchivedMeta,
+          isArchived.isAcceptableOrUnknown(
+              data['is_archived']!, _isArchivedMeta));
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+          _colorMeta, color.isAcceptableOrUnknown(data['color']!, _colorMeta));
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+          _categoryIdMeta,
+          categoryId.isAcceptableOrUnknown(
+              data['category_id']!, _categoryIdMeta));
+    }
+    if (data.containsKey('category_name')) {
+      context.handle(
+          _categoryNameMeta,
+          categoryName.isAcceptableOrUnknown(
+              data['category_name']!, _categoryNameMeta));
+    }
+    if (data.containsKey('tags_json')) {
+      context.handle(_tagsJsonMeta,
+          tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta));
+    }
+    if (data.containsKey('position')) {
+      context.handle(_positionMeta,
+          position.isAcceptableOrUnknown(data['position']!, _positionMeta));
+    }
+    if (data.containsKey('reminder_at')) {
+      context.handle(
+          _reminderAtMeta,
+          reminderAt.isAcceptableOrUnknown(
+              data['reminder_at']!, _reminderAtMeta));
+    }
+    if (data.containsKey('is_personal')) {
+      context.handle(
+          _isPersonalMeta,
+          isPersonal.isAcceptableOrUnknown(
+              data['is_personal']!, _isPersonalMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CachedNote map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedNote(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      type: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content']),
+      url: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}url']),
+      linkTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}link_title']),
+      linkThumbnailUrl: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}link_thumbnail_url']),
+      linkDomain: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}link_domain']),
+      checklistJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}checklist_json']),
+      isPinned: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_pinned'])!,
+      isArchived: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_archived'])!,
+      color: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}color']),
+      categoryId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}category_id']),
+      categoryName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}category_name']),
+      tagsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tags_json'])!,
+      position: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}position'])!,
+      reminderAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}reminder_at']),
+      isPersonal: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_personal'])!,
+    );
+  }
+
+  @override
+  $CachedNotesTable createAlias(String alias) {
+    return $CachedNotesTable(attachedDatabase, alias);
+  }
+}
+
+class CachedNote extends DataClass implements Insertable<CachedNote> {
+  final int id;
+  final String title;
+  final String type;
+  final String? content;
+  final String? url;
+  final String? linkTitle;
+  final String? linkThumbnailUrl;
+  final String? linkDomain;
+  final String? checklistJson;
+  final bool isPinned;
+  final bool isArchived;
+  final String? color;
+  final int? categoryId;
+  final String? categoryName;
+  final String tagsJson;
+  final int position;
+  final DateTime? reminderAt;
+  final bool isPersonal;
+  const CachedNote(
+      {required this.id,
+      required this.title,
+      required this.type,
+      this.content,
+      this.url,
+      this.linkTitle,
+      this.linkThumbnailUrl,
+      this.linkDomain,
+      this.checklistJson,
+      required this.isPinned,
+      required this.isArchived,
+      this.color,
+      this.categoryId,
+      this.categoryName,
+      required this.tagsJson,
+      required this.position,
+      this.reminderAt,
+      required this.isPersonal});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['title'] = Variable<String>(title);
+    map['type'] = Variable<String>(type);
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    if (!nullToAbsent || url != null) {
+      map['url'] = Variable<String>(url);
+    }
+    if (!nullToAbsent || linkTitle != null) {
+      map['link_title'] = Variable<String>(linkTitle);
+    }
+    if (!nullToAbsent || linkThumbnailUrl != null) {
+      map['link_thumbnail_url'] = Variable<String>(linkThumbnailUrl);
+    }
+    if (!nullToAbsent || linkDomain != null) {
+      map['link_domain'] = Variable<String>(linkDomain);
+    }
+    if (!nullToAbsent || checklistJson != null) {
+      map['checklist_json'] = Variable<String>(checklistJson);
+    }
+    map['is_pinned'] = Variable<bool>(isPinned);
+    map['is_archived'] = Variable<bool>(isArchived);
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<int>(categoryId);
+    }
+    if (!nullToAbsent || categoryName != null) {
+      map['category_name'] = Variable<String>(categoryName);
+    }
+    map['tags_json'] = Variable<String>(tagsJson);
+    map['position'] = Variable<int>(position);
+    if (!nullToAbsent || reminderAt != null) {
+      map['reminder_at'] = Variable<DateTime>(reminderAt);
+    }
+    map['is_personal'] = Variable<bool>(isPersonal);
+    return map;
+  }
+
+  CachedNotesCompanion toCompanion(bool nullToAbsent) {
+    return CachedNotesCompanion(
+      id: Value(id),
+      title: Value(title),
+      type: Value(type),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      url: url == null && nullToAbsent ? const Value.absent() : Value(url),
+      linkTitle: linkTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkTitle),
+      linkThumbnailUrl: linkThumbnailUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkThumbnailUrl),
+      linkDomain: linkDomain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkDomain),
+      checklistJson: checklistJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(checklistJson),
+      isPinned: Value(isPinned),
+      isArchived: Value(isArchived),
+      color:
+          color == null && nullToAbsent ? const Value.absent() : Value(color),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
+      categoryName: categoryName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryName),
+      tagsJson: Value(tagsJson),
+      position: Value(position),
+      reminderAt: reminderAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reminderAt),
+      isPersonal: Value(isPersonal),
+    );
+  }
+
+  factory CachedNote.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedNote(
+      id: serializer.fromJson<int>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      type: serializer.fromJson<String>(json['type']),
+      content: serializer.fromJson<String?>(json['content']),
+      url: serializer.fromJson<String?>(json['url']),
+      linkTitle: serializer.fromJson<String?>(json['linkTitle']),
+      linkThumbnailUrl: serializer.fromJson<String?>(json['linkThumbnailUrl']),
+      linkDomain: serializer.fromJson<String?>(json['linkDomain']),
+      checklistJson: serializer.fromJson<String?>(json['checklistJson']),
+      isPinned: serializer.fromJson<bool>(json['isPinned']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      color: serializer.fromJson<String?>(json['color']),
+      categoryId: serializer.fromJson<int?>(json['categoryId']),
+      categoryName: serializer.fromJson<String?>(json['categoryName']),
+      tagsJson: serializer.fromJson<String>(json['tagsJson']),
+      position: serializer.fromJson<int>(json['position']),
+      reminderAt: serializer.fromJson<DateTime?>(json['reminderAt']),
+      isPersonal: serializer.fromJson<bool>(json['isPersonal']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'title': serializer.toJson<String>(title),
+      'type': serializer.toJson<String>(type),
+      'content': serializer.toJson<String?>(content),
+      'url': serializer.toJson<String?>(url),
+      'linkTitle': serializer.toJson<String?>(linkTitle),
+      'linkThumbnailUrl': serializer.toJson<String?>(linkThumbnailUrl),
+      'linkDomain': serializer.toJson<String?>(linkDomain),
+      'checklistJson': serializer.toJson<String?>(checklistJson),
+      'isPinned': serializer.toJson<bool>(isPinned),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'color': serializer.toJson<String?>(color),
+      'categoryId': serializer.toJson<int?>(categoryId),
+      'categoryName': serializer.toJson<String?>(categoryName),
+      'tagsJson': serializer.toJson<String>(tagsJson),
+      'position': serializer.toJson<int>(position),
+      'reminderAt': serializer.toJson<DateTime?>(reminderAt),
+      'isPersonal': serializer.toJson<bool>(isPersonal),
+    };
+  }
+
+  CachedNote copyWith(
+          {int? id,
+          String? title,
+          String? type,
+          Value<String?> content = const Value.absent(),
+          Value<String?> url = const Value.absent(),
+          Value<String?> linkTitle = const Value.absent(),
+          Value<String?> linkThumbnailUrl = const Value.absent(),
+          Value<String?> linkDomain = const Value.absent(),
+          Value<String?> checklistJson = const Value.absent(),
+          bool? isPinned,
+          bool? isArchived,
+          Value<String?> color = const Value.absent(),
+          Value<int?> categoryId = const Value.absent(),
+          Value<String?> categoryName = const Value.absent(),
+          String? tagsJson,
+          int? position,
+          Value<DateTime?> reminderAt = const Value.absent(),
+          bool? isPersonal}) =>
+      CachedNote(
+        id: id ?? this.id,
+        title: title ?? this.title,
+        type: type ?? this.type,
+        content: content.present ? content.value : this.content,
+        url: url.present ? url.value : this.url,
+        linkTitle: linkTitle.present ? linkTitle.value : this.linkTitle,
+        linkThumbnailUrl: linkThumbnailUrl.present
+            ? linkThumbnailUrl.value
+            : this.linkThumbnailUrl,
+        linkDomain: linkDomain.present ? linkDomain.value : this.linkDomain,
+        checklistJson:
+            checklistJson.present ? checklistJson.value : this.checklistJson,
+        isPinned: isPinned ?? this.isPinned,
+        isArchived: isArchived ?? this.isArchived,
+        color: color.present ? color.value : this.color,
+        categoryId: categoryId.present ? categoryId.value : this.categoryId,
+        categoryName:
+            categoryName.present ? categoryName.value : this.categoryName,
+        tagsJson: tagsJson ?? this.tagsJson,
+        position: position ?? this.position,
+        reminderAt: reminderAt.present ? reminderAt.value : this.reminderAt,
+        isPersonal: isPersonal ?? this.isPersonal,
+      );
+  CachedNote copyWithCompanion(CachedNotesCompanion data) {
+    return CachedNote(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      type: data.type.present ? data.type.value : this.type,
+      content: data.content.present ? data.content.value : this.content,
+      url: data.url.present ? data.url.value : this.url,
+      linkTitle: data.linkTitle.present ? data.linkTitle.value : this.linkTitle,
+      linkThumbnailUrl: data.linkThumbnailUrl.present
+          ? data.linkThumbnailUrl.value
+          : this.linkThumbnailUrl,
+      linkDomain:
+          data.linkDomain.present ? data.linkDomain.value : this.linkDomain,
+      checklistJson: data.checklistJson.present
+          ? data.checklistJson.value
+          : this.checklistJson,
+      isPinned: data.isPinned.present ? data.isPinned.value : this.isPinned,
+      isArchived:
+          data.isArchived.present ? data.isArchived.value : this.isArchived,
+      color: data.color.present ? data.color.value : this.color,
+      categoryId:
+          data.categoryId.present ? data.categoryId.value : this.categoryId,
+      categoryName: data.categoryName.present
+          ? data.categoryName.value
+          : this.categoryName,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
+      position: data.position.present ? data.position.value : this.position,
+      reminderAt:
+          data.reminderAt.present ? data.reminderAt.value : this.reminderAt,
+      isPersonal:
+          data.isPersonal.present ? data.isPersonal.value : this.isPersonal,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedNote(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('type: $type, ')
+          ..write('content: $content, ')
+          ..write('url: $url, ')
+          ..write('linkTitle: $linkTitle, ')
+          ..write('linkThumbnailUrl: $linkThumbnailUrl, ')
+          ..write('linkDomain: $linkDomain, ')
+          ..write('checklistJson: $checklistJson, ')
+          ..write('isPinned: $isPinned, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('color: $color, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('categoryName: $categoryName, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('position: $position, ')
+          ..write('reminderAt: $reminderAt, ')
+          ..write('isPersonal: $isPersonal')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      title,
+      type,
+      content,
+      url,
+      linkTitle,
+      linkThumbnailUrl,
+      linkDomain,
+      checklistJson,
+      isPinned,
+      isArchived,
+      color,
+      categoryId,
+      categoryName,
+      tagsJson,
+      position,
+      reminderAt,
+      isPersonal);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedNote &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.type == this.type &&
+          other.content == this.content &&
+          other.url == this.url &&
+          other.linkTitle == this.linkTitle &&
+          other.linkThumbnailUrl == this.linkThumbnailUrl &&
+          other.linkDomain == this.linkDomain &&
+          other.checklistJson == this.checklistJson &&
+          other.isPinned == this.isPinned &&
+          other.isArchived == this.isArchived &&
+          other.color == this.color &&
+          other.categoryId == this.categoryId &&
+          other.categoryName == this.categoryName &&
+          other.tagsJson == this.tagsJson &&
+          other.position == this.position &&
+          other.reminderAt == this.reminderAt &&
+          other.isPersonal == this.isPersonal);
+}
+
+class CachedNotesCompanion extends UpdateCompanion<CachedNote> {
+  final Value<int> id;
+  final Value<String> title;
+  final Value<String> type;
+  final Value<String?> content;
+  final Value<String?> url;
+  final Value<String?> linkTitle;
+  final Value<String?> linkThumbnailUrl;
+  final Value<String?> linkDomain;
+  final Value<String?> checklistJson;
+  final Value<bool> isPinned;
+  final Value<bool> isArchived;
+  final Value<String?> color;
+  final Value<int?> categoryId;
+  final Value<String?> categoryName;
+  final Value<String> tagsJson;
+  final Value<int> position;
+  final Value<DateTime?> reminderAt;
+  final Value<bool> isPersonal;
+  const CachedNotesCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.type = const Value.absent(),
+    this.content = const Value.absent(),
+    this.url = const Value.absent(),
+    this.linkTitle = const Value.absent(),
+    this.linkThumbnailUrl = const Value.absent(),
+    this.linkDomain = const Value.absent(),
+    this.checklistJson = const Value.absent(),
+    this.isPinned = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.color = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.categoryName = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.position = const Value.absent(),
+    this.reminderAt = const Value.absent(),
+    this.isPersonal = const Value.absent(),
+  });
+  CachedNotesCompanion.insert({
+    this.id = const Value.absent(),
+    required String title,
+    this.type = const Value.absent(),
+    this.content = const Value.absent(),
+    this.url = const Value.absent(),
+    this.linkTitle = const Value.absent(),
+    this.linkThumbnailUrl = const Value.absent(),
+    this.linkDomain = const Value.absent(),
+    this.checklistJson = const Value.absent(),
+    this.isPinned = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.color = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.categoryName = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.position = const Value.absent(),
+    this.reminderAt = const Value.absent(),
+    this.isPersonal = const Value.absent(),
+  }) : title = Value(title);
+  static Insertable<CachedNote> custom({
+    Expression<int>? id,
+    Expression<String>? title,
+    Expression<String>? type,
+    Expression<String>? content,
+    Expression<String>? url,
+    Expression<String>? linkTitle,
+    Expression<String>? linkThumbnailUrl,
+    Expression<String>? linkDomain,
+    Expression<String>? checklistJson,
+    Expression<bool>? isPinned,
+    Expression<bool>? isArchived,
+    Expression<String>? color,
+    Expression<int>? categoryId,
+    Expression<String>? categoryName,
+    Expression<String>? tagsJson,
+    Expression<int>? position,
+    Expression<DateTime>? reminderAt,
+    Expression<bool>? isPersonal,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (type != null) 'type': type,
+      if (content != null) 'content': content,
+      if (url != null) 'url': url,
+      if (linkTitle != null) 'link_title': linkTitle,
+      if (linkThumbnailUrl != null) 'link_thumbnail_url': linkThumbnailUrl,
+      if (linkDomain != null) 'link_domain': linkDomain,
+      if (checklistJson != null) 'checklist_json': checklistJson,
+      if (isPinned != null) 'is_pinned': isPinned,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (color != null) 'color': color,
+      if (categoryId != null) 'category_id': categoryId,
+      if (categoryName != null) 'category_name': categoryName,
+      if (tagsJson != null) 'tags_json': tagsJson,
+      if (position != null) 'position': position,
+      if (reminderAt != null) 'reminder_at': reminderAt,
+      if (isPersonal != null) 'is_personal': isPersonal,
+    });
+  }
+
+  CachedNotesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? title,
+      Value<String>? type,
+      Value<String?>? content,
+      Value<String?>? url,
+      Value<String?>? linkTitle,
+      Value<String?>? linkThumbnailUrl,
+      Value<String?>? linkDomain,
+      Value<String?>? checklistJson,
+      Value<bool>? isPinned,
+      Value<bool>? isArchived,
+      Value<String?>? color,
+      Value<int?>? categoryId,
+      Value<String?>? categoryName,
+      Value<String>? tagsJson,
+      Value<int>? position,
+      Value<DateTime?>? reminderAt,
+      Value<bool>? isPersonal}) {
+    return CachedNotesCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      type: type ?? this.type,
+      content: content ?? this.content,
+      url: url ?? this.url,
+      linkTitle: linkTitle ?? this.linkTitle,
+      linkThumbnailUrl: linkThumbnailUrl ?? this.linkThumbnailUrl,
+      linkDomain: linkDomain ?? this.linkDomain,
+      checklistJson: checklistJson ?? this.checklistJson,
+      isPinned: isPinned ?? this.isPinned,
+      isArchived: isArchived ?? this.isArchived,
+      color: color ?? this.color,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
+      tagsJson: tagsJson ?? this.tagsJson,
+      position: position ?? this.position,
+      reminderAt: reminderAt ?? this.reminderAt,
+      isPersonal: isPersonal ?? this.isPersonal,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (linkTitle.present) {
+      map['link_title'] = Variable<String>(linkTitle.value);
+    }
+    if (linkThumbnailUrl.present) {
+      map['link_thumbnail_url'] = Variable<String>(linkThumbnailUrl.value);
+    }
+    if (linkDomain.present) {
+      map['link_domain'] = Variable<String>(linkDomain.value);
+    }
+    if (checklistJson.present) {
+      map['checklist_json'] = Variable<String>(checklistJson.value);
+    }
+    if (isPinned.present) {
+      map['is_pinned'] = Variable<bool>(isPinned.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (categoryName.present) {
+      map['category_name'] = Variable<String>(categoryName.value);
+    }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (reminderAt.present) {
+      map['reminder_at'] = Variable<DateTime>(reminderAt.value);
+    }
+    if (isPersonal.present) {
+      map['is_personal'] = Variable<bool>(isPersonal.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedNotesCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('type: $type, ')
+          ..write('content: $content, ')
+          ..write('url: $url, ')
+          ..write('linkTitle: $linkTitle, ')
+          ..write('linkThumbnailUrl: $linkThumbnailUrl, ')
+          ..write('linkDomain: $linkDomain, ')
+          ..write('checklistJson: $checklistJson, ')
+          ..write('isPinned: $isPinned, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('color: $color, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('categoryName: $categoryName, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('position: $position, ')
+          ..write('reminderAt: $reminderAt, ')
+          ..write('isPersonal: $isPersonal')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CachedNoteCategoriesTable extends CachedNoteCategories
+    with TableInfo<$CachedNoteCategoriesTable, CachedNoteCategory> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedNoteCategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+      'color', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
+  @override
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+      'icon', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _positionMeta =
+      const VerificationMeta('position');
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+      'position', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, color, icon, position];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_note_categories';
+  @override
+  VerificationContext validateIntegrity(Insertable<CachedNoteCategory> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+          _colorMeta, color.isAcceptableOrUnknown(data['color']!, _colorMeta));
+    }
+    if (data.containsKey('icon')) {
+      context.handle(
+          _iconMeta, icon.isAcceptableOrUnknown(data['icon']!, _iconMeta));
+    }
+    if (data.containsKey('position')) {
+      context.handle(_positionMeta,
+          position.isAcceptableOrUnknown(data['position']!, _positionMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CachedNoteCategory map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedNoteCategory(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      color: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}color']),
+      icon: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}icon']),
+      position: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}position'])!,
+    );
+  }
+
+  @override
+  $CachedNoteCategoriesTable createAlias(String alias) {
+    return $CachedNoteCategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class CachedNoteCategory extends DataClass
+    implements Insertable<CachedNoteCategory> {
+  final int id;
+  final String name;
+  final String? color;
+  final String? icon;
+  final int position;
+  const CachedNoteCategory(
+      {required this.id,
+      required this.name,
+      this.color,
+      this.icon,
+      required this.position});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
+    if (!nullToAbsent || icon != null) {
+      map['icon'] = Variable<String>(icon);
+    }
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  CachedNoteCategoriesCompanion toCompanion(bool nullToAbsent) {
+    return CachedNoteCategoriesCompanion(
+      id: Value(id),
+      name: Value(name),
+      color:
+          color == null && nullToAbsent ? const Value.absent() : Value(color),
+      icon: icon == null && nullToAbsent ? const Value.absent() : Value(icon),
+      position: Value(position),
+    );
+  }
+
+  factory CachedNoteCategory.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedNoteCategory(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      color: serializer.fromJson<String?>(json['color']),
+      icon: serializer.fromJson<String?>(json['icon']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'color': serializer.toJson<String?>(color),
+      'icon': serializer.toJson<String?>(icon),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  CachedNoteCategory copyWith(
+          {int? id,
+          String? name,
+          Value<String?> color = const Value.absent(),
+          Value<String?> icon = const Value.absent(),
+          int? position}) =>
+      CachedNoteCategory(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        color: color.present ? color.value : this.color,
+        icon: icon.present ? icon.value : this.icon,
+        position: position ?? this.position,
+      );
+  CachedNoteCategory copyWithCompanion(CachedNoteCategoriesCompanion data) {
+    return CachedNoteCategory(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      color: data.color.present ? data.color.value : this.color,
+      icon: data.icon.present ? data.icon.value : this.icon,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedNoteCategory(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, color, icon, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedNoteCategory &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.color == this.color &&
+          other.icon == this.icon &&
+          other.position == this.position);
+}
+
+class CachedNoteCategoriesCompanion
+    extends UpdateCompanion<CachedNoteCategory> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String?> color;
+  final Value<String?> icon;
+  final Value<int> position;
+  const CachedNoteCategoriesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.position = const Value.absent(),
+  });
+  CachedNoteCategoriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.position = const Value.absent(),
+  }) : name = Value(name);
+  static Insertable<CachedNoteCategory> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? color,
+    Expression<String>? icon,
+    Expression<int>? position,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (color != null) 'color': color,
+      if (icon != null) 'icon': icon,
+      if (position != null) 'position': position,
+    });
+  }
+
+  CachedNoteCategoriesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? name,
+      Value<String?>? color,
+      Value<String?>? icon,
+      Value<int>? position}) {
+    return CachedNoteCategoriesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      color: color ?? this.color,
+      icon: icon ?? this.icon,
+      position: position ?? this.position,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedNoteCategoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PendingChangesTable extends PendingChanges
     with TableInfo<$PendingChangesTable, PendingChange> {
   @override
@@ -3200,12 +4768,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CachedRecipesTable cachedRecipes = $CachedRecipesTable(this);
   late final $CachedCategoriesTable cachedCategories =
       $CachedCategoriesTable(this);
+  late final $CachedRecipeCategoriesTable cachedRecipeCategories =
+      $CachedRecipeCategoriesTable(this);
   late final $CachedFamilyMembersTable cachedFamilyMembers =
       $CachedFamilyMembersTable(this);
   late final $CachedShoppingItemsTable cachedShoppingItems =
       $CachedShoppingItemsTable(this);
   late final $CachedPantryItemsTable cachedPantryItems =
       $CachedPantryItemsTable(this);
+  late final $CachedNotesTable cachedNotes = $CachedNotesTable(this);
+  late final $CachedNoteCategoriesTable cachedNoteCategories =
+      $CachedNoteCategoriesTable(this);
   late final $PendingChangesTable pendingChanges = $PendingChangesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -3216,9 +4789,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         cachedTodos,
         cachedRecipes,
         cachedCategories,
+        cachedRecipeCategories,
         cachedFamilyMembers,
         cachedShoppingItems,
         cachedPantryItems,
+        cachedNotes,
+        cachedNoteCategories,
         pendingChanges
       ];
 }
@@ -3763,6 +5339,9 @@ typedef $$CachedRecipesTableCreateCompanionBuilder = CachedRecipesCompanion
   Value<String?> imageUrl,
   Value<bool> isCookidoo,
   Value<String> ingredientsJson,
+  Value<int?> recipeCategoryId,
+  Value<String?> recipeCategoryName,
+  Value<String> tagsJson,
 });
 typedef $$CachedRecipesTableUpdateCompanionBuilder = CachedRecipesCompanion
     Function({
@@ -3774,6 +5353,9 @@ typedef $$CachedRecipesTableUpdateCompanionBuilder = CachedRecipesCompanion
   Value<String?> imageUrl,
   Value<bool> isCookidoo,
   Value<String> ingredientsJson,
+  Value<int?> recipeCategoryId,
+  Value<String?> recipeCategoryName,
+  Value<String> tagsJson,
 });
 
 class $$CachedRecipesTableFilterComposer
@@ -3809,6 +5391,17 @@ class $$CachedRecipesTableFilterComposer
   ColumnFilters<String> get ingredientsJson => $composableBuilder(
       column: $table.ingredientsJson,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get recipeCategoryId => $composableBuilder(
+      column: $table.recipeCategoryId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get recipeCategoryName => $composableBuilder(
+      column: $table.recipeCategoryName,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnFilters(column));
 }
 
 class $$CachedRecipesTableOrderingComposer
@@ -3844,6 +5437,17 @@ class $$CachedRecipesTableOrderingComposer
   ColumnOrderings<String> get ingredientsJson => $composableBuilder(
       column: $table.ingredientsJson,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get recipeCategoryId => $composableBuilder(
+      column: $table.recipeCategoryId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get recipeCategoryName => $composableBuilder(
+      column: $table.recipeCategoryName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnOrderings(column));
 }
 
 class $$CachedRecipesTableAnnotationComposer
@@ -3878,6 +5482,15 @@ class $$CachedRecipesTableAnnotationComposer
 
   GeneratedColumn<String> get ingredientsJson => $composableBuilder(
       column: $table.ingredientsJson, builder: (column) => column);
+
+  GeneratedColumn<int> get recipeCategoryId => $composableBuilder(
+      column: $table.recipeCategoryId, builder: (column) => column);
+
+  GeneratedColumn<String> get recipeCategoryName => $composableBuilder(
+      column: $table.recipeCategoryName, builder: (column) => column);
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
 }
 
 class $$CachedRecipesTableTableManager extends RootTableManager<
@@ -3914,6 +5527,9 @@ class $$CachedRecipesTableTableManager extends RootTableManager<
             Value<String?> imageUrl = const Value.absent(),
             Value<bool> isCookidoo = const Value.absent(),
             Value<String> ingredientsJson = const Value.absent(),
+            Value<int?> recipeCategoryId = const Value.absent(),
+            Value<String?> recipeCategoryName = const Value.absent(),
+            Value<String> tagsJson = const Value.absent(),
           }) =>
               CachedRecipesCompanion(
             id: id,
@@ -3924,6 +5540,9 @@ class $$CachedRecipesTableTableManager extends RootTableManager<
             imageUrl: imageUrl,
             isCookidoo: isCookidoo,
             ingredientsJson: ingredientsJson,
+            recipeCategoryId: recipeCategoryId,
+            recipeCategoryName: recipeCategoryName,
+            tagsJson: tagsJson,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -3934,6 +5553,9 @@ class $$CachedRecipesTableTableManager extends RootTableManager<
             Value<String?> imageUrl = const Value.absent(),
             Value<bool> isCookidoo = const Value.absent(),
             Value<String> ingredientsJson = const Value.absent(),
+            Value<int?> recipeCategoryId = const Value.absent(),
+            Value<String?> recipeCategoryName = const Value.absent(),
+            Value<String> tagsJson = const Value.absent(),
           }) =>
               CachedRecipesCompanion.insert(
             id: id,
@@ -3944,6 +5566,9 @@ class $$CachedRecipesTableTableManager extends RootTableManager<
             imageUrl: imageUrl,
             isCookidoo: isCookidoo,
             ingredientsJson: ingredientsJson,
+            recipeCategoryId: recipeCategoryId,
+            recipeCategoryName: recipeCategoryName,
+            tagsJson: tagsJson,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -4105,6 +5730,180 @@ typedef $$CachedCategoriesTableProcessedTableManager = ProcessedTableManager<
     ),
     CachedCategory,
     PrefetchHooks Function()>;
+typedef $$CachedRecipeCategoriesTableCreateCompanionBuilder
+    = CachedRecipeCategoriesCompanion Function({
+  Value<int> id,
+  required String name,
+  Value<String?> color,
+  Value<String?> icon,
+  Value<int> position,
+});
+typedef $$CachedRecipeCategoriesTableUpdateCompanionBuilder
+    = CachedRecipeCategoriesCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String?> color,
+  Value<String?> icon,
+  Value<int> position,
+});
+
+class $$CachedRecipeCategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $CachedRecipeCategoriesTable> {
+  $$CachedRecipeCategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get icon => $composableBuilder(
+      column: $table.icon, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnFilters(column));
+}
+
+class $$CachedRecipeCategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CachedRecipeCategoriesTable> {
+  $$CachedRecipeCategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get icon => $composableBuilder(
+      column: $table.icon, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnOrderings(column));
+}
+
+class $$CachedRecipeCategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CachedRecipeCategoriesTable> {
+  $$CachedRecipeCategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get icon =>
+      $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$CachedRecipeCategoriesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $CachedRecipeCategoriesTable,
+    CachedRecipeCategory,
+    $$CachedRecipeCategoriesTableFilterComposer,
+    $$CachedRecipeCategoriesTableOrderingComposer,
+    $$CachedRecipeCategoriesTableAnnotationComposer,
+    $$CachedRecipeCategoriesTableCreateCompanionBuilder,
+    $$CachedRecipeCategoriesTableUpdateCompanionBuilder,
+    (
+      CachedRecipeCategory,
+      BaseReferences<_$AppDatabase, $CachedRecipeCategoriesTable,
+          CachedRecipeCategory>
+    ),
+    CachedRecipeCategory,
+    PrefetchHooks Function()> {
+  $$CachedRecipeCategoriesTableTableManager(
+      _$AppDatabase db, $CachedRecipeCategoriesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedRecipeCategoriesTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CachedRecipeCategoriesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CachedRecipeCategoriesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> color = const Value.absent(),
+            Value<String?> icon = const Value.absent(),
+            Value<int> position = const Value.absent(),
+          }) =>
+              CachedRecipeCategoriesCompanion(
+            id: id,
+            name: name,
+            color: color,
+            icon: icon,
+            position: position,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String name,
+            Value<String?> color = const Value.absent(),
+            Value<String?> icon = const Value.absent(),
+            Value<int> position = const Value.absent(),
+          }) =>
+              CachedRecipeCategoriesCompanion.insert(
+            id: id,
+            name: name,
+            color: color,
+            icon: icon,
+            position: position,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$CachedRecipeCategoriesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $CachedRecipeCategoriesTable,
+        CachedRecipeCategory,
+        $$CachedRecipeCategoriesTableFilterComposer,
+        $$CachedRecipeCategoriesTableOrderingComposer,
+        $$CachedRecipeCategoriesTableAnnotationComposer,
+        $$CachedRecipeCategoriesTableCreateCompanionBuilder,
+        $$CachedRecipeCategoriesTableUpdateCompanionBuilder,
+        (
+          CachedRecipeCategory,
+          BaseReferences<_$AppDatabase, $CachedRecipeCategoriesTable,
+              CachedRecipeCategory>
+        ),
+        CachedRecipeCategory,
+        PrefetchHooks Function()>;
 typedef $$CachedFamilyMembersTableCreateCompanionBuilder
     = CachedFamilyMembersCompanion Function({
   Value<int> id,
@@ -4680,6 +6479,539 @@ typedef $$CachedPantryItemsTableProcessedTableManager = ProcessedTableManager<
     ),
     CachedPantryItem,
     PrefetchHooks Function()>;
+typedef $$CachedNotesTableCreateCompanionBuilder = CachedNotesCompanion
+    Function({
+  Value<int> id,
+  required String title,
+  Value<String> type,
+  Value<String?> content,
+  Value<String?> url,
+  Value<String?> linkTitle,
+  Value<String?> linkThumbnailUrl,
+  Value<String?> linkDomain,
+  Value<String?> checklistJson,
+  Value<bool> isPinned,
+  Value<bool> isArchived,
+  Value<String?> color,
+  Value<int?> categoryId,
+  Value<String?> categoryName,
+  Value<String> tagsJson,
+  Value<int> position,
+  Value<DateTime?> reminderAt,
+  Value<bool> isPersonal,
+});
+typedef $$CachedNotesTableUpdateCompanionBuilder = CachedNotesCompanion
+    Function({
+  Value<int> id,
+  Value<String> title,
+  Value<String> type,
+  Value<String?> content,
+  Value<String?> url,
+  Value<String?> linkTitle,
+  Value<String?> linkThumbnailUrl,
+  Value<String?> linkDomain,
+  Value<String?> checklistJson,
+  Value<bool> isPinned,
+  Value<bool> isArchived,
+  Value<String?> color,
+  Value<int?> categoryId,
+  Value<String?> categoryName,
+  Value<String> tagsJson,
+  Value<int> position,
+  Value<DateTime?> reminderAt,
+  Value<bool> isPersonal,
+});
+
+class $$CachedNotesTableFilterComposer
+    extends Composer<_$AppDatabase, $CachedNotesTable> {
+  $$CachedNotesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get url => $composableBuilder(
+      column: $table.url, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkTitle => $composableBuilder(
+      column: $table.linkTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkThumbnailUrl => $composableBuilder(
+      column: $table.linkThumbnailUrl,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkDomain => $composableBuilder(
+      column: $table.linkDomain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get checklistJson => $composableBuilder(
+      column: $table.checklistJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isPinned => $composableBuilder(
+      column: $table.isPinned, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+      column: $table.isArchived, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get categoryId => $composableBuilder(
+      column: $table.categoryId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get categoryName => $composableBuilder(
+      column: $table.categoryName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get reminderAt => $composableBuilder(
+      column: $table.reminderAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isPersonal => $composableBuilder(
+      column: $table.isPersonal, builder: (column) => ColumnFilters(column));
+}
+
+class $$CachedNotesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CachedNotesTable> {
+  $$CachedNotesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get url => $composableBuilder(
+      column: $table.url, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkTitle => $composableBuilder(
+      column: $table.linkTitle, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkThumbnailUrl => $composableBuilder(
+      column: $table.linkThumbnailUrl,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkDomain => $composableBuilder(
+      column: $table.linkDomain, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get checklistJson => $composableBuilder(
+      column: $table.checklistJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isPinned => $composableBuilder(
+      column: $table.isPinned, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+      column: $table.isArchived, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get categoryId => $composableBuilder(
+      column: $table.categoryId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get categoryName => $composableBuilder(
+      column: $table.categoryName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get reminderAt => $composableBuilder(
+      column: $table.reminderAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isPersonal => $composableBuilder(
+      column: $table.isPersonal, builder: (column) => ColumnOrderings(column));
+}
+
+class $$CachedNotesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CachedNotesTable> {
+  $$CachedNotesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get linkTitle =>
+      $composableBuilder(column: $table.linkTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get linkThumbnailUrl => $composableBuilder(
+      column: $table.linkThumbnailUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get linkDomain => $composableBuilder(
+      column: $table.linkDomain, builder: (column) => column);
+
+  GeneratedColumn<String> get checklistJson => $composableBuilder(
+      column: $table.checklistJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get isPinned =>
+      $composableBuilder(column: $table.isPinned, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+      column: $table.isArchived, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<int> get categoryId => $composableBuilder(
+      column: $table.categoryId, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryName => $composableBuilder(
+      column: $table.categoryName, builder: (column) => column);
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get reminderAt => $composableBuilder(
+      column: $table.reminderAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isPersonal => $composableBuilder(
+      column: $table.isPersonal, builder: (column) => column);
+}
+
+class $$CachedNotesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $CachedNotesTable,
+    CachedNote,
+    $$CachedNotesTableFilterComposer,
+    $$CachedNotesTableOrderingComposer,
+    $$CachedNotesTableAnnotationComposer,
+    $$CachedNotesTableCreateCompanionBuilder,
+    $$CachedNotesTableUpdateCompanionBuilder,
+    (CachedNote, BaseReferences<_$AppDatabase, $CachedNotesTable, CachedNote>),
+    CachedNote,
+    PrefetchHooks Function()> {
+  $$CachedNotesTableTableManager(_$AppDatabase db, $CachedNotesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedNotesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CachedNotesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CachedNotesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> type = const Value.absent(),
+            Value<String?> content = const Value.absent(),
+            Value<String?> url = const Value.absent(),
+            Value<String?> linkTitle = const Value.absent(),
+            Value<String?> linkThumbnailUrl = const Value.absent(),
+            Value<String?> linkDomain = const Value.absent(),
+            Value<String?> checklistJson = const Value.absent(),
+            Value<bool> isPinned = const Value.absent(),
+            Value<bool> isArchived = const Value.absent(),
+            Value<String?> color = const Value.absent(),
+            Value<int?> categoryId = const Value.absent(),
+            Value<String?> categoryName = const Value.absent(),
+            Value<String> tagsJson = const Value.absent(),
+            Value<int> position = const Value.absent(),
+            Value<DateTime?> reminderAt = const Value.absent(),
+            Value<bool> isPersonal = const Value.absent(),
+          }) =>
+              CachedNotesCompanion(
+            id: id,
+            title: title,
+            type: type,
+            content: content,
+            url: url,
+            linkTitle: linkTitle,
+            linkThumbnailUrl: linkThumbnailUrl,
+            linkDomain: linkDomain,
+            checklistJson: checklistJson,
+            isPinned: isPinned,
+            isArchived: isArchived,
+            color: color,
+            categoryId: categoryId,
+            categoryName: categoryName,
+            tagsJson: tagsJson,
+            position: position,
+            reminderAt: reminderAt,
+            isPersonal: isPersonal,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String title,
+            Value<String> type = const Value.absent(),
+            Value<String?> content = const Value.absent(),
+            Value<String?> url = const Value.absent(),
+            Value<String?> linkTitle = const Value.absent(),
+            Value<String?> linkThumbnailUrl = const Value.absent(),
+            Value<String?> linkDomain = const Value.absent(),
+            Value<String?> checklistJson = const Value.absent(),
+            Value<bool> isPinned = const Value.absent(),
+            Value<bool> isArchived = const Value.absent(),
+            Value<String?> color = const Value.absent(),
+            Value<int?> categoryId = const Value.absent(),
+            Value<String?> categoryName = const Value.absent(),
+            Value<String> tagsJson = const Value.absent(),
+            Value<int> position = const Value.absent(),
+            Value<DateTime?> reminderAt = const Value.absent(),
+            Value<bool> isPersonal = const Value.absent(),
+          }) =>
+              CachedNotesCompanion.insert(
+            id: id,
+            title: title,
+            type: type,
+            content: content,
+            url: url,
+            linkTitle: linkTitle,
+            linkThumbnailUrl: linkThumbnailUrl,
+            linkDomain: linkDomain,
+            checklistJson: checklistJson,
+            isPinned: isPinned,
+            isArchived: isArchived,
+            color: color,
+            categoryId: categoryId,
+            categoryName: categoryName,
+            tagsJson: tagsJson,
+            position: position,
+            reminderAt: reminderAt,
+            isPersonal: isPersonal,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$CachedNotesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $CachedNotesTable,
+    CachedNote,
+    $$CachedNotesTableFilterComposer,
+    $$CachedNotesTableOrderingComposer,
+    $$CachedNotesTableAnnotationComposer,
+    $$CachedNotesTableCreateCompanionBuilder,
+    $$CachedNotesTableUpdateCompanionBuilder,
+    (CachedNote, BaseReferences<_$AppDatabase, $CachedNotesTable, CachedNote>),
+    CachedNote,
+    PrefetchHooks Function()>;
+typedef $$CachedNoteCategoriesTableCreateCompanionBuilder
+    = CachedNoteCategoriesCompanion Function({
+  Value<int> id,
+  required String name,
+  Value<String?> color,
+  Value<String?> icon,
+  Value<int> position,
+});
+typedef $$CachedNoteCategoriesTableUpdateCompanionBuilder
+    = CachedNoteCategoriesCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String?> color,
+  Value<String?> icon,
+  Value<int> position,
+});
+
+class $$CachedNoteCategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $CachedNoteCategoriesTable> {
+  $$CachedNoteCategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get icon => $composableBuilder(
+      column: $table.icon, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnFilters(column));
+}
+
+class $$CachedNoteCategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CachedNoteCategoriesTable> {
+  $$CachedNoteCategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get icon => $composableBuilder(
+      column: $table.icon, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnOrderings(column));
+}
+
+class $$CachedNoteCategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CachedNoteCategoriesTable> {
+  $$CachedNoteCategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get icon =>
+      $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$CachedNoteCategoriesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $CachedNoteCategoriesTable,
+    CachedNoteCategory,
+    $$CachedNoteCategoriesTableFilterComposer,
+    $$CachedNoteCategoriesTableOrderingComposer,
+    $$CachedNoteCategoriesTableAnnotationComposer,
+    $$CachedNoteCategoriesTableCreateCompanionBuilder,
+    $$CachedNoteCategoriesTableUpdateCompanionBuilder,
+    (
+      CachedNoteCategory,
+      BaseReferences<_$AppDatabase, $CachedNoteCategoriesTable,
+          CachedNoteCategory>
+    ),
+    CachedNoteCategory,
+    PrefetchHooks Function()> {
+  $$CachedNoteCategoriesTableTableManager(
+      _$AppDatabase db, $CachedNoteCategoriesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedNoteCategoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CachedNoteCategoriesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CachedNoteCategoriesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> color = const Value.absent(),
+            Value<String?> icon = const Value.absent(),
+            Value<int> position = const Value.absent(),
+          }) =>
+              CachedNoteCategoriesCompanion(
+            id: id,
+            name: name,
+            color: color,
+            icon: icon,
+            position: position,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String name,
+            Value<String?> color = const Value.absent(),
+            Value<String?> icon = const Value.absent(),
+            Value<int> position = const Value.absent(),
+          }) =>
+              CachedNoteCategoriesCompanion.insert(
+            id: id,
+            name: name,
+            color: color,
+            icon: icon,
+            position: position,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$CachedNoteCategoriesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $CachedNoteCategoriesTable,
+        CachedNoteCategory,
+        $$CachedNoteCategoriesTableFilterComposer,
+        $$CachedNoteCategoriesTableOrderingComposer,
+        $$CachedNoteCategoriesTableAnnotationComposer,
+        $$CachedNoteCategoriesTableCreateCompanionBuilder,
+        $$CachedNoteCategoriesTableUpdateCompanionBuilder,
+        (
+          CachedNoteCategory,
+          BaseReferences<_$AppDatabase, $CachedNoteCategoriesTable,
+              CachedNoteCategory>
+        ),
+        CachedNoteCategory,
+        PrefetchHooks Function()>;
 typedef $$PendingChangesTableCreateCompanionBuilder = PendingChangesCompanion
     Function({
   Value<int> id,
@@ -4875,12 +7207,19 @@ class $AppDatabaseManager {
       $$CachedRecipesTableTableManager(_db, _db.cachedRecipes);
   $$CachedCategoriesTableTableManager get cachedCategories =>
       $$CachedCategoriesTableTableManager(_db, _db.cachedCategories);
+  $$CachedRecipeCategoriesTableTableManager get cachedRecipeCategories =>
+      $$CachedRecipeCategoriesTableTableManager(
+          _db, _db.cachedRecipeCategories);
   $$CachedFamilyMembersTableTableManager get cachedFamilyMembers =>
       $$CachedFamilyMembersTableTableManager(_db, _db.cachedFamilyMembers);
   $$CachedShoppingItemsTableTableManager get cachedShoppingItems =>
       $$CachedShoppingItemsTableTableManager(_db, _db.cachedShoppingItems);
   $$CachedPantryItemsTableTableManager get cachedPantryItems =>
       $$CachedPantryItemsTableTableManager(_db, _db.cachedPantryItems);
+  $$CachedNotesTableTableManager get cachedNotes =>
+      $$CachedNotesTableTableManager(_db, _db.cachedNotes);
+  $$CachedNoteCategoriesTableTableManager get cachedNoteCategories =>
+      $$CachedNoteCategoriesTableTableManager(_db, _db.cachedNoteCategories);
   $$PendingChangesTableTableManager get pendingChanges =>
       $$PendingChangesTableTableManager(_db, _db.pendingChanges);
 }

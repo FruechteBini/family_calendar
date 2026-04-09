@@ -13,16 +13,19 @@ part 'app_database.g.dart';
   CachedTodos,
   CachedRecipes,
   CachedCategories,
+  CachedRecipeCategories,
   CachedFamilyMembers,
   CachedShoppingItems,
   CachedPantryItems,
+  CachedNotes,
+  CachedNoteCategories,
   PendingChanges,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -30,7 +33,16 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // Future migrations go here
+          if (from < 2) {
+            await m.createTable(cachedNotes);
+            await m.createTable(cachedNoteCategories);
+          }
+          if (from < 3) {
+            await m.createTable(cachedRecipeCategories);
+            await m.addColumn(cachedRecipes, cachedRecipes.recipeCategoryId);
+            await m.addColumn(cachedRecipes, cachedRecipes.recipeCategoryName);
+            await m.addColumn(cachedRecipes, cachedRecipes.tagsJson);
+          }
         },
       );
 
@@ -45,8 +57,18 @@ class AppDatabase extends _$AppDatabase {
       (delete(pendingChanges)..where((t) => t.id.equals(id))).go();
 
   Future<void> incrementRetry(int id) =>
-      (update(pendingChanges)..where((t) => t.id.equals(id)))
-          .write(PendingChangesCompanion(retryCount: pendingChanges.retryCount + const Constant(1)));
+      _incrementRetryInternal(id);
+
+  Future<void> _incrementRetryInternal(int id) async {
+    final row =
+        await (select(pendingChanges)..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return;
+    await (update(pendingChanges)..where((t) => t.id.equals(id))).write(
+      PendingChangesCompanion(
+        retryCount: Value(row.retryCount + 1),
+      ),
+    );
+  }
 
   Future<int> pendingChangeCount() async {
     final count = countAll();
@@ -64,6 +86,9 @@ class AppDatabase extends _$AppDatabase {
     await delete(cachedFamilyMembers).go();
     await delete(cachedShoppingItems).go();
     await delete(cachedPantryItems).go();
+    await delete(cachedNotes).go();
+    await delete(cachedNoteCategories).go();
+    await delete(cachedRecipeCategories).go();
   }
 }
 

@@ -45,6 +45,14 @@ class CategoryRepository {
       throw ApiException.fromDioError(e);
     }
   }
+
+  Future<void> reorderCategories(List<int> ids) async {
+    try {
+      await _dio.put(Endpoints.categoriesReorder, data: {'ids': ids});
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }
 
 final categoryRepositoryProvider = Provider<CategoryRepository>((ref) {

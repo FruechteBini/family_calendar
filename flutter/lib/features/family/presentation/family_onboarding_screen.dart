@@ -97,7 +97,7 @@ class _FamilyOnboardingScreenState
                         decoration: const InputDecoration(
                           labelText: 'Familienname',
                           prefixIcon: Icon(Icons.home_outlined),
-                          hintText: 'z.B. Familie Mueller',
+                          hintText: 'z.B. Familie Müller',
                         ),
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => _createFamily(),

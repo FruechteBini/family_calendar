@@ -32,13 +32,13 @@ async def cookidoo_status():
         client = _get_integration()
         c = await client.get_client()
         if c is None:
-            return {"available": False, "reason": "Nicht konfiguriert oder Login fehlgeschlagen"}
+            return {"available": False, "message": "Nicht konfiguriert oder Login fehlgeschlagen"}
         return {"available": True}
     except HTTPException:
-        return {"available": False, "reason": "cookidoo-api nicht installiert"}
+        return {"available": False, "message": "cookidoo-api nicht installiert"}
     except Exception as e:
         logger.error("Cookidoo status error: %s", e)
-        return {"available": False, "reason": str(e)}
+        return {"available": False, "message": str(e)}
 
 
 @router.get("/collections")
@@ -47,8 +47,9 @@ async def list_collections():
     client = _get_integration()
     try:
         collections = await client.get_collections()
-        if not collections:
-            raise HTTPException(status_code=503, detail="Cookidoo nicht verfuegbar")
+        logger.info("Cookidoo collections response count=%s", len(collections or []))
+        # Empty list is a valid state (e.g. no managed collections).
+        # Don't convert that to an error; the UI can show an empty-state message.
         return collections
     except HTTPException:
         raise

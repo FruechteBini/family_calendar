@@ -49,6 +49,69 @@ class UndoMealPlanRequest(BaseModel):
     meal_ids: list[int]
 
 
+# ── Todo Prioritization Schemas ──
+
+
+class TodoPrioritization(BaseModel):
+    todo_id: int
+    suggested_priority: str  # low|medium|high
+    suggested_category_id: int | None = None
+    urgency_score: float  # 0.0 - 1.0
+    reasoning: str = ""
+
+
+class TodoPrioritizeResponse(BaseModel):
+    items: list[TodoPrioritization]
+    summary: str = ""
+
+
+class ApplyTodoPrioritiesRequest(BaseModel):
+    items: list[TodoPrioritization]
+
+
+class ApplyTodoPrioritiesResponse(BaseModel):
+    updated: int
+
+
+# ── Recipe categorization (preview + apply) ──
+
+
+class RecipeNewCategorySpec(BaseModel):
+    name: str
+    color: str = "#0052CC"
+
+
+class RecipeNewTagSpec(BaseModel):
+    name: str
+    color: str = "#6B7280"
+
+
+class RecipeCategorizationAssignment(BaseModel):
+    recipe_id: int
+    category_name: str
+    suggested_category_id: int | None = None
+    tag_names: list[str] = []
+
+
+class RecipeCategorizationPreview(BaseModel):
+    new_categories: list[RecipeNewCategorySpec] = []
+    new_tags: list[RecipeNewTagSpec] = []
+    assignments: list[RecipeCategorizationAssignment]
+    summary: str = ""
+
+
+class ApplyRecipeCategorizationRequest(BaseModel):
+    new_categories: list[RecipeNewCategorySpec] = []
+    new_tags: list[RecipeNewTagSpec] = []
+    assignments: list[RecipeCategorizationAssignment]
+
+
+class ApplyRecipeCategorizationResponse(BaseModel):
+    updated: int
+    categories_created: int
+    tags_created: int
+
+
 # ── Voice Command Schemas ──
 
 

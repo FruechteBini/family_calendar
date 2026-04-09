@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../features/categories/domain/category.dart';
+import 'form_input_decoration.dart';
 
 class CategoryPicker extends StatelessWidget {
   final List<Category> categories;
@@ -27,9 +28,11 @@ class CategoryPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<int?>(
       value: selectedId,
-      decoration: const InputDecoration(
+      isExpanded: true,
+      decoration: appFormInputDecoration(
+        context,
         labelText: 'Kategorie',
-        prefixIcon: Icon(Icons.label_outline),
+        prefixIcon: const Icon(Icons.label_outline),
       ),
       items: [
         const DropdownMenuItem<int?>(

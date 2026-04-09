@@ -30,6 +30,13 @@ class Endpoints {
   static const recipeSuggestions = '/api/recipes/suggestions';
   static const recipeParseUrl = '/api/recipes/parse-url';
 
+  // Recipe categories & tags (separate from todo categories)
+  static const recipeCategories = '/api/recipe-categories/';
+  static String recipeCategory(int id) => '/api/recipe-categories/$id';
+  static const recipeCategoriesReorder = '/api/recipe-categories/reorder';
+  static const recipeTags = '/api/recipe-tags/';
+  static String recipeTag(int id) => '/api/recipe-tags/$id';
+
   // Meals
   static const mealsPlan = '/api/meals/plan';
   static String mealSlot(String date, String slot) =>
@@ -45,6 +52,7 @@ class Endpoints {
   static String shoppingItemCheck(int id) => '/api/shopping/items/$id/check';
   static String shoppingItemDelete(int id) => '/api/shopping/items/$id';
   static const shoppingSort = '/api/shopping/sort';
+  static const shoppingClearAll = '/api/shopping/clear-all';
 
   // Pantry
   static const pantry = '/api/pantry/';
@@ -79,12 +87,46 @@ class Endpoints {
   static const aiConfirmMealPlan = '/api/ai/confirm-meal-plan';
   static const aiUndoMealPlan = '/api/ai/undo-meal-plan';
   static const aiVoiceCommand = '/api/ai/voice-command';
+  static const aiPrioritizeTodos = '/api/ai/prioritize-todos';
+  static const aiApplyTodoPriorities = '/api/ai/apply-todo-priorities';
+  static const aiCategorizeRecipes = '/api/ai/categorize-recipes';
+  static const aiApplyRecipeCategorization =
+      '/api/ai/apply-recipe-categorization';
 
   // Categories
   static const categories = '/api/categories/';
   static String category(int id) => '/api/categories/$id';
+  static const categoriesReorder = '/api/categories/reorder';
 
   // Family Members
   static const familyMembers = '/api/family-members/';
   static String familyMember(int id) => '/api/family-members/$id';
+
+  // Notes
+  static const notes = '/api/notes/';
+  static String note(int id) => '/api/notes/$id';
+  static String notePin(int id) => '/api/notes/$id/pin';
+  static String noteArchive(int id) => '/api/notes/$id/archive';
+  static String noteColor(int id) => '/api/notes/$id/color';
+  static const notesReorder = '/api/notes/reorder';
+  static const notesPreviewLink = '/api/notes/preview-link';
+  static const notesCheckDuplicate = '/api/notes/check-duplicate-link';
+  static String noteConvertToTodo(int id) => '/api/notes/$id/convert-to-todo';
+  static String noteComments(int id) => '/api/notes/$id/comments';
+  static String noteComment(int noteId, int commentId) =>
+      '/api/notes/$noteId/comments/$commentId';
+  static String noteAttachments(int id) => '/api/notes/$id/attachments';
+  static String noteAttachment(int noteId, int attId) =>
+      '/api/notes/$noteId/attachments/$attId';
+  static String noteAttachmentDownload(int noteId, int attId) =>
+      '/api/notes/$noteId/attachments/$attId/download';
+
+  // Note categories (separate from todo categories)
+  static const noteCategories = '/api/note-categories/';
+  static String noteCategory(int id) => '/api/note-categories/$id';
+  static const noteCategoriesReorder = '/api/note-categories/reorder';
+
+  // Note tags
+  static const noteTags = '/api/note-tags/';
+  static String noteTag(int id) => '/api/note-tags/$id';
 }

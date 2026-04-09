@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import '../database/app_database.dart';
-import '../database/tables/tables.dart';
 
 class PendingChangeService {
   final AppDatabase _db;

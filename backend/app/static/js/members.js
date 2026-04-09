@@ -31,7 +31,7 @@ const Members = (() => {
         </div>
         <div class="member-actions">
           <button class="btn-icon" onclick="Members.edit(${m.id})" title="Bearbeiten">&#9998;</button>
-          <button class="btn-icon" onclick="Members.remove(${m.id})" title="Loeschen">&times;</button>
+          <button class="btn-icon" onclick="Members.remove(${m.id})" title="Löschen">&times;</button>
         </div>
       </div>
     `).join('');
@@ -55,8 +55,8 @@ const Members = (() => {
       </div>
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        ${isEdit ? `<button type="button" class="btn-small btn-danger" id="modal-delete-member">Loeschen</button>` : ''}
-        <button type="submit" class="btn-small btn-primary">${isEdit ? 'Speichern' : 'Hinzufuegen'}</button>
+        ${isEdit ? `<button type="button" class="btn-small btn-danger" id="modal-delete-member">Löschen</button>` : ''}
+        <button type="submit" class="btn-small btn-primary">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
       </div>
     </form>`;
 

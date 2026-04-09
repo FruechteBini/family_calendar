@@ -1,3 +1,5 @@
+import 'recipe_tag.dart';
+
 class Recipe {
   final int id;
   final String name;
@@ -11,6 +13,10 @@ class Recipe {
   final List<Ingredient> ingredients;
   final DateTime? lastCooked;
   final int cookCount;
+  final int? categoryId;
+  final String? categoryName;
+  final String? categoryColor;
+  final List<RecipeTag> tags;
 
   const Recipe({
     required this.id,
@@ -25,40 +31,60 @@ class Recipe {
     this.ingredients = const [],
     this.lastCooked,
     this.cookCount = 0,
+    this.categoryId,
+    this.categoryName,
+    this.categoryColor,
+    this.tags = const [],
   });
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
+    // Backend uses `title`, `notes` and `prep_time_*_minutes`.
+    final active = json['prep_time_active_minutes'] as int?;
+    final passive = json['prep_time_passive_minutes'] as int?;
+    final prepTotal = (active ?? 0) + (passive ?? 0);
+    final source = json['source'] as String?;
+    final cat = json['category'] as Map<String, dynamic>?;
+    final tagsJson = json['tags'] as List<dynamic>?;
     return Recipe(
       id: json['id'] as int,
-      name: json['name'] as String,
-      description: json['description'] as String?,
+      name: (json['title'] as String?) ?? (json['name'] as String?) ?? '',
+      description: (json['notes'] as String?) ?? (json['description'] as String?),
       difficulty: const {'easy': 'einfach', 'medium': 'mittel', 'hard': 'schwer'}[json['difficulty']] ?? json['difficulty'] as String? ?? 'mittel',
-      prepTime: json['prep_time'] as int?,
+      prepTime: prepTotal > 0 ? prepTotal : (json['prep_time'] as int?),
       imageUrl: json['image_url'] as String?,
       sourceUrl: json['source_url'] as String?,
-      isCookidoo: json['is_cookidoo'] as bool? ?? false,
+      isCookidoo: source == 'cookidoo' || (json['is_cookidoo'] as bool? ?? false),
       cookidooId: json['cookidoo_id'] as String?,
       ingredients: (json['ingredients'] as List<dynamic>?)
               ?.map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      lastCooked: json['last_cooked'] != null
-          ? DateTime.parse(json['last_cooked'] as String)
+      lastCooked: (json['last_cooked_at'] ?? json['last_cooked']) != null
+          ? DateTime.parse((json['last_cooked_at'] ?? json['last_cooked']) as String)
           : null,
       cookCount: json['cook_count'] as int? ?? 0,
+      categoryId: json['recipe_category_id'] as int? ?? cat?['id'] as int?,
+      categoryName: cat?['name'] as String?,
+      categoryColor: cat?['color'] as String?,
+      tags: tagsJson
+              ?.whereType<Map<String, dynamic>>()
+              .map(RecipeTag.fromJson)
+              .toList() ??
+          [],
     );
   }
 
   Map<String, dynamic> toJson() {
     const diffMap = {'einfach': 'easy', 'mittel': 'medium', 'schwer': 'hard'};
     return {
-      'name': name,
-      if (description != null) 'description': description,
+      'title': name,
+      if (description != null) 'notes': description,
       'difficulty': diffMap[difficulty] ?? difficulty,
-      if (prepTime != null) 'prep_time': prepTime,
+      if (prepTime != null) 'prep_time_active_minutes': prepTime,
       if (imageUrl != null) 'image_url': imageUrl,
-      if (sourceUrl != null) 'source_url': sourceUrl,
       'ingredients': ingredients.map((i) => i.toJson()).toList(),
+      'recipe_category_id': categoryId,
+      'tag_ids': tags.map((t) => t.id).toList(),
     };
   }
 }

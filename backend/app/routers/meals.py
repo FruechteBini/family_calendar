@@ -240,7 +240,7 @@ async def mark_as_cooked(
     result = await db.execute(stmt)
     meal = result.scalar_one_or_none()
     if not meal:
-        raise HTTPException(status_code=404, detail="Kein Eintrag fuer diesen Slot")
+        raise HTTPException(status_code=404, detail="Kein Eintrag für diesen Slot")
 
     now = utcnow()
     servings = body.servings_cooked if body and body.servings_cooked else meal.servings_planned

@@ -66,9 +66,9 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 
 | Verzeichnis | Zweck | Inhalt |
 |-------------|-------|--------|
-| `backend/app/models/` | SQLAlchemy ORM | 13 Models (Family, User, Event, Todo, Proposal, Recipe, Ingredient, MealPlan, CookingHistory, ShoppingList, Category, FamilyMember) |
-| `backend/app/schemas/` | Pydantic Validierung | 10 Schema-Dateien (Create/Update/Response je Modul) |
-| `backend/app/routers/` | FastAPI Endpunkte | 12 Router (auth, events, todos, proposals, recipes, meals, shopping, cookidoo, knuspr, ai, categories, family_members) |
+| `backend/app/models/` | SQLAlchemy ORM | u.a. Family, User, Event, Todo, Note, NoteCategory, NoteTag, NoteComment, NoteAttachment, Proposal, Recipe, … |
+| `backend/app/schemas/` | Pydantic Validierung | Create/Update/Response je Modul inkl. notes, note_category, note_tag |
+| `backend/app/routers/` | FastAPI Endpunkte | u.a. auth, events, todos, notes, note_categories, note_tags, proposals, recipes, recipe_categories, recipe_tags, meals, shopping, cookidoo, knuspr, ai, categories, family_members, pantry |
 | `backend/app/static/` | Frontend SPA | `index.html` (226 Z.), `css/style.css` (1699 Z.), `js/` (8 Module, ~2300 Z.) |
 | `backend/integrations/` | Externe Bridges | `cookidoo/` (client + importer), `knuspr/` (client + cart) |
 | `backend/mcp_server.py` | Claude MCP-Server | 1171 Zeilen, 28 Tools + 8 Resources |
@@ -80,8 +80,8 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | `ANDROID/data/repository/` | Business-Logik + Offline | 10 Repositories (1288 Z. gesamt) |
 | `ANDROID/ui/` | Compose Screens | 11 Packages: auth, calendar, meals, todos, members, categories, settings, voice, navigation, common, theme |
 | `ANDROID/sync/` | Background Sync | `SyncWorker.kt` (WorkManager, 15min-Intervall) |
-| **`flutter/lib/core/`** | **Flutter Kern-Infrastruktur** | API-Client (Dio), Auth (JWT + Riverpod), Theme (Material 3), Database (Drift), Sync-Service |
-| **`flutter/lib/features/`** | **Flutter Feature-Module** | 11 Features: auth, family, calendar, todos, recipes, meals, shopping, pantry, ai, cookidoo, knuspr, settings |
+| **`flutter/lib/core/`** | **Flutter Kern-Infrastruktur** | API-Client (Dio), Auth (JWT + Riverpod), Theme (Material 3, Akzentfarbe), Database (Drift), Sync-Service |
+| **`flutter/lib/features/`** | **Flutter Feature-Module** | u.a. auth, family, calendar, todos, **notes**, recipes, meals, shopping, pantry, ai, cookidoo, knuspr, settings |
 | **`flutter/lib/shared/`** | **Flutter Shared Widgets/Utils** | Wiederverwendbare Widgets (MemberChip, CategoryPicker, Toast, Skeleton), DateUtils, Validators |
 | **`flutter/lib/app/`** | **Flutter App-Shell** | GoRouter-Konfiguration, App-Shell mit NavigationBar, Theme-Setup |
 | **`flutter/web/`** | **Flutter Web-Assets** | PWA manifest, index.html fuer Web-Build |
@@ -119,8 +119,10 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 ### Zentrale Typdefinitionen
 | Pfad | Inhalt |
 |------|--------|
-| `backend/app/models/__init__.py` | Re-exports aller 13 ORM Models (inkl. Family) |
-| `backend/app/schemas/recipe.py` | RecipeSource, Difficulty, IngredientCategory Enums |
+| `backend/app/models/__init__.py` | Re-exports aller ORM-Models (inkl. Family, RecipeCategory, RecipeTag) |
+| `backend/app/schemas/recipe.py` | RecipeSource, Difficulty, IngredientCategory; Rezept mit `recipe_category_id`, `tag_ids`, nested `category`/`tags` |
+| `backend/app/schemas/recipe_category.py` | Rezept-Kategorien (Create/Update/Response) |
+| `backend/app/schemas/recipe_tag.py` | Rezept-Tags (Create/Update/Response) |
 | `backend/app/schemas/meal_plan.py` | MealSlot Enum (lunch/dinner) |
 
 ### Routen-Definitionen
@@ -130,13 +132,18 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | `backend/app/routers/events.py` | `/api/events` | CRUD |
 | `backend/app/routers/todos.py` | `/api/todos` | CRUD + complete, link-event |
 | `backend/app/routers/proposals.py` | `/api/proposals` + `/api/todos` | create, list, respond, pending |
-| `backend/app/routers/recipes.py` | `/api/recipes` | CRUD + suggestions, history |
+| `backend/app/routers/recipes.py` | `/api/recipes` | CRUD + suggestions, history; Filter `recipe_category_id`, `tag_id` |
+| `backend/app/routers/recipe_categories.py` | `/api/recipe-categories` | CRUD + reorder (eigen von Todo-/Notiz-Kategorien) |
+| `backend/app/routers/recipe_tags.py` | `/api/recipe-tags` | CRUD |
 | `backend/app/routers/meals.py` | `/api/meals` | plan CRUD + mark-as-cooked |
 | `backend/app/routers/shopping.py` | `/api/shopping` | list, generate, items CRUD, sort (KI) |
 | `backend/app/routers/cookidoo.py` | `/api/cookidoo` | status, collections, recipes, import, calendar |
 | `backend/app/routers/knuspr.py` | `/api/knuspr` | products, cart, delivery-slots |
-| `backend/app/routers/ai.py` | `/api/ai` | available-recipes, generate-meal-plan (preview), confirm-meal-plan, undo-meal-plan |
+| `backend/app/routers/ai.py` | `/api/ai` | available-recipes, generate-meal-plan (preview), confirm-meal-plan, undo-meal-plan, prioritize-todos, apply-todo-priorities, categorize-recipes, apply-recipe-categorization |
 | `backend/app/routers/categories.py` | `/api/categories` | CRUD |
+| `backend/app/routers/notes.py` | `/api/notes` | CRUD, pin, archive, Farbe, reorder, Link-Preview, Duplikat-Check, Todo-Konvertierung, Kommentare, Datei-Anhaenge |
+| `backend/app/routers/note_categories.py` | `/api/note-categories` | CRUD + reorder (eigenstaendig von Todo-Kategorien) |
+| `backend/app/routers/note_tags.py` | `/api/note-tags` | CRUD |
 | `backend/app/routers/family_members.py` | `/api/family-members` | CRUD |
 
 ### Infrastruktur-Dateien
@@ -158,16 +165,17 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | **Family** | Multi-Tenancy: Familien-Verwaltung, Einladungscodes | `models/family.py`, `schemas/family.py`, `routers/auth.py` | Auth |
 | **Auth** | Benutzerregistrierung, Login, JWT | `auth.py`, `routers/auth.py`, `schemas/auth.py`, `models/user.py`, `models/family.py` | bcrypt, python-jose |
 | **Kalender** | Terminverwaltung | `routers/events.py`, `models/event.py`, `schemas/event.py` | Auth, FamilyMembers, Categories |
-| **Todos** | Aufgaben mit Sub-Todos | `routers/todos.py`, `models/todo.py`, `schemas/todo.py` | Auth, Categories, FamilyMembers, Events |
+| **Todos** | Todos mit Persoenlich/Familie, Sub-Todos | `routers/todos.py`, `models/todo.py`, `schemas/todo.py` | Auth, Categories, FamilyMembers, Events |
 | **Proposals** | Terminvorschlaege fuer Mehrpersonen-Todos | `routers/proposals.py`, `models/proposal.py`, `schemas/proposal.py` | Auth, Todos, FamilyMembers |
-| **Rezepte** | Rezeptverwaltung mit Zutaten | `routers/recipes.py`, `models/recipe.py`, `models/ingredient.py`, `schemas/recipe.py` | Auth |
+| **Rezepte** | Rezeptverwaltung mit Zutaten, optional einer Rezept-Kategorie und mehreren Tags | `routers/recipes.py`, `routers/recipe_categories.py`, `routers/recipe_tags.py`, `models/recipe.py`, `models/recipe_category.py`, `models/recipe_tag.py`, `models/ingredient.py`, `schemas/recipe.py`, `schemas/recipe_category.py`, `schemas/recipe_tag.py` | Auth |
 | **Essensplanung** | Wochenplan (7 Tage, Mittag/Abend) | `routers/meals.py`, `models/meal_plan.py`, `models/cooking_history.py`, `schemas/meal_plan.py` | Auth, Rezepte |
 | **Einkaufsliste** | Aus Wochenplan generiert, KI-Sortierung | `routers/shopping.py`, `models/shopping_list.py`, `schemas/shopping.py` | Auth, Rezepte, Essensplanung, anthropic |
 | **Familienmitglieder** | Personenverwaltung | `routers/family_members.py`, `models/family_member.py`, `schemas/family_member.py` | Auth |
 | **Kategorien** | Event/Todo-Kategorien | `routers/categories.py`, `models/category.py`, `schemas/category.py` | Auth |
+| **Notizen** | Text/Link/Checklisten, eigene Kategorien & Tags, Kommentare, Anhaenge | `routers/notes.py`, `routers/note_categories.py`, `routers/note_tags.py`, `models/note*.py`, `schemas/note*.py`, `link_preview.py` | Auth, httpx, beautifulsoup4, lxml |
 | **Cookidoo** | Thermomix Rezept-Import | `routers/cookidoo.py`, `integrations/cookidoo/client.py`, `integrations/cookidoo/importer.py` | Auth, Rezepte, cookidoo-api |
 | **Knuspr** | Online-Supermarkt Integration | `routers/knuspr.py`, `integrations/knuspr/client.py`, `integrations/knuspr/cart.py` | Auth, Einkaufsliste, knuspr-api |
-| **AI** | KI-Essensplanung via Claude (Preview/Confirm/Undo) | `routers/ai.py` | Auth, Rezepte, Cookidoo (optional), anthropic |
+| **AI** | KI-Essensplanung, Todo-Priorisierung, Rezept-Kategorisierung/Labeling via Claude | `routers/ai.py`, `schemas/ai.py` | Auth, Rezepte, Cookidoo (optional), anthropic |
 | **MCP-Server** | Claude Desktop Integration | `mcp_server.py` | Alle Backend-Models, mcp SDK |
 
 ### Flutter-Module (Cross-Platform)
@@ -179,16 +187,16 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | **Flutter Family** | Familie erstellen/beitreten Onboarding | `features/family/presentation/family_onboarding_screen.dart` | Auth |
 | **Flutter Kalender** | Monatsansicht, Day-Detail, Event CRUD | `features/calendar/domain/event.dart`, `features/calendar/data/event_repository.dart`, `features/calendar/presentation/calendar_screen.dart` | Auth, Members, Categories |
 | **Flutter Todos** | Todo CRUD, Proposals, Quick-Add, Filter | `features/todos/domain/todo.dart`, `features/todos/data/todo_repository.dart`, `features/todos/presentation/todo_list_screen.dart` | Auth, Categories, Members |
-| **Flutter Rezepte** | Rezept CRUD, URL-Import, Cookidoo-Browser | `features/recipes/domain/recipe.dart`, `features/recipes/data/recipe_repository.dart`, `features/recipes/presentation/recipe_list_screen.dart` | Auth |
+| **Flutter Rezepte** | Rezept CRUD, URL-Import, Cookidoo-Browser, Kategorie-Tabs + Tag-Filter, KI-Sortieren-Sheet, Kategorieverwaltung | `features/recipes/domain/recipe.dart`, `recipe_category.dart`, `recipe_tag.dart`, `data/recipe_repository.dart`, `recipe_category_repository.dart`, `recipe_tag_repository.dart`, `presentation/recipe_list_screen.dart`, `recipe_form_dialog.dart`, `recipe_categories_screen.dart`, `ai_categorize_sheet.dart` | Auth |
 | **Flutter Essensplanung** | Wochenplan, Slot-Zuweisung, Gekocht-Markierung | `features/meals/domain/meal_plan.dart`, `features/meals/data/meal_repository.dart`, `features/meals/presentation/week_plan_screen.dart` | Auth, Rezepte |
 | **Flutter Einkaufsliste** | Generieren, KI-Sort, Items CRUD | `features/shopping/domain/shopping.dart`, `features/shopping/data/shopping_repository.dart`, `features/shopping/presentation/shopping_list_screen.dart` | Auth, Rezepte, Essensplanung |
 | **Flutter Vorratskammer** | Pantry CRUD, Bulk-Add, Alerts | `features/pantry/domain/pantry_item.dart`, `features/pantry/data/pantry_repository.dart`, `features/pantry/presentation/pantry_screen.dart` | Auth |
-| **Flutter AI** | KI-Essensplan Wizard, Voice FAB | `features/ai/domain/ai_models.dart`, `features/ai/data/ai_repository.dart`, `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/presentation/voice_fab.dart` | Auth, Rezepte, speech_to_text |
+| **Flutter AI** | KI-Essensplan Wizard, Voice FAB, Rezept-Kategorisierung (`categorizeRecipes` / `applyRecipeCategorization`) | `features/ai/domain/ai_models.dart`, `features/ai/data/ai_repository.dart`, `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/presentation/voice_fab.dart` | Auth, Rezepte, speech_to_text |
 | **Flutter Cookidoo** | Collections browsen, Rezept-Import | `features/cookidoo/domain/cookidoo.dart`, `features/cookidoo/data/cookidoo_repository.dart`, `features/cookidoo/presentation/cookidoo_browser.dart` | Auth, Rezepte |
 | **Flutter Knuspr** | Produktsuche, Warenkorb, Lieferslots | `features/knuspr/domain/knuspr.dart`, `features/knuspr/data/knuspr_repository.dart`, `features/knuspr/presentation/knuspr_screen.dart` | Auth, Einkaufsliste |
-| **Flutter Settings** | Theme, Server-URL, User/Family Info | `features/settings/presentation/settings_screen.dart` | Auth |
-| **Flutter Offline/Sync** | Drift DB, Pending-Queue, Background Sync | `core/database/app_database.dart`, `core/database/tables/tables.dart`, `core/sync/sync_service.dart`, `core/sync/pending_change.dart` | Drift, workmanager |
-| **Flutter Theme** | Material 3 Light/Dark, AppColors | `core/theme/app_theme.dart`, `core/theme/colors.dart` | — |
+| **Flutter Settings** | Theme, **Sekundärfarbe (Akzent, Color Picker)**, Server-URL, User/Family Info | `features/settings/presentation/settings_screen.dart` | Auth, shared_preferences |
+| **Flutter Offline/Sync** | Drift DB (Schema v3: `CachedRecipeCategories`, Rezept-Kategorie/Tags im Cache), Pending-Queue, Background Sync | `core/database/app_database.dart`, `core/database/tables/tables.dart`, `core/sync/sync_service.dart`, `core/sync/pending_change.dart` | Drift, workmanager |
+| **Flutter Theme** | Material 3 Light/Dark, AppColors, nutzerdefinierte Akzentfarbe (`ColorScheme.fromSeed`), `FamilienThemeTokens` (Accent-Gradient) | `core/theme/app_theme.dart`, `core/theme/colors.dart`, `core/theme/accent_color_provider.dart`, `core/theme/theme_context.dart`, `core/theme/theme.dart` | shared_preferences |
 | **Flutter Shared** | Wiederverwendbare Widgets, Utils | `shared/widgets/` (Toast, Skeleton, MemberChip, etc.), `shared/utils/` (DateUtils, Validators) | — |
 
 ### Legacy-Module (Web + Android)
@@ -215,7 +223,7 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 - **Funktionen**: snake_case (Python), camelCase (Dart, JS)
 - **Dart-Variablen**: camelCase, private mit `_` Prefix
 - **API-Pfade**: kebab-case (`/family-members/`, `/link-member`)
-- **DB-Tabellen**: snake_case Plural (`recipes`, `shopping_items`, `meal_plan`)
+- **DB-Tabellen**: snake_case Plural (`recipes`, `recipe_categories`, `recipe_tags`, `recipe_tag_assignments`, `shopping_items`, `meal_plan`)
 - **Drift-Tabellen**: PascalCase Plural (`CachedEvents`, `PendingChanges`)
 
 ### Fehlerbehandlung
@@ -281,6 +289,8 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | cached_network_image | ^3.3.0 | Bild-Caching |
 | intl | ^0.19.0 | Datumsformatierung/Lokalisierung |
 | uuid | ^4.0.0 | UUID-Generierung |
+| shared_preferences | ^2.5.0 | Lokale Key-Value-Persistenz (u.a. Akzentfarbe) |
+| flutter_colorpicker | ^1.1.0 | Color Picker in Einstellungen |
 | **Android (Legacy)** | | |
 | Compose BOM | 2024.12.01 | Jetpack Compose UI |
 | Navigation Compose | 2.8.5 | Screen-Navigation |
@@ -343,7 +353,7 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | Flutter neues Feature | Domain (`features/<name>/domain/`), Repository (`features/<name>/data/`), Screen (`features/<name>/presentation/`), Endpoint (`core/api/endpoints.dart`), ggf. Drift-Tabelle (`core/database/tables/tables.dart`) |
 | Flutter Kalender aendern | `features/calendar/presentation/calendar_screen.dart`, `features/calendar/data/event_repository.dart`, `features/calendar/domain/event.dart` |
 | Flutter Todos aendern | `features/todos/presentation/todo_list_screen.dart`, `features/todos/data/todo_repository.dart`, `features/todos/domain/todo.dart` |
-| Flutter Rezepte aendern | `features/recipes/presentation/recipe_list_screen.dart`, `features/recipes/data/recipe_repository.dart`, `features/recipes/domain/recipe.dart` |
+| Flutter Rezepte aendern | `features/recipes/presentation/recipe_list_screen.dart`, `recipe_form_dialog.dart`, `recipe_categories_screen.dart`, `ai_categorize_sheet.dart`, `data/recipe_repository.dart`, `recipe_category_repository.dart`, `recipe_tag_repository.dart`, `domain/recipe.dart` |
 | Flutter Essensplanung | `features/meals/presentation/week_plan_screen.dart`, `features/meals/data/meal_repository.dart`, `features/meals/domain/meal_plan.dart` |
 | Flutter KI-Essensplanung | `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/data/ai_repository.dart`, `features/ai/domain/ai_models.dart` |
 | Flutter Einkaufsliste | `features/shopping/presentation/shopping_list_screen.dart`, `features/shopping/data/shopping_repository.dart`, `features/shopping/domain/shopping.dart` |
@@ -353,7 +363,8 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | Flutter Knuspr | `features/knuspr/presentation/knuspr_screen.dart`, `features/knuspr/data/knuspr_repository.dart` |
 | Flutter Auth aendern | `core/auth/auth_provider.dart`, `core/auth/auth_interceptor.dart`, `features/auth/presentation/login_screen.dart` |
 | Flutter Navigation/Shell | `app/router.dart`, `app/app_shell.dart` |
-| Flutter Theme/Styling | `core/theme/app_theme.dart`, `core/theme/colors.dart` |
+| Flutter Theme/Styling / Akzentfarbe | `core/theme/app_theme.dart`, `core/theme/colors.dart`, `core/theme/accent_color_provider.dart`, `core/theme/theme_context.dart`, `app/app.dart` |
+| Flutter Einstellungen (Akzent) | `features/settings/presentation/settings_screen.dart` |
 | Flutter Offline-Sync | `core/sync/sync_service.dart`, `core/sync/pending_change.dart`, `core/database/tables/tables.dart`, `core/database/app_database.dart` |
 | Flutter Shared Widgets | `shared/widgets/` (Toast, Skeleton, MemberChip, CategoryPicker, PriorityBadge, etc.) |
 | Flutter Docker (Web) | `flutter/Dockerfile`, `flutter/nginx.conf` |
@@ -413,7 +424,7 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 
 > Fuer Dateien >300 Zeilen. Ermoeglicht gezieltes Lesen per Zeilen-Offset statt gesamte Datei.
 
-### `backend/app/routers/ai.py` (494 Zeilen)
+### `backend/app/routers/ai.py` (aktuell >494 Zeilen)
 
 | Methode/Endpunkt | Zeile | Zweck |
 |------------------|-------|-------|
@@ -422,6 +433,8 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | `POST /generate-meal-plan` | 154 | Claude-Vorschau generieren (speichert NICHT in DB) |
 | `POST /confirm-meal-plan` | 400 | Vorschau bestaetigen, Cookidoo-Rezepte importieren, Einkaufsliste generieren |
 | `POST /undo-meal-plan` | 476 | KI-Plan per Meal-IDs rueckgaengig machen |
+| `POST /prioritize-todos` | – | Todos priorisieren + Kategorien vorschlagen (Preview) |
+| `POST /apply-todo-priorities` | – | KI-Vorschlaege auf Todos anwenden |
 
 ### `backend/mcp_server.py` (1171 Zeilen)
 

@@ -82,11 +82,16 @@ def _serialize_ingredient(ing) -> dict[str, Any]:
 
 
 def _serialize_recipe_brief(r) -> dict[str, Any]:
+    thumb = (
+        getattr(r, "thumbnail", None)
+        or getattr(r, "image_url", None)
+        or getattr(r, "image", None)
+    )
     return {
         "cookidoo_id": r.id,
         "name": getattr(r, "name", ""),
         "total_time": getattr(r, "total_time", None),
-        "thumbnail": getattr(r, "thumbnail", None),
+        "thumbnail": thumb,
         "url": getattr(r, "url", None),
         "ingredients": [_serialize_ingredient(i) for i in getattr(r, "ingredients", [])],
     }
@@ -97,18 +102,46 @@ async def get_collections() -> list[dict[str, Any]]:
     if not client:
         return []
     try:
-        collections = await client.get_managed_collections()
+        # cookidoo-api has changed naming/behavior across versions.
+        # Some accounts have collections that are not returned by "managed collections".
+        # Try a small set of known methods, first successful result wins.
+        collections = None
+        for method_name in (
+            "get_managed_collections",
+            "get_collections",
+            "get_recipe_collections",
+            "get_my_collections",
+        ):
+            method = getattr(client, method_name, None)
+            if method is None:
+                continue
+            try:
+                collections = await method()
+                logger.info("Cookidoo collections loaded via %s: %s", method_name, len(collections or []))
+                break
+            except Exception:
+                logger.warning("Cookidoo collections method failed: %s", method_name, exc_info=True)
+                continue
+
+        if collections is None:
+            logger.warning("Cookidoo client has no supported collections method")
+            return []
         result = []
         for col in collections:
             chapters = []
             for ch in getattr(col, "chapters", []):
                 recipes = []
                 for rec in getattr(ch, "recipes", []):
+                    thumb = (
+                        getattr(rec, "thumbnail", None)
+                        or getattr(rec, "image_url", None)
+                        or getattr(rec, "image", None)
+                    )
                     recipes.append({
                         "cookidoo_id": rec.id,
                         "name": getattr(rec, "name", ""),
                         "total_time": getattr(rec, "total_time", None),
-                        "thumbnail": getattr(rec, "thumbnail", None),
+                        "thumbnail": thumb,
                         "url": getattr(rec, "url", None),
                         "ingredients": [],
                     })
@@ -124,7 +157,7 @@ async def get_collections() -> list[dict[str, Any]]:
             })
         return result
     except Exception as e:
-        logger.error("Cookidoo get_collections error: %s", e)
+        logger.error("Cookidoo get_collections error: %s", e, exc_info=True)
         return []
 
 
@@ -155,6 +188,17 @@ async def get_recipe_detail(cookidoo_id: str) -> dict[str, Any] | None:
             if steps:
                 instructions_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(steps))
 
+        # Some cookidoo-api versions expose a textual description/summary separately.
+        description = (
+            getattr(r, "description", None)
+            or getattr(r, "summary", None)
+            or getattr(r, "subtitle", None)
+        )
+        if isinstance(description, list):
+            description = "\n".join([str(s) for s in description if s])
+        if description is not None:
+            description = str(description).strip() or None
+
         return {
             "cookidoo_id": r.id,
             "name": getattr(r, "name", ""),
@@ -165,6 +209,7 @@ async def get_recipe_detail(cookidoo_id: str) -> dict[str, Any] | None:
             "image": getattr(r, "image", None),
             "url": getattr(r, "url", None),
             "ingredients": ingredients,
+            "description": description,
             "instructions": instructions_text,
             "categories": [getattr(c, "name", str(c)) for c in getattr(r, "categories", [])],
         }

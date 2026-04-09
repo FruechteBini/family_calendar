@@ -119,15 +119,15 @@ const App = (() => {
         `<option value="${m.id}">${m.avatar_emoji} ${esc(m.name)}</option>`
       ).join('');
       const html = `<form>
-        <p style="margin-bottom:1rem;color:var(--text-light)">Bitte waehle aus, welches Familienmitglied du bist. Das wird fuer Terminvorschlaege benoetigt.</p>
+        <p style="margin-bottom:1rem;color:var(--text-light)">Bitte wähle aus, welches Familienmitglied du bist. Das wird für Terminvorschläge benötigt.</p>
         <label>Ich bin...</label>
         <select name="member_id" required>${opts}</select>
         <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
         <div class="modal-footer">
-          <button type="submit" class="btn-small btn-primary">Bestaetigen</button>
+          <button type="submit" class="btn-small btn-primary">Bestätigen</button>
         </div>
       </form>`;
-      openModal('Familienmitglied verknuepfen', html, async (fd) => {
+      openModal('Familienmitglied verknüpfen', html, async (fd) => {
         const memberId = parseInt(fd.get('member_id'));
         const updated = await API.patch('/api/auth/link-member', { member_id: memberId });
         API.setUser(updated);
@@ -198,7 +198,7 @@ const App = (() => {
     try {
       const pending = await API.get('/api/proposals/pending');
       if (pending.length === 0) {
-        openModal('Offene Terminvorschlaege', '<p style="color:var(--text-light);text-align:center;padding:1rem">Keine offenen Vorschlaege.</p>');
+        openModal('Offene Terminvorschläge', '<p style="color:var(--text-light);text-align:center;padding:1rem">Keine offenen Vorschläge.</p>');
         return;
       }
 
@@ -207,7 +207,7 @@ const App = (() => {
         return `<div style="padding:0.75rem;background:var(--bg);border-radius:var(--radius);margin-bottom:0.5rem">
           <div style="font-weight:600">${esc(p.todo_title)}</div>
           <div style="font-size:0.85rem;color:var(--text-light);margin:0.25rem 0">
-            ${p.proposer.avatar_emoji} ${esc(p.proposer.name)} schlaegt vor: <strong>${d}</strong>
+            ${p.proposer.avatar_emoji} ${esc(p.proposer.name)} schlägt vor: <strong>${d}</strong>
           </div>
           ${p.message ? `<div style="font-size:0.85rem;font-style:italic;margin-bottom:0.5rem">${esc(p.message)}</div>` : ''}
           <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
@@ -218,7 +218,7 @@ const App = (() => {
         </div>`;
       }).join('');
 
-      openModal('Offene Terminvorschlaege', items);
+      openModal('Offene Terminvorschläge', items);
     } catch (err) {
       alert(err.message);
     }

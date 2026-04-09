@@ -7,8 +7,8 @@ const Pantry = (() => {
   let alerts = [];
 
   const CATEGORY_LABELS = {
-    kuehlregal: 'Kuehlregal',
-    obst_gemuese: 'Obst & Gemuese',
+    kuehlregal: 'Kühlregal',
+    obst_gemuese: 'Obst & Gemüse',
     trockenware: 'Trockenware',
     drogerie: 'Drogerie',
     sonstiges: 'Sonstiges',
@@ -67,12 +67,12 @@ const Pantry = (() => {
     }
 
     container.classList.remove('hidden');
-    let html = '<div class="pantry-alert-header">&#9888; Vorrat pruefen</div>';
+    let html = '<div class="pantry-alert-header">&#9888; Vorrat prüfen</div>';
     html += '<div class="pantry-alert-items">';
     for (const a of alerts) {
       const reason = a.reason === 'low_stock'
         ? (a.amount !== null ? `Nur noch ${a.amount}${a.unit ? ' ' + a.unit : ''} vorhanden` : 'Niedrig')
-        : `Laeuft ab: ${formatExpiry(a.expiry_date)}`;
+        : `Läuft ab: ${formatExpiry(a.expiry_date)}`;
       html += `<div class="pantry-alert-item">
         <div class="pantry-alert-info">
           <strong>${esc(a.name)}</strong>
@@ -93,7 +93,7 @@ const Pantry = (() => {
     if (!container) return;
 
     if (pantryItems.length === 0) {
-      container.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:2rem">Vorratskammer ist leer. Fuege Artikel hinzu oder nutze einen Sprachbefehl.</p>';
+      container.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:2rem">Vorratskammer ist leer. Füge Artikel hinzu oder nutze einen Sprachbefehl.</p>';
       return;
     }
 
@@ -140,7 +140,7 @@ const Pantry = (() => {
       </div>
       <div class="pantry-item-actions">
         <button class="btn-icon" onclick="Pantry.editItem(${item.id})" title="Bearbeiten">&#9998;</button>
-        <button class="btn-icon" onclick="Pantry.deleteItem(${item.id})" title="Loeschen">&times;</button>
+        <button class="btn-icon" onclick="Pantry.deleteItem(${item.id})" title="Löschen">&times;</button>
       </div>
     </div>`;
   }
@@ -186,7 +186,7 @@ const Pantry = (() => {
       <label>Menge</label>
       <input type="number" name="amount" value="${item.amount !== null ? item.amount : ''}" step="0.1" placeholder="Unbekannt">
       <label>Einheit</label>
-      <input type="text" name="unit" value="${item.unit || ''}" placeholder="z.B. Dosen, kg, Stueck">
+      <input type="text" name="unit" value="${item.unit || ''}" placeholder="z.B. Dosen, kg, Stück">
       <label>Kategorie</label>
       <select name="category">
         ${CATEGORY_ORDER.map(c => `<option value="${c}" ${item.category === c ? 'selected' : ''}>${CATEGORY_LABELS[c]}</option>`).join('')}

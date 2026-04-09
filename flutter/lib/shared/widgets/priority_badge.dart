@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/colors.dart';
+import 'form_input_decoration.dart';
 
 class PriorityBadge extends StatelessWidget {
   final String priority;
@@ -82,9 +83,11 @@ class PrioritySelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: value,
-      decoration: const InputDecoration(
-        labelText: 'Prioritaet',
-        prefixIcon: Icon(Icons.flag_outlined),
+      isExpanded: true,
+      decoration: appFormInputDecoration(
+        context,
+        labelText: 'Priorität',
+        prefixIcon: const Icon(Icons.flag_outlined),
       ),
       items: ['none', 'low', 'medium', 'high'].map((p) {
         return DropdownMenuItem(

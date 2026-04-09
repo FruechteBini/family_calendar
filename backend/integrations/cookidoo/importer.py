@@ -77,6 +77,9 @@ async def import_recipe(cookidoo_id: str, db: AsyncSession, family_id: int) -> R
         prep_time_passive_minutes=passive_min,
         difficulty=client._map_difficulty(detail.get("difficulty")),
         instructions=detail.get("instructions"),
+        # Store a human-readable description as notes as well, so the UI shows it
+        # in the "Beschreibung" field (Flutter maps notes/description there).
+        notes=(detail.get("description") or detail.get("instructions")),
         image_url=detail.get("image"),
     )
 

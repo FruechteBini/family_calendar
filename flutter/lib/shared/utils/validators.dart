@@ -19,7 +19,7 @@ class Validators {
     if (value == null || value.isEmpty) return null;
     final uri = Uri.tryParse(value);
     if (uri == null || !uri.hasScheme) {
-      return 'Bitte eine gueltige URL eingeben';
+      return 'Bitte eine gültige URL eingeben';
     }
     return null;
   }
@@ -30,7 +30,7 @@ class Validators {
     }
     final uri = Uri.tryParse(value);
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-      return 'Bitte eine gueltige URL eingeben (z.B. http://192.168.1.100:8000)';
+      return 'Bitte eine gültige URL eingeben (z.B. http://192.168.1.100:8000)';
     }
     return null;
   }

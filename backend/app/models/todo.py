@@ -20,6 +20,10 @@ class Todo(Base):
     family_id: Mapped[int] = mapped_column(
         ForeignKey("families.id", ondelete="CASCADE"), index=True
     )
+    created_by_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("family_members.id", ondelete="SET NULL"), default=None, index=True
+    )
+    is_personal: Mapped[bool] = mapped_column(default=False)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, default=None)
     priority: Mapped[str] = mapped_column(String(10), default="medium")
@@ -40,6 +44,11 @@ class Todo(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     category = relationship("Category", lazy="selectin")
+    created_by = relationship(
+        "FamilyMember",
+        foreign_keys=[created_by_member_id],
+        lazy="selectin",
+    )
     event = relationship("Event", back_populates="todos", lazy="selectin")
     members = relationship("FamilyMember", secondary=todo_members, lazy="selectin")
     subtodos = relationship(

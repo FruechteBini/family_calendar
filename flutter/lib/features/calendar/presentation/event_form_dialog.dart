@@ -10,6 +10,8 @@ import '../../../shared/widgets/category_picker.dart';
 import '../../../shared/widgets/member_chip.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/utils/date_utils.dart';
+import '../../../shared/utils/app_time_picker.dart';
+import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
 
 final _categoriesProvider = FutureProvider<List<Category>>((ref) {
@@ -107,11 +109,11 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Termin loeschen?'),
-        content: Text('Soll "${widget.event!.title}" wirklich geloescht werden?'),
+        title: const Text('Termin löschen?'),
+        content: Text('Soll "${widget.event!.title}" wirklich gelöscht werden?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Loeschen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen')),
         ],
       ),
     );
@@ -164,14 +166,15 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                     validator: (v) => v == null || v.trim().isEmpty ? 'Titel erforderlich' : null,
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
+                  LabeledMultilineTextField(
+                    label: 'Beschreibung',
                     controller: _descriptionController,
-                    decoration: const InputDecoration(labelText: 'Beschreibung', prefixIcon: Icon(Icons.notes)),
-                    maxLines: 2,
+                    hintText:
+                        'Optional — Ort, Agenda, Links oder weitere Details …',
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
-                    title: const Text('Ganztaegig'),
+                    title: const Text('Ganztägig'),
                     value: _allDay,
                     onChanged: (v) => setState(() => _allDay = v),
                     contentPadding: EdgeInsets.zero,
@@ -258,7 +261,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
             width: 100,
             child: InkWell(
               onTap: () async {
-                final picked = await showTimePicker(context: context, initialTime: time);
+                final picked = await showAppTimePicker(context, initialTime: time);
                 if (picked != null) onTimeChanged(picked);
               },
               child: InputDecorator(

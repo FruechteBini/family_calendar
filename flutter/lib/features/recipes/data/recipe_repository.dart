@@ -9,9 +9,31 @@ class RecipeRepository {
 
   RecipeRepository(this._dio);
 
-  Future<List<Recipe>> getRecipes() async {
+  Future<Recipe> getRecipe(int id) async {
     try {
-      final response = await _dio.get(Endpoints.recipes);
+      final response = await _dio.get(Endpoints.recipe(id));
+      return Recipe.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<List<Recipe>> getRecipes({
+    int? recipeCategoryId,
+    int? tagId,
+  }) async {
+    try {
+      final qp = <String, dynamic>{};
+      if (recipeCategoryId != null) {
+        qp['recipe_category_id'] = recipeCategoryId;
+      }
+      if (tagId != null) {
+        qp['tag_id'] = tagId;
+      }
+      final response = await _dio.get(
+        Endpoints.recipes,
+        queryParameters: qp.isEmpty ? null : qp,
+      );
       return (response.data as List)
           .map((e) => Recipe.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -78,6 +100,7 @@ class RecipeRepository {
                 ?.map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        tags: const [],
       );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);

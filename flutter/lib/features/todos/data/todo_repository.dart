@@ -10,6 +10,8 @@ class TodoRepository {
   TodoRepository(this._dio);
 
   Future<List<Todo>> getTodos({
+    String scope = 'all', // all|personal|family
+    int? viewMemberId,
     String? priority,
     int? memberId,
     bool? completed,
@@ -17,6 +19,8 @@ class TodoRepository {
   }) async {
     try {
       final params = <String, dynamic>{};
+      params['scope'] = scope;
+      if (viewMemberId != null) params['view_member_id'] = viewMemberId;
       if (priority != null) params['priority'] = priority;
       if (memberId != null) params['member_id'] = memberId;
       if (completed != null) params['completed'] = completed;
@@ -108,16 +112,16 @@ class TodoRepository {
 
   Future<void> respondToProposal(
     int proposalId, {
-    required String status,
+    required String response, // accepted|rejected
     DateTime? counterDate,
-    String? counterMessage,
+    String? message,
   }) async {
     try {
-      final data = <String, dynamic>{'status': status};
-      if (counterDate != null) {
-        data['counter_date'] = counterDate.toIso8601String();
-      }
-      if (counterMessage != null) data['counter_message'] = counterMessage;
+      final data = <String, dynamic>{
+        'response': response,
+        if (message != null) 'message': message,
+        if (counterDate != null) 'counter_date': counterDate.toIso8601String(),
+      };
       await _dio.post(Endpoints.proposalRespond(proposalId), data: data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
@@ -130,6 +134,28 @@ class TodoRepository {
       return (response.data as List)
           .map((e) => Proposal.fromJson(e as Map<String, dynamic>))
           .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> prioritizeTodos() async {
+    try {
+      final response = await _dio.post(Endpoints.aiPrioritizeTodos);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<int> applyTodoPriorities(List<Map<String, dynamic>> items) async {
+    try {
+      final response = await _dio.post(
+        Endpoints.aiApplyTodoPriorities,
+        data: {'items': items},
+      );
+      final data = response.data as Map<String, dynamic>;
+      return data['updated'] as int? ?? 0;
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

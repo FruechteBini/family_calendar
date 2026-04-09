@@ -248,7 +248,7 @@ async def add_alert_to_shopping(
     item.amount = None
     item.expiry_date = None
     await db.flush()
-    return {"message": f"{item.name} zur Einkaufsliste hinzugefuegt"}
+    return {"message": f"{item.name} zur Einkaufsliste hinzugefügt"}
 
 
 @router.post("/alerts/{item_id}/dismiss")
@@ -263,4 +263,4 @@ async def dismiss_alert(
     item.amount = None
     item.expiry_date = None
     await db.flush()
-    return {"message": f"Warnung fuer {item.name} verworfen"}
+    return {"message": f"Warnung für {item.name} verworfen"}

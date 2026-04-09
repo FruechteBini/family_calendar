@@ -1,6 +1,9 @@
 import logging
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads" / "notes"
 
 logger = logging.getLogger("kalender")
 
@@ -26,6 +29,12 @@ class Settings(BaseSettings):
     KNUSPR_PASSWORD: str = ""
 
     ANTHROPIC_API_KEY: str = ""
+    # Use a stable default model name; can be overridden via .env
+    ANTHROPIC_MODEL: str = "claude-3-5-haiku-latest"
+
+    # Note attachments (local filesystem)
+    UPLOAD_DIR: str = str(_DEFAULT_UPLOAD_DIR)
+    MAX_NOTE_ATTACHMENT_BYTES: int = 10 * 1024 * 1024  # 10 MB
 
     @property
     def cors_origin_list(self) -> list[str]:

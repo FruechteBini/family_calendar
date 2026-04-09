@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/auth/auth_provider.dart';
-import '../../../core/api/api_client.dart';
 import '../../../app/app.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/auth/auth_provider.dart';
+import '../../../core/theme/accent_color_provider.dart';
+import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/toast.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -13,7 +17,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final serverUrl = ref.watch(serverUrlProvider);
+    final accentAsync = ref.watch(accentSeedColorProvider);
+    final accentColor = accentAsync.valueOrNull ?? AppColors.primary;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -64,13 +69,16 @@ class SettingsScreen extends ConsumerWidget {
               ref.read(themeModeProvider.notifier).state = next;
             },
           ),
-
-          // Server URL
           ListTile(
-            leading: const Icon(Icons.dns_outlined),
-            title: const Text('Server-URL'),
-            subtitle: Text(serverUrl),
-            onTap: () => _editServerUrl(context, ref, serverUrl),
+            leading: CircleAvatar(
+              backgroundColor: accentColor,
+              radius: 16,
+              child: const Icon(Icons.color_lens_outlined, size: 18, color: Colors.black54),
+            ),
+            title: const Text('Sekundärfarbe'),
+            subtitle: const Text('Akzent für Navigation, Buttons und Listen'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showAccentColorPicker(context, ref, accentColor),
           ),
 
           // Navigation shortcuts
@@ -86,6 +94,24 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Kategorien'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/categories'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.folder_special_outlined),
+            title: const Text('Notiz-Kategorien'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/note-categories'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.sell_outlined),
+            title: const Text('Notiz-Tags'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/note-tags'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Info'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/app-info'),
           ),
 
           // Family info
@@ -124,38 +150,16 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _editServerUrl(BuildContext context, WidgetRef ref, String currentUrl) async {
-    final controller = TextEditingController(text: currentUrl);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Server-URL'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'http://192.168.1.100:8000'),
-          keyboardType: TextInputType.url,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Speichern')),
-        ],
-      ),
-    );
-    if (result != null && result.isNotEmpty) {
-      await ref.read(authStateProvider.notifier).setServerUrl(result);
-      if (context.mounted) showAppToast(context, message: 'Server-URL aktualisiert', type: ToastType.info);
-    }
-  }
-
   Future<void> _showFamilyInfo(BuildContext context, WidgetRef ref) async {
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.get('/api/auth/family');
       final data = response.data as Map<String, dynamic>;
       if (!context.mounted) return;
+      final inviteCode = (data['invite_code'] as String?)?.trim();
       showDialog(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (ctx) => AlertDialog(
           title: Text(data['name'] as String? ?? 'Familie'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -164,7 +168,7 @@ class SettingsScreen extends ConsumerWidget {
               const Text('Einladungscode:'),
               const SizedBox(height: 8),
               SelectableText(
-                data['invite_code'] as String? ?? '-',
+                (inviteCode != null && inviteCode.isNotEmpty) ? inviteCode : '-',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontFamily: 'monospace'),
               ),
               const SizedBox(height: 8),
@@ -172,7 +176,26 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
           actions: [
-            FilledButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+            TextButton(
+              onPressed: (inviteCode == null || inviteCode.isEmpty)
+                  ? null
+                  : () async {
+                      await Clipboard.setData(ClipboardData(text: inviteCode));
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                        showAppToast(
+                          ctx,
+                          message: 'Familiencode kopiert',
+                          type: ToastType.success,
+                        );
+                      }
+                    },
+              child: const Text('Teilen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
           ],
         ),
       );
@@ -181,5 +204,62 @@ class SettingsScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) showAppToast(context, message: 'Fehler: $e', type: ToastType.error);
     }
+  }
+
+  void _showAccentColorPicker(
+    BuildContext context,
+    WidgetRef ref,
+    Color initial,
+  ) {
+    var selected = initial;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Sekundärfarbe wählen'),
+              content: SingleChildScrollView(
+                child: ColorPicker(
+                  pickerColor: selected,
+                  onColorChanged: (c) => setDialogState(() => selected = c),
+                  enableAlpha: false,
+                  labelTypes: const [],
+                  pickerAreaHeightPercent: 0.85,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await ref
+                        .read(accentSeedColorProvider.notifier)
+                        .resetAccent();
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                  },
+                  child: const Text('Standard'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    await ref
+                        .read(accentSeedColorProvider.notifier)
+                        .setAccent(selected);
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                  },
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }

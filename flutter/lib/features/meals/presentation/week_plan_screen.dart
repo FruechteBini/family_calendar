@@ -1,581 +1,765 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../data/meal_repository.dart';
-import '../domain/meal_plan.dart';
-import '../../recipes/data/recipe_repository.dart';
-import '../../recipes/domain/recipe.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/api/api_client.dart';
+import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
-import '../../../shared/utils/date_utils.dart' as utils;
-import '../../../core/api/api_client.dart';
-
-final weekOffsetProvider = StateProvider<int>((ref) => 0);
-
-final weekPlanProvider = FutureProvider<MealPlan>((ref) {
-  final offset = ref.watch(weekOffsetProvider);
-  return ref.watch(mealRepositoryProvider).getWeekPlan(weekOffset: offset);
-});
-
-final cookingHistoryProvider = FutureProvider<List<CookingHistoryEntry>>((ref) {
-  return ref.watch(recipeRepositoryProvider).getHistory();
-});
+import '../../../shared/widgets/recipe_thumbnail.dart';
+import '../../../core/sync/sync_service.dart';
+import '../../ai/presentation/ai_meal_plan_wizard.dart';
+import '../../meals/data/meal_repository.dart';
+import '../../recipes/domain/recipe.dart';
+import '../../recipes/presentation/recipe_list_screen.dart';
+import '../domain/meal_plan.dart';
+import 'week_plan_provider.dart';
 
 class WeekPlanScreen extends ConsumerWidget {
   const WeekPlanScreen({super.key});
 
+  int _isoWeekNumber(DateTime date) {
+    final dayOfYear = DateTime(date.year, date.month, date.day)
+        .difference(DateTime(date.year, 1, 1))
+        .inDays;
+    final dow = date.weekday; // 1 = Monday
+    final weekNumber = ((dayOfYear - dow + 10) / 7).floor();
+    return weekNumber < 1
+        ? _isoWeekNumber(DateTime(date.year - 1, 12, 31))
+        : weekNumber;
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final weekday = date.weekday; // 1 = Monday
+    return date.subtract(Duration(days: weekday - 1));
+  }
+
+  String _formatDateShort(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final planAsync = ref.watch(weekPlanProvider);
-    final weekOffset = ref.watch(weekOffsetProvider);
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final now = DateTime.now();
+    final weekStart = _startOfWeek(now);
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final kw = _isoWeekNumber(now);
 
-    final weekStart = utils.AppDateUtils.startOfWeek(
-      DateTime.now().add(Duration(days: weekOffset * 7)),
-    );
-    final weekDays = utils.AppDateUtils.weekDays(weekStart);
+    final weekPlanAsync = ref.watch(weekPlanProvider);
 
-    return Column(
-      children: [
-        // Week navigation with tonal background
-        Container(
-          color: cs.surfaceContainerLow,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                color: cs.primary,
-                onPressed: () => ref.read(weekOffsetProvider.notifier).state--,
-              ),
-              GestureDetector(
-                onTap: () => ref.read(weekOffsetProvider.notifier).state = 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(9999),
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(weekPlanProvider);
+            ref.invalidate(recipeSuggestionsProvider);
+            await ref.read(weekPlanProvider.future);
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppColors.spacing6,
+                    AppColors.spacing6,
+                    AppColors.spacing6,
+                    AppColors.spacing4,
                   ),
-                  child: Text(
-                    '${utils.AppDateUtils.formatDate(weekStart)} – ${utils.AppDateUtils.formatDate(weekDays.last)}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.01 * 14,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Wochenplan Essen',
+                        style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                              color: AppColors.onSurface,
+                            ),
+                      ),
+                      const SizedBox(height: AppColors.spacing2),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'KW $kw · ${_formatDateShort(weekStart)} – ${_formatDateShort(weekEnd)}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          _AiChip(
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Theme.of(context).colorScheme.surface,
+                                useSafeArea: true,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                ),
+                                builder: (_) => const AiMealPlanWizard(),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                color: cs.primary,
-                onPressed: () => ref.read(weekOffsetProvider.notifier).state++,
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: planAsync.when(
-            data: (plan) => RefreshIndicator(
-              onRefresh: () async => ref.invalidate(weekPlanProvider),
-              child: ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 24),
-                itemCount: 7,
-                itemBuilder: (_, i) {
-                  final day = weekDays[i];
-                  final dateKey = utils.AppDateUtils.toIsoDate(day);
-                  final dayPlan = plan.days[dateKey];
-                  final isToday = utils.AppDateUtils.isToday(day);
-                  final isWeekend = day.weekday >= 6;
-
-                  return _DayCard(
-                    day: day,
-                    dateKey: dateKey,
-                    dayPlan: dayPlan,
-                    isToday: isToday,
-                    isWeekend: isWeekend,
+              weekPlanAsync.when(
+                loading: () => const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppColors.spacing6),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+                error: (err, _) => SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppColors.spacing6),
+                    child: EmptyState(
+                      title: 'Wochenplan konnte nicht geladen werden',
+                      subtitle: err is ApiException ? err.message : err.toString(),
+                      icon: Icons.restaurant_menu,
+                    ),
+                  ),
+                ),
+                data: (plan) {
+                  final days = _daysInWeek(plan, weekStart);
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final day = days[index];
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index < days.length - 1 ? AppColors.spacing8 : AppColors.spacing6,
+                            ),
+                            child: _DaySection(day: day),
+                          );
+                        },
+                        childCount: days.length,
+                      ),
+                    ),
                   );
                 },
               ),
-            ),
-            loading: () => Center(
-              child: CircularProgressIndicator(
-                color: cs.primary,
-                strokeWidth: 2,
-              ),
-            ),
-            error: (e, _) => EmptyState(
-              icon: Icons.error_outline,
-              title: 'Fehler',
-              subtitle: e.toString(),
-            ),
+              const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing6)),
+              const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing6)),
+              SliverToBoxAdapter(child: _AiSuggestionsSection()),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  List<_UiDay> _daysInWeek(MealPlan plan, DateTime weekStart) {
+    final out = <_UiDay>[];
+    for (var i = 0; i < 7; i++) {
+      final d = weekStart.add(Duration(days: i));
+      final key = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final dayPlan = plan.days[key];
+      out.add(_UiDay(date: key, weekday: dayPlan?.weekday ?? _weekdayLabel(d), lunch: dayPlan?.lunch, dinner: dayPlan?.dinner));
+    }
+    return out;
+  }
+
+  String _weekdayLabel(DateTime d) {
+    const names = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag',
+    ];
+    return names[(d.weekday - 1).clamp(0, 6)];
+  }
+}
+
+// ── Day Section Widget ──────────────────────────────────────────────────
+
+class _UiDay {
+  final String date; // YYYY-MM-DD
+  final String weekday;
+  final MealSlot? lunch;
+  final MealSlot? dinner;
+
+  const _UiDay({
+    required this.date,
+    required this.weekday,
+    required this.lunch,
+    required this.dinner,
+  });
+}
+
+class _DaySection extends ConsumerWidget {
+  final _UiDay day;
+
+  const _DaySection({required this.day});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Day label
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppColors.spacing3),
+          child: Text(
+            day.weekday,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        _MealSlotTile(
+          date: day.date,
+          slot: 'lunch',
+          label: 'MITTAGESSEN',
+          meal: day.lunch,
+        ),
+        const SizedBox(height: AppColors.spacing3),
+        _MealSlotTile(
+          date: day.date,
+          slot: 'dinner',
+          label: 'ABENDESSEN',
+          meal: day.dinner,
         ),
       ],
     );
   }
 }
 
-/// Individual day card with tonal nesting — no borders, only background shifts.
-class _DayCard extends ConsumerWidget {
-  final DateTime day;
-  final String dateKey;
-  final DayPlan? dayPlan;
-  final bool isToday;
-  final bool isWeekend;
-
-  const _DayCard({
-    required this.day,
-    required this.dateKey,
-    this.dayPlan,
-    required this.isToday,
-    required this.isWeekend,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    // Tonal nesting: today uses a higher surface to stand out
-    final cardColor = isToday
-        ? cs.surfaceContainerHigh
-        : isWeekend
-            ? cs.surfaceContainerLow
-            : cs.surfaceContainer;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Day header with editorial typography
-            Row(
-              children: [
-                if (isToday) ...[
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: cs.primary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  utils.AppDateUtils.formatShortDay(day),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: isToday ? cs.primary : cs.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.05 * 11,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  utils.AppDateUtils.formatDate(day),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isToday ? cs.onSurface : cs.onSurfaceVariant,
-                  ),
-                ),
-                if (isToday) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: cs.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Text(
-                      'HEUTE',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: cs.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 9,
-                        letterSpacing: 0.05 * 9,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _SlotCard(
-                    label: 'Mittag',
-                    slot: dayPlan?.lunch,
-                    date: dateKey,
-                    slotName: 'lunch',
-                    icon: Icons.wb_sunny_outlined,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SlotCard(
-                    label: 'Abend',
-                    slot: dayPlan?.dinner,
-                    date: dateKey,
-                    slotName: 'dinner',
-                    icon: Icons.nightlight_outlined,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Slot card using tonal nesting — no borders, only background color shifts.
-class _SlotCard extends ConsumerWidget {
+class _MealSlotTile extends ConsumerWidget {
+  final String date; // YYYY-MM-DD
+  final String slot; // lunch|dinner
   final String label;
-  final MealSlot? slot;
-  final String date;
-  final String slotName;
-  final IconData icon;
+  final MealSlot? meal;
 
-  const _SlotCard({
-    required this.label,
-    this.slot,
+  const _MealSlotTile({
     required this.date,
-    required this.slotName,
-    required this.icon,
+    required this.slot,
+    required this.label,
+    required this.meal,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final hasRecipe = slot?.recipeId != null;
-    final isCooked = slot?.cooked ?? false;
+    final hasMeal = meal?.recipeId != null;
 
-    // "Recessed" look using surfaceContainerLowest inside surface cards
-    final slotBg = isCooked
-        ? cs.primaryContainer.withValues(alpha: 0.2)
-        : hasRecipe
-            ? cs.surfaceContainerHighest
-            : cs.surfaceContainerLowest;
+    if (!hasMeal) {
+      return _EmptyMealSlot(
+        label: label,
+        onTap: () async {
+          final chosen = await _pickRecipe(context, ref);
+          if (chosen == null) return;
+          try {
+            await ref.read(mealRepositoryProvider).setSlot(date, slot, chosen.id);
+            ref.invalidate(weekPlanProvider);
+            ref.read(syncTickProvider.notifier).state++;
+            // Ensure other screens (e.g. Today) see fresh data immediately.
+            await ref.read(weekPlanProvider.future);
+            if (context.mounted) {
+              showAppToast(context, message: 'Eingetragen: ${chosen.name}', type: ToastType.success);
+            }
+          } on ApiException catch (e) {
+            if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
+          }
+        },
+      );
+    }
 
-    return GestureDetector(
-      onTap: () => hasRecipe
-          ? _showSlotActions(context, ref)
-          : _assignSlot(context, ref),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: slotBg,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Slot label with icon — uppercase tracking
-            Row(
+    return _MealCard(
+      label: label,
+      title: meal?.recipeName ?? 'Unbekannt',
+      imageUrl: meal?.imageUrl,
+      cooked: meal?.cooked ?? false,
+      onTap: () {
+        final id = meal?.recipeId;
+        if (id != null) {
+          context.go('/recipes/$id');
+        } else {
+          _openMealActions(context, ref);
+        }
+      },
+    );
+  }
+
+  Future<Recipe?> _pickRecipe(BuildContext context, WidgetRef ref) async {
+    return showModalBottomSheet<Recipe>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final recipesAsync = ref.watch(recipesProvider);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppColors.spacing4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 14, color: cs.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(
-                  label.toUpperCase(),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.05 * 10,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (hasRecipe) ...[
-              // Recipe image if available
-              if (slot?.imageUrl != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: slot!.imageUrl!,
-                    height: 80,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              Text(
-                slot!.recipeName ?? '?',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (isCooked) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.check_circle, size: 14, color: cs.primary),
-                    if (slot!.rating != null) ...[
-                      const SizedBox(width: 4),
-                      ...List.generate(
-                        slot!.rating!,
-                        (_) => Icon(Icons.star, size: 12, color: cs.secondary),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ] else
-              // Empty slot — subtle add prompt
-              Row(
-                children: [
-                  Icon(Icons.add_circle_outline, size: 16, color: cs.outline),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Rezept',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.outline,
+                Text('Rezept wählen', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: AppColors.spacing3),
+                SizedBox(
+                  height: 420,
+                  child: recipesAsync.when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, _) => Center(
+                      child: Text(err is ApiException ? err.message : err.toString()),
                     ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _assignSlot(BuildContext ctx, WidgetRef ref) async {
-    final recipes = await ref.read(recipeRepositoryProvider).getRecipes();
-    if (!ctx.mounted) return;
-    final recipe = await showDialog<Recipe>(
-      context: ctx,
-      builder: (_) => _RecipePickerDialog(recipes: recipes),
-    );
-    if (recipe == null) return;
-    try {
-      await ref.read(mealRepositoryProvider).setSlot(date, slotName, recipe.id);
-      ref.invalidate(weekPlanProvider);
-    } on ApiException catch (e) {
-      if (ctx.mounted) showAppToast(ctx, message: e.message, type: ToastType.error);
-    }
-  }
-
-  void _showSlotActions(BuildContext ctx, WidgetRef ref) {
-    final theme = Theme.of(ctx);
-    final cs = theme.colorScheme;
-
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerLow.withValues(alpha: 0.6),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle bar
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 8),
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.outlineVariant,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  if (slot?.recipeName != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      child: Text(
-                        slot!.recipeName!,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  if (!(slot?.cooked ?? false))
-                    _SheetAction(
-                      icon: Icons.check_circle_outline,
-                      label: 'Als gekocht markieren',
-                      iconColor: cs.primary,
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        await _markCooked(ctx, ref);
-                      },
-                    ),
-                  _SheetAction(
-                    icon: Icons.swap_horiz,
-                    label: 'Anderes Rezept',
-                    iconColor: cs.onSurfaceVariant,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _assignSlot(ctx, ref);
-                    },
-                  ),
-                  _SheetAction(
-                    icon: Icons.delete_outline,
-                    label: 'Slot leeren',
-                    iconColor: cs.error,
-                    labelColor: cs.error,
-                    onTap: () async {
-                      Navigator.pop(ctx);
-                      try {
-                        await ref.read(mealRepositoryProvider).clearSlot(date, slotName);
-                        ref.invalidate(weekPlanProvider);
-                      } on ApiException catch (e) {
-                        if (ctx.mounted) showAppToast(ctx, message: e.message, type: ToastType.error);
+                    data: (recipes) {
+                      if (recipes.isEmpty) {
+                        return const Center(child: Text('Keine Rezepte vorhanden.'));
                       }
+                      return ListView.separated(
+                        itemCount: recipes.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final r = recipes[i];
+                          return ListTile(
+                            leading: RecipeThumbnail(imageUrl: r.imageUrl, size: 48, borderRadius: 10),
+                            title: Text(r.name),
+                            subtitle: r.prepTime != null ? Text('${r.prepTime} Min') : null,
+                            onTap: () => Navigator.pop(ctx, r),
+                          );
+                        },
+                      );
                     },
                   ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Future<void> _markCooked(BuildContext ctx, WidgetRef ref) async {
-    int? rating;
-    final theme = Theme.of(ctx);
-    final cs = theme.colorScheme;
+  Future<void> _openMealActions(BuildContext context, WidgetRef ref) async {
+    final cooked = meal?.cooked ?? false;
+    final recipeName = meal?.recipeName ?? 'Unbekannt';
 
-    final confirmed = await showDialog<bool>(
-      context: ctx,
-      builder: (dlgCtx) => StatefulBuilder(
-        builder: (dlgCtx, setState) => AlertDialog(
-          backgroundColor: cs.surfaceContainerLow.withValues(alpha: 0.85),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(recipeName),
+                subtitle: Text('$date · $label'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(cooked ? Icons.check_circle : Icons.check_circle_outline),
+                title: Text(cooked ? 'Als ungekocht lassen' : 'Als gekocht markieren'),
+                onTap: cooked
+                    ? null
+                    : () async {
+                        Navigator.pop(ctx);
+                        try {
+                          await ref.read(mealRepositoryProvider).markCooked(date, slot);
+                          ref.invalidate(weekPlanProvider);
+                          ref.read(syncTickProvider.notifier).state++;
+                          await ref.read(weekPlanProvider.future);
+                          if (context.mounted) {
+                            showAppToast(context, message: 'Als gekocht markiert', type: ToastType.success);
+                          }
+                        } on ApiException catch (e) {
+                          if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
+                        }
+                      },
+              ),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: const Text('Rezept ändern'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final chosen = await _pickRecipe(context, ref);
+                  if (chosen == null) return;
+                  try {
+                    await ref.read(mealRepositoryProvider).setSlot(date, slot, chosen.id);
+                    ref.invalidate(weekPlanProvider);
+                    ref.read(syncTickProvider.notifier).state++;
+                    await ref.read(weekPlanProvider.future);
+                    if (context.mounted) {
+                      showAppToast(context, message: 'Geaendert auf: ${chosen.name}', type: ToastType.success);
+                    }
+                  } on ApiException catch (e) {
+                    if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Slot leeren'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  try {
+                    await ref.read(mealRepositoryProvider).clearSlot(date, slot);
+                    ref.invalidate(weekPlanProvider);
+                    ref.read(syncTickProvider.notifier).state++;
+                    await ref.read(weekPlanProvider.future);
+                    if (context.mounted) showAppToast(context, message: 'Slot geleert', type: ToastType.success);
+                  } on ApiException catch (e) {
+                    if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
           ),
-          title: Text(
-            '${slot?.recipeName} bewerten',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              5,
-              (i) => GestureDetector(
-                onTap: () => setState(() => rating = i + 1),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(
-                    i < (rating ?? 0) ? Icons.star : Icons.star_border,
-                    color: cs.secondary,
-                    size: 36,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dlgCtx, false),
-              child: Text(
-                'Abbrechen',
-                style: TextStyle(color: cs.onSurfaceVariant),
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [cs.primaryContainer, cs.primary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(9999),
-              ),
-              child: FilledButton(
-                onPressed: () => Navigator.pop(dlgCtx, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9999),
-                  ),
-                ),
-                child: const Text('Gekocht!'),
-              ),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
-    if (confirmed != true) return;
-    try {
-      await ref.read(mealRepositoryProvider).markCooked(date, slotName, rating: rating);
-      ref.invalidate(weekPlanProvider);
-      if (ctx.mounted) showAppToast(ctx, message: 'Als gekocht markiert', type: ToastType.success);
-    } on ApiException catch (e) {
-      if (ctx.mounted) showAppToast(ctx, message: e.message, type: ToastType.error);
-    }
   }
 }
 
-/// Bottom sheet action with generous spacing — no dividers.
-class _SheetAction extends StatelessWidget {
-  final IconData icon;
+class _MealCard extends StatelessWidget {
   final String label;
-  final Color iconColor;
-  final Color? labelColor;
+  final String title;
+  final String? imageUrl;
+  final bool cooked;
   final VoidCallback onTap;
 
-  const _SheetAction({
-    required this.icon,
+  const _MealCard({
     required this.label,
-    required this.iconColor,
-    this.labelColor,
+    required this.title,
+    required this.imageUrl,
+    required this.cooked,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Row(
-          children: [
-            Icon(icon, color: iconColor, size: 22),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: labelColor ?? cs.onSurface,
-                  fontWeight: FontWeight.w500,
+    return Material(
+      color: AppColors.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(AppColors.radiusDefault),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppColors.spacing4),
+          child: Row(
+            children: [
+              RecipeThumbnail(
+                imageUrl: imageUrl,
+                size: 44,
+                borderRadius: 12,
+                fallback: Icon(
+                  cooked ? Icons.check : Icons.restaurant,
+                  color: cooked ? Theme.of(context).colorScheme.primary : AppColors.onSurfaceVariant,
                 ),
+              ),
+              const SizedBox(width: AppColors.spacing4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.08 * 11,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppColors.spacing2),
+              const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyMealSlot extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _EmptyMealSlot({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _DashedBorderPainter(
+          color: AppColors.outlineVariant.withValues(alpha: 0.15),
+          dashWidth: 8,
+          dashSpace: 6,
+          strokeWidth: 2,
+          radius: AppColors.radiusDefault,
+        ),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppColors.radiusDefault),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_circle_outline,
+                size: 20,
+                color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+              const SizedBox(width: AppColors.spacing2),
+              Text(
+                '$label hinzufügen',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Dashed Border Painter ───────────────────────────────────────────────
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double dashWidth;
+  final double dashSpace;
+  final double strokeWidth;
+  final double radius;
+
+  _DashedBorderPainter({
+    required this.color,
+    required this.dashWidth,
+    required this.dashSpace,
+    required this.strokeWidth,
+    required this.radius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(radius),
+    );
+
+    // Draw dashed border along the rounded rectangle path
+    final path = Path()..addRRect(rrect);
+
+    // Use dash effect on the path
+    final dashedPath = Path();
+    final metrics = path.computeMetrics();
+    for (final metric in metrics) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final end = (distance + dashWidth).clamp(0.0, metric.length);
+        dashedPath.addPath(
+          metric.extractPath(distance, end),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.dashWidth != dashWidth ||
+        oldDelegate.dashSpace != dashSpace ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.radius != radius;
+  }
+}
+
+// ── AI Suggestions Section ──────────────────────────────────────────────
+
+class _AiSuggestionsSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final suggestionsAsync = ref.watch(recipeSuggestionsProvider);
+        return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section title
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppColors.spacing6,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 24,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: AppColors.spacing2),
+              Text(
+                'Vorschläge für dich',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppColors.spacing4),
+
+        // Horizontal scroll of suggestion cards
+        SizedBox(
+          height: 260,
+          child: suggestionsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, _) => Center(
+              child: Text(err is ApiException ? err.message : err.toString()),
+            ),
+            data: (recipes) {
+              if (recipes.isEmpty) {
+                return const Center(child: Text('Keine Vorschläge verfügbar.'));
+              }
+              return ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
+                itemCount: recipes.length,
+                separatorBuilder: (_, __) => const SizedBox(width: AppColors.spacing3),
+                itemBuilder: (context, index) => _SuggestionCard(recipe: recipes[index]),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+      },
+    );
+  }
+}
+
+// ── Suggestion Card Widget ──────────────────────────────────────────────
+
+class _SuggestionCard extends StatelessWidget {
+  final Recipe recipe;
+
+  const _SuggestionCard({required this.recipe});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        showAppToast(context, message: 'Tipp: Zum Eintragen einen Slot antippen.', type: ToastType.info);
+      },
+      child: Container(
+        width: 200,
+        height: 240,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(AppColors.radiusDefault),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image area with gradient overlay
+            Expanded(
+              flex: 140,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Placeholder image
+                  Container(
+                    color: AppColors.surfaceContainerHighest,
+                    child: Center(
+                      child: Icon(
+                        Icons.dinner_dining,
+                        size: 40,
+                        color: AppColors.onSurfaceVariant.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+
+                  // Gradient overlay
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            AppColors.surfaceContainerHigh.withValues(alpha: 0.6),
+                            AppColors.surfaceContainerHigh,
+                          ],
+                          stops: const [0.3, 0.7, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Title overlaid on image bottom
+                  Positioned(
+                    left: AppColors.spacing4,
+                    right: AppColors.spacing4,
+                    bottom: AppColors.spacing3,
+                    child: Text(
+                      recipe.name,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: AppColors.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Tags area
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppColors.spacing4,
+                AppColors.spacing2,
+                AppColors.spacing4,
+                AppColors.spacing4,
+              ),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  if (recipe.prepTime != null)
+                    _TagChip(text: '${recipe.prepTime} Min'),
+                  _TagChip(text: recipe.difficulty),
+                  if (recipe.isCookidoo) const _TagChip(text: 'Cookidoo'),
+                ],
               ),
             ),
           ],
@@ -585,161 +769,55 @@ class _SheetAction extends StatelessWidget {
   }
 }
 
-/// Glassmorphism recipe picker dialog
-class _RecipePickerDialog extends StatefulWidget {
-  final List<Recipe> recipes;
-  const _RecipePickerDialog({required this.recipes});
-
-  @override
-  State<_RecipePickerDialog> createState() => _RecipePickerDialogState();
-}
-
-class _RecipePickerDialogState extends State<_RecipePickerDialog> {
-  String _search = '';
+class _TagChip extends StatelessWidget {
+  final String text;
+  const _TagChip({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final filtered = widget.recipes
-        .where((r) => r.name.toLowerCase().contains(_search.toLowerCase()))
-        .toList();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppColors.radiusFull),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+      ),
+    );
+  }
+}
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerLow.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(28),
+class _AiChip extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AiChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing4, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(AppColors.radiusFull),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.auto_awesome, size: 16, color: Theme.of(context).colorScheme.onPrimaryContainer),
+            const SizedBox(width: 6),
+            Text(
+              'KI Vorschlag',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Text(
-                    'Rezept wählen',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.01 * 16,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Rezept suchen...',
-                      prefixIcon: const Icon(Icons.search),
-                      filled: true,
-                      fillColor: cs.surfaceContainerHighest,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(9999),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(9999),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(9999),
-                        borderSide: BorderSide(
-                          color: cs.primary.withValues(alpha: 0.4),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onChanged: (v) => setState(() => _search = v),
-                  ),
-                ),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 4),
-                    itemBuilder: (_, i) => InkWell(
-                      onTap: () => Navigator.pop(context, filtered[i]),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            // Recipe thumbnail
-                            if (filtered[i].imageUrl != null)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: CachedNetworkImage(
-                                  imageUrl: filtered[i].imageUrl!,
-                                  width: 44,
-                                  height: 44,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) => Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: cs.surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(Icons.restaurant, size: 20, color: cs.outline),
-                                  ),
-                                ),
-                              )
-                            else
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: cs.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(Icons.restaurant, size: 20, color: cs.outline),
-                              ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    filtered[i].name,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (filtered[i].difficulty.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      filtered[i].difficulty,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: cs.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.chevron_right, size: 20, color: cs.outline),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );

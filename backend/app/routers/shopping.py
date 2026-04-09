@@ -66,7 +66,7 @@ async def _generate_shopping_list(monday: date, family_id: int, db: AsyncSession
     meals = result.scalars().unique().all()
 
     if not meals:
-        raise HTTPException(status_code=400, detail="Keine Mahlzeiten im Wochenplan fuer diese Woche")
+        raise HTTPException(status_code=400, detail="Keine Mahlzeiten im Wochenplan für diese Woche")
 
     old_stmt = select(ShoppingList).where(
         ShoppingList.status == "active", ShoppingList.family_id == family_id
@@ -248,10 +248,10 @@ async def delete_item(
 def _build_sort_prompt(items: list[ShoppingItem]) -> str:
     items_text = "\n".join(f"- id={it.id}, name=\"{it.name}\"" for it in items)
 
-    return f"""Du bist ein Experte fuer deutsche Supermarkt-Layouts. Sortiere die folgende Einkaufsliste so, dass Artikel die typischerweise in der gleichen Abteilung eines Supermarkts stehen zusammen gruppiert sind. Ordne sie in der Reihenfolge an, wie man sie bei einem typischen Rundgang durch einen deutschen Supermarkt antrifft (vom Eingang bis zur Kasse).
+    return f"""Du bist ein Experte für deutsche Supermarkt-Layouts. Sortiere die folgende Einkaufsliste so, dass Artikel die typischerweise in der gleichen Abteilung eines Supermarkts stehen zusammen gruppiert sind. Ordne sie in der Reihenfolge an, wie man sie bei einem typischen Rundgang durch einen deutschen Supermarkt antrifft (vom Eingang bis zur Kasse).
 
 ## Typischer Supermarkt-Rundgang
-Obst & Gemuese → Backwaren → Fleisch & Wurst → Kaese → Kuehlregal/Molkereiprodukte → Tiefkuehl → Konserven & Trockenware → Gewuerze & Backen → Getraenke → Suessigkeiten & Snacks → Drogerie & Haushalt → Kasse
+Obst & Gemüse → Backwaren → Fleisch & Wurst → Käse → Kühlregal/Molkereiprodukte → Tiefkühl → Konserven & Trockenware → Gewürze & Backen → Getränke → Süßigkeiten & Snacks → Drogerie & Haushalt → Kasse
 
 ## Einkaufsliste
 {items_text}
@@ -260,11 +260,11 @@ Obst & Gemuese → Backwaren → Fleisch & Wurst → Kaese → Kuehlregal/Molker
 - Ordne JEDEN Artikel einer Abteilung (section) zu und vergib eine aufsteigende sort_order (1, 2, 3, ...)
 - Die sort_order soll der Reihenfolge entsprechen, in der man die Artikel im Laden antrifft
 - Artikel der gleichen Abteilung sollen hintereinander stehen
-- Verwende kurze, praegnante deutsche Abteilungsnamen (z.B. "Obst & Gemuese", "Kuehlregal", "Tiefkuehl", "Backwaren", "Trockenware", "Getraenke", "Drogerie", "Suessigkeiten")
-- Antworte AUSSCHLIESSLICH mit einem JSON-Array, kein Markdown, keine Erklaerung
+- Verwende kurze, prägnante deutsche Abteilungsnamen (z.B. "Obst & Gemüse", "Kühlregal", "Tiefkühl", "Backwaren", "Trockenware", "Getränke", "Drogerie", "Süßigkeiten")
+- Antworte AUSSCHLIESSLICH mit einem JSON-Array, kein Markdown, keine Erklärung
 
 ## Antwort-Format
-[{{"id": 1, "section": "Obst & Gemuese", "sort_order": 1}}, ...]
+[{{"id": 1, "section": "Obst & Gemüse", "sort_order": 1}}, ...]
 """
 
 
@@ -297,15 +297,15 @@ async def sort_shopping_list(
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=settings.ANTHROPIC_MODEL,
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}],
         )
     except anthropic.AuthenticationError:
-        raise HTTPException(status_code=503, detail="Ungueltiger ANTHROPIC_API_KEY")
+        raise HTTPException(status_code=503, detail="Ungültiger ANTHROPIC_API_KEY")
     except anthropic.APIError as e:
         logger.error("Claude API error during shopping sort: %s", e)
-        raise HTTPException(status_code=502, detail="Claude API Fehler")
+        raise HTTPException(status_code=502, detail=f"Claude API Fehler: {e}")
 
     raw_text = response.content[0].text.strip()
     if raw_text.startswith("```"):
@@ -319,11 +319,11 @@ async def sort_shopping_list(
         logger.error("Claude returned invalid JSON for sort: %s", raw_text[:500])
         raise HTTPException(
             status_code=502,
-            detail="KI hat ungueltiges Format zurueckgegeben. Bitte erneut versuchen.",
+            detail="KI hat ungültiges Format zurückgegeben. Bitte erneut versuchen.",
         )
 
     if not isinstance(sort_data, list):
-        raise HTTPException(status_code=502, detail="KI hat ungueltiges Format zurueckgegeben.")
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
 
     item_lookup = {it.id: it for it in unchecked}
     for entry in sort_data:

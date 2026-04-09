@@ -102,7 +102,7 @@ class _EventTile extends StatelessWidget {
       title: Text(event.title, style: theme.textTheme.bodyMedium),
       subtitle: Text(
         event.allDay
-            ? 'Ganztaegig'
+            ? 'Ganztägig'
             : '${AppDateUtils.formatTime(event.startTime)} - ${AppDateUtils.formatTime(event.endTime)}',
         style: theme.textTheme.bodySmall,
       ),

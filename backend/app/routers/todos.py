@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..auth import get_current_user, require_family_id
+from ..auth import get_current_user, require_family_id, require_member_id
 from ..database import get_db, utcnow
 from ..models.family_member import FamilyMember
 from ..models.todo import Todo
@@ -18,6 +18,7 @@ router = APIRouter(
 
 _todo_options = [
     selectinload(Todo.category),
+    selectinload(Todo.created_by),
     selectinload(Todo.event),
     selectinload(Todo.members),
     selectinload(Todo.subtodos),
@@ -26,18 +27,36 @@ _todo_options = [
 
 @router.get("/", response_model=list[TodoResponse])
 async def list_todos(
+    scope: str = Query("all", pattern="^(all|personal|family)$"),
     completed: bool | None = Query(None),
     priority: str | None = Query(None),
     member_id: int | None = Query(None),
+    view_member_id: int | None = Query(None),
     category_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
-    stmt = (
-        select(Todo)
-        .options(*_todo_options)
-        .where(Todo.parent_id.is_(None), Todo.family_id == family_id)
+    stmt = select(Todo).options(*_todo_options).where(
+        Todo.parent_id.is_(None),
+        Todo.family_id == family_id,
     )
+
+    if scope == "personal":
+        stmt = stmt.where(
+            Todo.is_personal.is_(True),
+            Todo.created_by_member_id == current_member_id,
+        )
+    elif scope == "family":
+        stmt = stmt.where(Todo.is_personal.is_(False))
+        if view_member_id is not None:
+            stmt = stmt.where(Todo.members.any(FamilyMember.id == view_member_id))
+    else:
+        # all: own personal + family todos assigned to current member
+        stmt = stmt.where(
+            (Todo.is_personal.is_(True) & (Todo.created_by_member_id == current_member_id))
+            | (Todo.is_personal.is_(False) & Todo.members.any(FamilyMember.id == current_member_id))
+        )
     if completed is not None:
         stmt = stmt.where(Todo.completed == completed)
     if priority:
@@ -56,6 +75,7 @@ async def get_todo(
     todo_id: int,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
     result = await db.execute(
         select(Todo)
@@ -65,6 +85,8 @@ async def get_todo(
     todo = result.scalar_one_or_none()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
+    if todo.is_personal and todo.created_by_member_id != current_member_id:
+        raise HTTPException(status_code=404, detail="Todo nicht gefunden")
     return todo
 
 
@@ -73,14 +95,19 @@ async def create_todo(
     data: TodoCreate,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
     if data.parent_id:
         parent = await db.get(Todo, data.parent_id)
         if not parent or parent.family_id != family_id:
             raise HTTPException(status_code=404, detail="Eltern-Todo nicht gefunden")
-    members = await resolve_members(db, data.member_ids, family_id)
+    members = []
+    if not data.is_personal:
+        members = await resolve_members(db, data.member_ids, family_id)
     todo = Todo(
         family_id=family_id,
+        created_by_member_id=current_member_id,
+        is_personal=data.is_personal,
         title=data.title,
         description=data.description,
         priority=data.priority.value,
@@ -103,6 +130,7 @@ async def update_todo(
     data: TodoUpdate,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
     result = await db.execute(
         select(Todo).options(*_todo_options).where(Todo.id == todo_id, Todo.family_id == family_id)
@@ -110,6 +138,8 @@ async def update_todo(
     todo = result.scalar_one_or_none()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
+    if todo.is_personal and todo.created_by_member_id != current_member_id:
+        raise HTTPException(status_code=403, detail="Nur der Ersteller kann dieses Todo bearbeiten")
 
     update_data = data.model_dump(exclude_unset=True)
     member_ids = update_data.pop("member_ids", None)
@@ -120,6 +150,8 @@ async def update_todo(
         setattr(todo, key, value)
 
     if member_ids is not None:
+        if todo.is_personal:
+            raise HTTPException(status_code=400, detail="Persönliche Todos können nicht zugewiesen werden")
         todo.members = await resolve_members(db, member_ids, family_id)
 
     await db.flush()
@@ -132,6 +164,7 @@ async def complete_todo(
     todo_id: int,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
     result = await db.execute(
         select(Todo).options(*_todo_options).where(Todo.id == todo_id, Todo.family_id == family_id)
@@ -139,6 +172,13 @@ async def complete_todo(
     todo = result.scalar_one_or_none()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
+
+    if todo.is_personal:
+        if todo.created_by_member_id != current_member_id:
+            raise HTTPException(status_code=403, detail="Nur der Ersteller kann dieses Todo abhaken")
+    else:
+        if not any(m.id == current_member_id for m in todo.members):
+            raise HTTPException(status_code=403, detail="Nur zugewiesene Mitglieder können dieses Todo abhaken")
 
     todo.completed = not todo.completed
     todo.completed_at = utcnow() if todo.completed else None
@@ -154,6 +194,7 @@ async def link_event(
     data: LinkEventRequest,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
     result = await db.execute(
         select(Todo).options(*_todo_options).where(Todo.id == todo_id, Todo.family_id == family_id)
@@ -161,6 +202,8 @@ async def link_event(
     todo = result.scalar_one_or_none()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
+    if todo.is_personal and todo.created_by_member_id != current_member_id:
+        raise HTTPException(status_code=403, detail="Nur der Ersteller kann dieses Todo bearbeiten")
 
     todo.event_id = data.event_id
     await db.flush()
@@ -173,6 +216,7 @@ async def delete_todo(
     todo_id: int,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_member_id: int = Depends(require_member_id),
 ):
     result = await db.execute(
         select(Todo).where(Todo.id == todo_id, Todo.family_id == family_id)
@@ -180,4 +224,6 @@ async def delete_todo(
     todo = result.scalar_one_or_none()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
+    if todo.is_personal and todo.created_by_member_id != current_member_id:
+        raise HTTPException(status_code=403, detail="Nur der Ersteller kann dieses Todo löschen")
     await db.delete(todo)

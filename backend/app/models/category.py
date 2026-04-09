@@ -12,6 +12,7 @@ class Category(Base):
     family_id: Mapped[int] = mapped_column(
         ForeignKey("families.id", ondelete="CASCADE"), index=True
     )
+    position: Mapped[int] = mapped_column(default=0, index=True)
     name: Mapped[str] = mapped_column(String(50))
     color: Mapped[str] = mapped_column(String(7), default="#0052CC")
     icon: Mapped[str] = mapped_column(String(10), default="📁")

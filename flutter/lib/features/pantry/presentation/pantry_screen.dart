@@ -1,280 +1,615 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../data/pantry_repository.dart';
-import '../domain/pantry_item.dart';
-import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/toast.dart';
-import '../../../shared/utils/date_utils.dart' as utils;
-import '../../../core/api/api_client.dart';
 
-final pantryItemsProvider = FutureProvider<List<PantryItem>>((ref) {
-  return ref.watch(pantryRepositoryProvider).getItems();
-});
+import '../../../core/theme/colors.dart';
+import '../../../shared/widgets/primary_button.dart';
 
-final pantryAlertsProvider = FutureProvider<List<PantryAlert>>((ref) {
-  return ref.watch(pantryRepositoryProvider).getAlerts();
-});
+// ── Mock Data Models ──────────────────────────────────────────────────
 
-class PantryScreen extends ConsumerStatefulWidget {
+class _PantryAlert {
+  final String itemName;
+  final String alertType; // 'low_stock' | 'expiring_soon'
+  final String detail;
+
+  const _PantryAlert({
+    required this.itemName,
+    required this.alertType,
+    required this.detail,
+  });
+}
+
+class _PantryItemData {
+  final String name;
+  final String? detail;
+  final String quantity;
+  final String unit;
+  final double? progress; // 0.0 – 1.0, null = no bar
+  final IconData categoryIcon;
+
+  const _PantryItemData({
+    required this.name,
+    this.detail,
+    required this.quantity,
+    required this.unit,
+    this.progress,
+    required this.categoryIcon,
+  });
+}
+
+class _PantryCategory {
+  final String title;
+  final IconData icon;
+  final List<_PantryItemData> items;
+
+  const _PantryCategory({
+    required this.title,
+    required this.icon,
+    required this.items,
+  });
+}
+
+// ── Sample Data ───────────────────────────────────────────────────────
+
+const List<_PantryAlert> _sampleAlerts = [
+  _PantryAlert(
+    itemName: 'Orangensaft',
+    alertType: 'low_stock',
+    detail: 'Nur noch 200ml übrig',
+  ),
+  _PantryAlert(
+    itemName: 'Butter',
+    alertType: 'expiring_soon',
+    detail: 'Läuft ab am 15.04.2024',
+  ),
+  _PantryAlert(
+    itemName: 'Müsli',
+    alertType: 'low_stock',
+    detail: 'Nur noch 30% vorhanden',
+  ),
+];
+
+const List<_PantryCategory> _sampleCategories = [
+  _PantryCategory(
+    title: 'Getreide & Nudeln',
+    icon: Icons.grain,
+    items: [
+      _PantryItemData(
+        name: 'Pasta',
+        detail: 'Zuletzt genutzt: 01.04.2024',
+        quantity: '500',
+        unit: 'g',
+        progress: 0.80,
+        categoryIcon: Icons.grain,
+      ),
+      _PantryItemData(
+        name: 'Reis',
+        detail: 'Läuft ab: 22.12.2024',
+        quantity: '1',
+        unit: 'kg',
+        progress: 0.60,
+        categoryIcon: Icons.grain,
+      ),
+      _PantryItemData(
+        name: 'Müsli',
+        detail: 'Zuletzt genutzt: 05.04.2024',
+        quantity: '750',
+        unit: 'g',
+        progress: 0.30,
+        categoryIcon: Icons.grain,
+      ),
+    ],
+  ),
+  _PantryCategory(
+    title: 'Milchprodukte',
+    icon: Icons.egg,
+    items: [
+      _PantryItemData(
+        name: 'Butter',
+        detail: 'Läuft ab: 15.04.2024',
+        quantity: '250',
+        unit: 'g',
+        progress: 0.45,
+        categoryIcon: Icons.egg,
+      ),
+      _PantryItemData(
+        name: 'Käse',
+        detail: 'Läuft ab: 28.04.2024',
+        quantity: '200',
+        unit: 'g',
+        progress: 0.70,
+        categoryIcon: Icons.egg,
+      ),
+    ],
+  ),
+  _PantryCategory(
+    title: 'Gewürze',
+    icon: Icons.local_fire_department,
+    items: [
+      _PantryItemData(
+        name: 'Salz',
+        detail: 'Zuletzt genutzt: 08.04.2024',
+        quantity: '300',
+        unit: 'g',
+        categoryIcon: Icons.local_fire_department,
+      ),
+      _PantryItemData(
+        name: 'Pfeffer',
+        detail: 'Zuletzt genutzt: 07.04.2024',
+        quantity: '150',
+        unit: 'g',
+        progress: 0.55,
+        categoryIcon: Icons.local_fire_department,
+      ),
+      _PantryItemData(
+        name: 'Paprika',
+        detail: 'Läuft ab: 01.09.2024',
+        quantity: '80',
+        unit: 'g',
+        progress: 0.40,
+        categoryIcon: Icons.local_fire_department,
+      ),
+    ],
+  ),
+  _PantryCategory(
+    title: 'Dosen & Konserven',
+    icon: Icons.inventory_2,
+    items: [
+      _PantryItemData(
+        name: 'Tomaten',
+        detail: 'Läuft ab: 10.11.2024',
+        quantity: '400',
+        unit: 'g',
+        progress: 0.90,
+        categoryIcon: Icons.inventory_2,
+      ),
+      _PantryItemData(
+        name: 'Kidneybohnen',
+        detail: 'Läuft ab: 15.01.2025',
+        quantity: '500',
+        unit: 'g',
+        progress: 0.85,
+        categoryIcon: Icons.inventory_2,
+      ),
+    ],
+  ),
+  _PantryCategory(
+    title: 'Getränke',
+    icon: Icons.local_drink,
+    items: [
+      _PantryItemData(
+        name: 'Orangensaft',
+        detail: 'Läuft ab: 12.04.2024',
+        quantity: '1',
+        unit: 'L',
+        progress: 0.20,
+        categoryIcon: Icons.local_drink,
+      ),
+    ],
+  ),
+];
+
+// ── Main Screen ───────────────────────────────────────────────────────
+
+class PantryScreen extends StatelessWidget {
   const PantryScreen({super.key});
 
   @override
-  ConsumerState<PantryScreen> createState() => _PantryScreenState();
-}
-
-class _PantryScreenState extends ConsumerState<PantryScreen> {
-  @override
   Widget build(BuildContext context) {
-    final itemsAsync = ref.watch(pantryItemsProvider);
-    final alertsAsync = ref.watch(pantryAlertsProvider);
-    final theme = Theme.of(context);
+    final textTheme = Theme.of(context).textTheme;
 
-    return Column(
-      children: [
-        // Alerts banner
-        alertsAsync.when(
-          data: (alerts) {
-            if (alerts.isEmpty) return const SizedBox.shrink();
-            return Container(
-              margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.secondaryContainer),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.warning_amber, color: theme.colorScheme.secondary, size: 18),
-                      const SizedBox(width: 8),
-                      Text('${alerts.length} Warnung${alerts.length == 1 ? '' : 'en'}',
-                          style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.secondary)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...alerts.take(5).map((alert) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${alert.itemName}: ${alert.alertType == 'low_stock' ? 'Niedrigbestand' : 'Laeuft ab'}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_shopping_cart, size: 16),
-                              onPressed: () async {
-                                try {
-                                  await ref.read(pantryRepositoryProvider).addAlertToShopping(alert.id);
-                                  ref.invalidate(pantryAlertsProvider);
-                                  if (mounted) showAppToast(context, message: 'Zur Einkaufsliste hinzugefuegt', type: ToastType.success);
-                                } on ApiException catch (e) {
-                                  if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
-                                }
-                              },
-                              tooltip: 'Zur Einkaufsliste',
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 16),
-                              onPressed: () async {
-                                await ref.read(pantryRepositoryProvider).dismissAlert(alert.id);
-                                ref.invalidate(pantryAlertsProvider);
-                              },
-                              tooltip: 'Verwerfen',
-                            ),
-                          ],
-                        ),
-                      )),
-                ],
-              ),
-            );
-          },
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-        ),
-        Expanded(
-          child: itemsAsync.when(
-            data: (items) {
-              if (items.isEmpty) {
-                return const EmptyState(icon: Icons.kitchen, title: 'Vorratskammer leer', subtitle: 'Fuege Artikel hinzu');
-              }
-              final grouped = <String, List<PantryItem>>{};
-              for (final item in items) {
-                final cat = item.category ?? 'Sonstiges';
-                (grouped[cat] ??= []).add(item);
-              }
-              return RefreshIndicator(
-                onRefresh: () async {
-                  ref.invalidate(pantryItemsProvider);
-                  ref.invalidate(pantryAlertsProvider);
-                },
-                child: ListView(
-                  children: grouped.entries.expand((entry) {
-                    return [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(entry.key, style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
-                      ),
-                      ...entry.value.map((item) => _PantryTile(
-                            item: item,
-                            onEdit: () => _showForm(item: item),
-                            onDelete: () => _delete(item),
-                          )),
-                    ];
-                  }).toList(),
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            // ── Header ────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppColors.spacing4,
+                  AppColors.spacing6,
+                  AppColors.spacing4,
+                  AppColors.spacing2,
                 ),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => EmptyState(icon: Icons.error_outline, title: 'Fehler', subtitle: e.toString()),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(child: FilledButton.icon(onPressed: () => _showForm(), icon: const Icon(Icons.add), label: const Text('Hinzufuegen'))),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(onPressed: _bulkAdd, icon: const Icon(Icons.playlist_add), label: const Text('Bulk')),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showForm({PantryItem? item}) async {
-    final nameC = TextEditingController(text: item?.name ?? '');
-    final quantityC = TextEditingController(text: item?.quantity?.toString() ?? '');
-    final unitC = TextEditingController(text: item?.unit ?? '');
-    final categoryC = TextEditingController(text: item?.category ?? '');
-    final isEdit = item != null;
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'Artikel bearbeiten' : 'Neuer Artikel'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: TextField(controller: quantityC, decoration: const InputDecoration(labelText: 'Menge'), keyboardType: TextInputType.number)),
-                  const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: unitC, decoration: const InputDecoration(labelText: 'Einheit'))),
-                ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Vorratskammer: Inventar',
+                      style: textTheme.headlineLarge?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Behalte deinen Vorrat im Auge',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              TextField(controller: categoryC, decoration: const InputDecoration(labelText: 'Kategorie')),
-            ],
+            ),
+
+            // ── Quick Alerts ──────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: _QuickAlertsSection(alerts: _sampleAlerts),
+            ),
+
+            // ── Category Sections ─────────────────────────────────────
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final category = _sampleCategories[index];
+                  return _CategorySection(category: category);
+                },
+                childCount: _sampleCategories.length,
+              ),
+            ),
+
+            // ── Bottom spacing for Add Button ─────────────────────────
+            const SliverToBoxAdapter(
+              child: SizedBox(height: AppColors.spacing8),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppColors.spacing4,
+            AppColors.spacing2,
+            AppColors.spacing4,
+            AppColors.spacing4,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: PrimaryButton(
+              label: 'Artikel hinzufügen',
+              icon: Icons.add,
+              onPressed: () {
+                // TODO: Navigate to add item screen / show dialog
+              },
+            ),
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(isEdit ? 'Speichern' : 'Erstellen')),
-        ],
       ),
     );
-    if (result != true || nameC.text.trim().isEmpty) return;
-    try {
-      final data = {
-        'name': nameC.text.trim(),
-        'quantity': double.tryParse(quantityC.text),
-        'unit': unitC.text.trim().isEmpty ? null : unitC.text.trim(),
-        'category': categoryC.text.trim().isEmpty ? null : categoryC.text.trim(),
-      };
-      if (isEdit) {
-        await ref.read(pantryRepositoryProvider).updateItem(item!.id, data);
-      } else {
-        await ref.read(pantryRepositoryProvider).addItem(data);
-      }
-      ref.invalidate(pantryItemsProvider);
-    } on ApiException catch (e) {
-      if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
-    }
-  }
-
-  Future<void> _delete(PantryItem item) async {
-    try {
-      await ref.read(pantryRepositoryProvider).deleteItem(item.id);
-      ref.invalidate(pantryItemsProvider);
-    } on ApiException catch (e) {
-      if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
-    }
-  }
-
-  Future<void> _bulkAdd() async {
-    final controller = TextEditingController();
-    final text = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Bulk hinzufuegen'),
-        content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Salz, Pfeffer, 20 Dosen Tomaten'), maxLines: 3),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Hinzufuegen')),
-        ],
-      ),
-    );
-    if (text == null || text.isEmpty) return;
-    try {
-      final items = text.split(',').map((s) => {'name': s.trim()}).where((m) => m['name']!.isNotEmpty).toList();
-      await ref.read(pantryRepositoryProvider).addBulk(items);
-      ref.invalidate(pantryItemsProvider);
-      if (mounted) showAppToast(context, message: '${items.length} Artikel hinzugefuegt', type: ToastType.success);
-    } on ApiException catch (e) {
-      if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
-    }
   }
 }
 
-class _PantryTile extends StatelessWidget {
-  final PantryItem item;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+// ── Quick Alerts Section ──────────────────────────────────────────────
 
-  const _PantryTile({required this.item, required this.onEdit, required this.onDelete});
+class _QuickAlertsSection extends StatelessWidget {
+  final List<_PantryAlert> alerts;
+
+  const _QuickAlertsSection({required this.alerts});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isExpiring = item.expiryDate != null && item.expiryDate!.difference(DateTime.now()).inDays <= 7;
-    final isLowStock = item.quantity != null && item.quantity! <= (item.lowStockThreshold ?? 2);
+    if (alerts.isEmpty) return const SizedBox.shrink();
 
-    return ListTile(
-      title: Text(item.name),
-      subtitle: Row(
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppColors.spacing4,
+        vertical: AppColors.spacing2,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (item.quantity != null) Text('${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}', style: theme.textTheme.bodySmall),
-          if (item.expiryDate != null) ...[
-            const SizedBox(width: 8),
-            Icon(Icons.schedule, size: 14, color: isExpiring ? theme.colorScheme.secondary : theme.colorScheme.outline),
-            const SizedBox(width: 2),
-            Text(utils.AppDateUtils.formatDate(item.expiryDate!),
-                style: theme.textTheme.bodySmall?.copyWith(color: isExpiring ? theme.colorScheme.secondary : null)),
+          for (int i = 0; i < alerts.length; i++) ...[
+            if (i > 0) const SizedBox(height: AppColors.spacing2),
+            _AlertCard(alert: alerts[i]),
           ],
         ],
       ),
-      leading: CircleAvatar(
-        backgroundColor: isLowStock ? theme.colorScheme.secondaryContainer.withOpacity(0.4) : theme.colorScheme.primaryContainer,
-        child: Icon(
-          isLowStock ? Icons.warning_amber : Icons.inventory_2,
-          color: isLowStock ? theme.colorScheme.secondary : theme.colorScheme.primary,
-          size: 18,
+    );
+  }
+}
+
+class _AlertCard extends StatelessWidget {
+  final _PantryAlert alert;
+
+  const _AlertCard({required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final isLowStock = alert.alertType == 'low_stock';
+    final statusColor =
+        isLowStock ? AppColors.secondary : AppColors.error;
+    final statusLabel = isLowStock ? 'LOW STOCK' : 'EXPIRING SOON';
+    final statusIcon =
+        isLowStock ? Icons.warning_amber_rounded : Icons.schedule;
+
+    return Container(
+      padding: const EdgeInsets.all(AppColors.spacing4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(AppColors.radiusDefault),
+        border: Border.all(
+          color: statusColor.withOpacity(0.15),
+          width: 1,
         ),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          IconButton(icon: const Icon(Icons.edit_outlined, size: 18), onPressed: onEdit),
-          IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: onDelete),
+          // Icon container
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.secondaryContainer,
+              borderRadius: BorderRadius.circular(AppColors.radiusFull),
+            ),
+            child: Icon(
+              statusIcon,
+              size: 18,
+              color: AppColors.onSecondary,
+            ),
+          ),
+          const SizedBox(width: AppColors.spacing3),
+          // Text content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusLabel,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.08,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  alert.itemName,
+                  style: textTheme.titleSmall?.copyWith(
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  alert.detail,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Dismiss icon
+          IconButton(
+            icon: Icon(
+              Icons.close,
+              size: 18,
+              color: AppColors.onSurfaceVariant,
+            ),
+            onPressed: () {
+              // TODO: Dismiss alert
+            },
+            constraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: 32,
+            ),
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Category Section ──────────────────────────────────────────────────
+
+class _CategorySection extends StatelessWidget {
+  final _PantryCategory category;
+
+  const _CategorySection({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppColors.spacing6,
+        left: AppColors.spacing4,
+        right: AppColors.spacing4,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Category header
+          Row(
+            children: [
+              Icon(
+                category.icon,
+                size: 22,
+                color: cs.primary,
+              ),
+              const SizedBox(width: AppColors.spacing2),
+              Text(
+                category.title,
+                style: textTheme.titleMedium?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppColors.spacing2),
+          // Items
+          ...category.items.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index < category.items.length - 1
+                    ? AppColors.spacing2
+                    : 0,
+              ),
+              child: _PantryItemWidget(
+                item: item,
+                useAlternateBackground: index.isOdd,
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Pantry Item Widget ────────────────────────────────────────────────
+
+class _PantryItemWidget extends StatelessWidget {
+  final _PantryItemData item;
+  final bool useAlternateBackground;
+
+  const _PantryItemWidget({
+    required this.item,
+    required this.useAlternateBackground,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final backgroundColor = useAlternateBackground
+        ? AppColors.surfaceContainerLowest
+        : AppColors.surfaceContainerHigh;
+
+    return Container(
+      padding: const EdgeInsets.all(AppColors.spacing4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppColors.radiusDefault),
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppColors.radiusFull),
+            ),
+            child: Icon(
+              item.categoryIcon,
+              size: 24,
+              color: cs.primary,
+            ),
+          ),
+          const SizedBox(width: AppColors.spacing3),
+
+          // Name + Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: textTheme.titleSmall?.copyWith(
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (item.detail != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    item.detail!,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                // Progress bar
+                if (item.progress != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
+                    child: SizedBox(
+                      height: 4,
+                      child: LinearProgressIndicator(
+                        value: item.progress,
+                        backgroundColor: AppColors.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                        minHeight: 4,
+                        borderRadius: BorderRadius.circular(
+                          AppColors.radiusFull,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Quantity
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                item.quantity,
+                style: textTheme.titleSmall?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                item.unit,
+                style: textTheme.labelSmall?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: AppColors.spacing2),
+
+          // Actions
+          Column(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.edit_outlined,
+                  size: 18,
+                  color: AppColors.onSurfaceVariant,
+                ),
+                onPressed: () {
+                  // TODO: Edit item
+                },
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: AppColors.error,
+                ),
+                onPressed: () {
+                  // TODO: Delete item
+                },
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
         ],
       ),
     );

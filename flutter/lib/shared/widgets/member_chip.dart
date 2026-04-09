@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/colors.dart';
 import '../../features/members/domain/family_member.dart';
 
 class MemberChip extends StatelessWidget {
@@ -36,7 +37,7 @@ class MemberChip extends StatelessWidget {
           member.emoji ?? member.name[0].toUpperCase(),
           style: TextStyle(
             fontSize: 12,
-            color: selected ? Colors.white : color,
+            color: selected ? AppColors.onSurface : color,
           ),
         ),
       );

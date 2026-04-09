@@ -7,8 +7,8 @@ const Shopping = (() => {
   let sortLoading = false;
 
   const CATEGORY_LABELS = {
-    kuehlregal: 'Kuehlregal',
-    obst_gemuese: 'Obst & Gemuese',
+    kuehlregal: 'Kühlregal',
+    obst_gemuese: 'Obst & Gemüse',
     trockenware: 'Trockenware',
     drogerie: 'Drogerie',
     sonstiges: 'Sonstiges',
@@ -23,27 +23,27 @@ const Shopping = (() => {
   const CATEGORY_ORDER = ['kuehlregal', 'obst_gemuese', 'trockenware', 'drogerie', 'sonstiges'];
 
   const SECTION_ICONS = {
-    'Obst & Gemuese': '&#127813;',
+    'Obst & Gemüse': '&#127813;',
     'Obst & Gemüse': '&#127813;',
     'Backwaren': '&#127838;',
     'Brot & Backwaren': '&#127838;',
     'Fleisch & Wurst': '&#129385;',
-    'Kaese': '&#129472;',
     'Käse': '&#129472;',
-    'Kuehlregal': '&#129472;',
+    'Käse': '&#129472;',
+    'Kühlregal': '&#129472;',
     'Kühlregal': '&#129472;',
     'Molkereiprodukte': '&#129371;',
-    'Tiefkuehl': '&#129482;',
+    'Tiefkühl': '&#129482;',
     'Tiefkühl': '&#129482;',
     'Konserven & Trockenware': '&#129387;',
     'Trockenware': '&#129387;',
-    'Gewuerze & Backen': '&#129474;',
     'Gewürze & Backen': '&#129474;',
-    'Getraenke': '&#129380;',
+    'Gewürze & Backen': '&#129474;',
     'Getränke': '&#129380;',
-    'Suessigkeiten & Snacks': '&#127852;',
+    'Getränke': '&#129380;',
     'Süßigkeiten & Snacks': '&#127852;',
-    'Suessigkeiten': '&#127852;',
+    'Süßigkeiten & Snacks': '&#127852;',
+    'Süßigkeiten': '&#127852;',
     'Süßigkeiten': '&#127852;',
     'Drogerie & Haushalt': '&#129532;',
     'Drogerie': '&#129532;',
@@ -243,8 +243,8 @@ const Shopping = (() => {
 
   function clearList() {
     const html = `<form>
-      <p>Moechtest du die gesamte Einkaufsliste wirklich leeren?</p>
-      <p style="color:var(--text-muted);font-size:0.85rem">Alle Artikel werden archiviert und die Liste wird zurueckgesetzt.</p>
+      <p>Möchtest du die gesamte Einkaufsliste wirklich leeren?</p>
+      <p style="color:var(--text-muted);font-size:0.85rem">Alle Artikel werden archiviert und die Liste wird zurückgesetzt.</p>
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
         <button type="submit" class="btn-small btn-danger">Ja, Liste leeren</button>

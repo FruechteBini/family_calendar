@@ -40,7 +40,7 @@ async def get_current_user(
     logger.info(f"[AUTH] get_current_user called, token length={len(token) if token else 0}")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Token ungueltig oder abgelaufen",
+        detail="Token ungültig oder abgelaufen",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -74,3 +74,16 @@ def require_family_id(user: User = Depends(get_current_user)) -> int:
             detail="Du musst zuerst einer Familie beitreten oder eine erstellen.",
         )
     return user.family_id
+
+
+def require_member_id(user: User = Depends(get_current_user)) -> int:
+    """Dependency that extracts and validates the user's member_id.
+
+    Raises 403 if the user has not linked a family member yet.
+    """
+    if user.member_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Du musst zuerst ein Familienmitglied verknüpfen.",
+        )
+    return user.member_id

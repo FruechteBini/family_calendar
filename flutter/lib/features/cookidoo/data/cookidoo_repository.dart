@@ -21,8 +21,25 @@ class CookidooRepository {
   Future<List<CookidooCollection>> getCollections() async {
     try {
       final response = await _dio.get(Endpoints.cookidooCollections);
-      return (response.data as List)
-          .map((e) => CookidooCollection.fromJson(e as Map<String, dynamic>))
+      final data = response.data;
+      if (data is! List) return const [];
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(CookidooCollection.fromJson)
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<List<CookidooRecipe>> getShoppingList() async {
+    try {
+      final response = await _dio.get(Endpoints.cookidooShoppingList);
+      final data = response.data;
+      if (data is! List) return const [];
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(CookidooRecipe.fromJson)
           .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);

@@ -80,9 +80,9 @@ const Todos = (() => {
         </div>
         <div class="todo-actions">
           ${todo.requires_multiple ? `<button class="btn-icon" onclick="Todos.proposeDate(${todo.id})" title="Terminvorschlag">&#128197;</button>` : ''}
-          <button class="btn-icon" onclick="Todos.addSub(${todo.id})" title="Sub-Todo hinzufuegen">+</button>
+          <button class="btn-icon" onclick="Todos.addSub(${todo.id})" title="Sub-Todo hinzufügen">+</button>
           <button class="btn-icon" onclick="Todos.edit(${todo.id})" title="Bearbeiten">&#9998;</button>
-          <button class="btn-icon" onclick="Todos.remove(${todo.id})" title="Loeschen">&times;</button>
+          <button class="btn-icon" onclick="Todos.remove(${todo.id})" title="Löschen">&times;</button>
         </div>
       </div>`;
   }
@@ -95,7 +95,7 @@ const Todos = (() => {
           ${s.completed ? '&#10003;' : ''}
         </div>
         <span class="subtodo-title">${esc(s.title)}</span>
-        <button class="btn-icon" onclick="Todos.remove(${s.id})" style="font-size:0.85rem" title="Loeschen">&times;</button>
+        <button class="btn-icon" onclick="Todos.remove(${s.id})" style="font-size:0.85rem" title="Löschen">&times;</button>
       </div>
     `).join('');
     return `<div class="subtodo-list">${items}</div>`;
@@ -119,7 +119,7 @@ const Todos = (() => {
       <input name="title" required placeholder="Sub-Todo...">
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        <button type="submit" class="btn-small btn-primary">Hinzufuegen</button>
+        <button type="submit" class="btn-small btn-primary">Hinzufügen</button>
       </div>
     </form>`;
     App.openSecondaryModal('Sub-Todo erstellen', html, async (fd) => {
@@ -138,7 +138,7 @@ const Todos = (() => {
   }
 
   async function remove(id) {
-    if (confirm('Wirklich loeschen?')) {
+    if (confirm('Wirklich löschen?')) {
       try {
         await API.delete(`/api/todos/${id}`);
         await refresh();
@@ -147,7 +147,7 @@ const Todos = (() => {
   }
 
   function eventOptionsHtml(selectedId) {
-    return `<option value="">Kein Event verknuepft</option>` +
+    return `<option value="">Kein Event verknüpft</option>` +
       allEvents.map(ev => {
         const d = App.formatDate(ev.start);
         return `<option value="${ev.id}" ${ev.id === selectedId ? 'selected' : ''}>${d} – ${esc(ev.title)}</option>`;
@@ -175,28 +175,28 @@ const Todos = (() => {
       <input name="title" value="${esc(todo.title)}" required>
       <label>Beschreibung</label>
       <textarea name="description">${esc(todo.description || '')}</textarea>
-      <label>Prioritaet</label>
+      <label>Priorität</label>
       <select name="priority">
         <option value="low" ${todo.priority==='low'?'selected':''}>Niedrig</option>
         <option value="medium" ${todo.priority==='medium'?'selected':''}>Mittel</option>
         <option value="high" ${todo.priority==='high'?'selected':''}>Hoch</option>
       </select>
-      <label>Faelligkeitsdatum</label>
+      <label>Fälligkeitsdatum</label>
       <input type="date" name="due_date" value="${todo.due_date || ''}">
       <label>Kategorie</label>
       <select name="category_id">${App.categoryOptionsHtml(todo.category?.id)}</select>
-      <label>Verknuepftes Event</label>
+      <label>Verknüpftes Event</label>
       <select name="event_id">${eventOptionsHtml(todo.event_id)}</select>
       <label style="display:flex;align-items:center;gap:0.5rem;margin-top:1rem">
         <input type="checkbox" name="requires_multiple" ${todo.requires_multiple ? 'checked' : ''} style="width:auto">
-        Mehrere Personen benoetigt
+        Mehrere Personen benötigt
       </label>
       <label>Mitglieder</label>
       ${App.memberChipsHtml(memberIds)}
       ${proposalSection}
       <p class="modal-error" style="color:var(--red);font-size:0.85rem;min-height:1em"></p>
       <div class="modal-footer">
-        <button type="button" class="btn-small btn-danger" id="modal-delete-todo">Loeschen</button>
+        <button type="button" class="btn-small btn-danger" id="modal-delete-todo">Löschen</button>
         <button type="submit" class="btn-small btn-primary">Speichern</button>
       </div>
     </form>`;
@@ -219,7 +219,7 @@ const Todos = (() => {
     App.initChipSelection(document.querySelector('#modal-body .checkbox-group'));
 
     document.getElementById('modal-delete-todo')?.addEventListener('click', async () => {
-      if (confirm('Aufgabe wirklich loeschen?')) {
+      if (confirm('Aufgabe wirklich löschen?')) {
         try {
           await API.delete(`/api/todos/${todo.id}`);
           App.closeModal();
@@ -232,8 +232,8 @@ const Todos = (() => {
   function renderProposalTimeline(proposals) {
     if (!proposals || proposals.length === 0) {
       return `<div class="proposal-section">
-        <label style="margin-top:1rem">Terminvorschlaege</label>
-        <p style="color:var(--text-light);font-size:0.85rem">Noch keine Vorschlaege.</p>
+        <label style="margin-top:1rem">Terminvorschläge</label>
+        <p style="color:var(--text-light);font-size:0.85rem">Noch keine Vorschläge.</p>
       </div>`;
     }
 
@@ -265,7 +265,7 @@ const Todos = (() => {
     }).join('');
 
     return `<div class="proposal-section">
-      <label style="margin-top:1rem">Terminvorschlaege</label>
+      <label style="margin-top:1rem">Terminvorschläge</label>
       ${items}
     </div>`;
   }

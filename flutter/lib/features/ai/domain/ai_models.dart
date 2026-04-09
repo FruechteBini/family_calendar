@@ -1,22 +1,64 @@
 class AiAvailableRecipes {
   final List<AiRecipeOption> recipes;
   final List<AiSlotOption> availableSlots;
+  final int localCount;
+  final int cookidooCount;
+  final bool cookidooAvailable;
 
   const AiAvailableRecipes({
     this.recipes = const [],
     this.availableSlots = const [],
+    this.localCount = 0,
+    this.cookidooCount = 0,
+    this.cookidooAvailable = false,
   });
 
   factory AiAvailableRecipes.fromJson(Map<String, dynamic> json) {
+    // Backend currently returns:
+    // { local_count, local_recipes, cookidoo_available, cookidoo_count, filled_slots, empty_slots }
+    // Older/alternate shapes might return:
+    // { recipes, available_slots }
+    final localCount = json['local_count'] as int? ?? 0;
+    final cookidooCount = json['cookidoo_count'] as int? ?? 0;
+    final cookidooAvailable = json['cookidoo_available'] as bool? ?? false;
+
+    final localRecipesRaw = (json['local_recipes'] as List<dynamic>?)
+        ?.whereType<Map<String, dynamic>>()
+        .toList();
+    final recipesRaw = (json['recipes'] as List<dynamic>?)
+        ?.whereType<Map<String, dynamic>>()
+        .toList();
+
+    final emptySlotsRaw = (json['empty_slots'] as List<dynamic>?)
+        ?.whereType<Map<String, dynamic>>()
+        .toList();
+    final filledSlotsRaw = (json['filled_slots'] as List<dynamic>?)
+        ?.whereType<Map<String, dynamic>>()
+        .toList();
+    final availableSlotsRaw = (json['available_slots'] as List<dynamic>?)
+        ?.whereType<Map<String, dynamic>>()
+        .toList();
+
+    final slots = <AiSlotOption>[
+      ...?emptySlotsRaw?.map((e) => AiSlotOption.fromJson({
+            ...e,
+            'occupied': false,
+          })),
+      ...?filledSlotsRaw?.map((e) => AiSlotOption.fromJson({
+            ...e,
+            'occupied': true,
+          })),
+      ...?availableSlotsRaw?.map(AiSlotOption.fromJson),
+    ];
+
     return AiAvailableRecipes(
-      recipes: (json['recipes'] as List<dynamic>?)
-              ?.map((e) => AiRecipeOption.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      availableSlots: (json['available_slots'] as List<dynamic>?)
-              ?.map((e) => AiSlotOption.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      localCount: localCount,
+      cookidooCount: cookidooCount,
+      cookidooAvailable: cookidooAvailable,
+      recipes: (localRecipesRaw ?? recipesRaw ?? const [])
+          .map(AiRecipeOption.fromJson)
+          .toList(),
+      availableSlots: slots,
     );
   }
 }
@@ -39,7 +81,7 @@ class AiRecipeOption {
   factory AiRecipeOption.fromJson(Map<String, dynamic> json) {
     return AiRecipeOption(
       id: json['id'] as int,
-      name: json['name'] as String,
+      name: (json['name'] ?? json['title']) as String? ?? '',
       lastCooked: json['last_cooked'] != null
           ? DateTime.parse(json['last_cooked'] as String)
           : null,
@@ -53,11 +95,17 @@ class AiSlotOption {
   final String date;
   final String slot;
   final bool occupied;
+  final String? day;
+  final String? label;
+  final String? recipeTitle;
 
   const AiSlotOption({
     required this.date,
     required this.slot,
     this.occupied = false,
+    this.day,
+    this.label,
+    this.recipeTitle,
   });
 
   factory AiSlotOption.fromJson(Map<String, dynamic> json) {
@@ -65,6 +113,9 @@ class AiSlotOption {
       date: json['date'] as String,
       slot: json['slot'] as String,
       occupied: json['occupied'] as bool? ?? false,
+      day: json['day'] as String?,
+      label: json['label'] as String?,
+      recipeTitle: json['recipe_title'] as String?,
     );
   }
 }
@@ -90,7 +141,7 @@ class AiMealPlanPreview {
 class AiMealSuggestion {
   final String date;
   final String slot;
-  final int recipeId;
+  final int? recipeId;
   final String recipeName;
   final String? reasoning;
   final bool isCookidoo;
@@ -110,8 +161,8 @@ class AiMealSuggestion {
     return AiMealSuggestion(
       date: json['date'] as String,
       slot: json['slot'] as String,
-      recipeId: json['recipe_id'] as int,
-      recipeName: json['recipe_name'] as String,
+      recipeId: json['recipe_id'] as int?,
+      recipeName: (json['recipe_title'] ?? json['recipe_name']) as String? ?? '',
       reasoning: json['reasoning'] as String?,
       isCookidoo: json['is_cookidoo'] as bool? ?? false,
       cookidooId: json['cookidoo_id'] as String?,
@@ -178,6 +229,132 @@ class VoiceAction {
       success: json['success'] as bool? ?? false,
       message: json['message'] as String?,
       data: json['data'] as Map<String, dynamic>?,
+    );
+  }
+}
+
+// ── Recipe AI categorization ─────────────────────────────────────────────
+
+class RecipeNewCategorySpec {
+  final String name;
+  final String color;
+
+  const RecipeNewCategorySpec({required this.name, this.color = '#0052CC'});
+
+  factory RecipeNewCategorySpec.fromJson(Map<String, dynamic> json) {
+    return RecipeNewCategorySpec(
+      name: json['name'] as String,
+      color: json['color'] as String? ?? '#0052CC',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'name': name, 'color': color};
+}
+
+class RecipeNewTagSpec {
+  final String name;
+  final String color;
+
+  const RecipeNewTagSpec({required this.name, this.color = '#6B7280'});
+
+  factory RecipeNewTagSpec.fromJson(Map<String, dynamic> json) {
+    return RecipeNewTagSpec(
+      name: json['name'] as String,
+      color: json['color'] as String? ?? '#6B7280',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'name': name, 'color': color};
+}
+
+class RecipeCategorizationAssignment {
+  final int recipeId;
+  final String categoryName;
+  final int? suggestedCategoryId;
+  final List<String> tagNames;
+
+  const RecipeCategorizationAssignment({
+    required this.recipeId,
+    required this.categoryName,
+    this.suggestedCategoryId,
+    this.tagNames = const [],
+  });
+
+  factory RecipeCategorizationAssignment.fromJson(Map<String, dynamic> json) {
+    final tags = json['tag_names'] as List<dynamic>?;
+    return RecipeCategorizationAssignment(
+      recipeId: json['recipe_id'] as int,
+      categoryName: json['category_name'] as String? ?? '',
+      suggestedCategoryId: json['suggested_category_id'] as int?,
+      tagNames: tags?.whereType<String>().toList() ?? [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'recipe_id': recipeId,
+        'category_name': categoryName,
+        'suggested_category_id': suggestedCategoryId,
+        'tag_names': tagNames,
+      };
+}
+
+class RecipeCategorizationPreview {
+  final List<RecipeNewCategorySpec> newCategories;
+  final List<RecipeNewTagSpec> newTags;
+  final List<RecipeCategorizationAssignment> assignments;
+  final String summary;
+
+  const RecipeCategorizationPreview({
+    this.newCategories = const [],
+    this.newTags = const [],
+    this.assignments = const [],
+    this.summary = '',
+  });
+
+  factory RecipeCategorizationPreview.fromJson(Map<String, dynamic> json) {
+    return RecipeCategorizationPreview(
+      newCategories: (json['new_categories'] as List<dynamic>?)
+              ?.map((e) =>
+                  RecipeNewCategorySpec.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      newTags: (json['new_tags'] as List<dynamic>?)
+              ?.map(
+                  (e) => RecipeNewTagSpec.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      assignments: (json['assignments'] as List<dynamic>?)
+              ?.map((e) => RecipeCategorizationAssignment.fromJson(
+                  e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      summary: json['summary'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toApplyBody() => {
+        'new_categories': newCategories.map((e) => e.toJson()).toList(),
+        'new_tags': newTags.map((e) => e.toJson()).toList(),
+        'assignments': assignments.map((e) => e.toJson()).toList(),
+      };
+}
+
+class ApplyRecipeCategorizationResult {
+  final int updated;
+  final int categoriesCreated;
+  final int tagsCreated;
+
+  const ApplyRecipeCategorizationResult({
+    this.updated = 0,
+    this.categoriesCreated = 0,
+    this.tagsCreated = 0,
+  });
+
+  factory ApplyRecipeCategorizationResult.fromJson(Map<String, dynamic> json) {
+    return ApplyRecipeCategorizationResult(
+      updated: json['updated'] as int? ?? 0,
+      categoriesCreated: json['categories_created'] as int? ?? 0,
+      tagsCreated: json['tags_created'] as int? ?? 0,
     );
   }
 }

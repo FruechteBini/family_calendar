@@ -76,7 +76,7 @@ const Meals = (() => {
     if (lastAiMealIds) {
       html += `<div class="ai-undo-bar">
         <span>&#10024; KI-Plan erstellt (${lastAiMealIds.length} Mahlzeiten)</span>
-        <button class="btn-small btn-undo" onclick="Meals.undoAiPlan()">Rueckgaengig machen</button>
+        <button class="btn-small btn-undo" onclick="Meals.undoAiPlan()">Rückgängig machen</button>
         <button class="btn-icon ai-undo-dismiss" onclick="Meals.dismissUndo()">&times;</button>
       </div>`;
     }
@@ -245,9 +245,9 @@ const Meals = (() => {
     }).join('');
 
     const html = `<form>
-      <label>Rezept auswaehlen</label>
+      <label>Rezept auswählen</label>
       <select name="recipe_id">
-        <option value="">-- Rezept waehlen --</option>
+        <option value="">-- Rezept wählen --</option>
         ${recipeOpts}
       </select>
       <div style="margin:0.5rem 0;font-size:0.85rem;color:var(--text-light)">
@@ -272,7 +272,7 @@ const Meals = (() => {
         const newRecipe = await API.post('/api/recipes/', { title: newTitle, servings });
         recipeId = newRecipe.id;
       }
-      if (!recipeId) throw new Error('Bitte ein Rezept auswaehlen oder einen Namen eingeben');
+      if (!recipeId) throw new Error('Bitte ein Rezept auswählen oder einen Namen eingeben');
 
       await API.put(`/api/meals/plan/${dateStr}/${slot}`, { recipe_id: recipeId, servings_planned: servings });
       await loadWeek();
@@ -357,7 +357,7 @@ const Meals = (() => {
       info = await API.get(`/api/ai/available-recipes?week_start=${weekData.week_start}`);
     } catch (err) {
       modalBody.innerHTML = `<div class="ai-error-state"><p>${esc(err.message)}</p>
-        <div class="modal-footer"><button class="btn-small" onclick="document.getElementById('modal-overlay').classList.add('hidden')">Schliessen</button></div></div>`;
+        <div class="modal-footer"><button class="btn-small" onclick="document.getElementById('modal-overlay').classList.add('hidden')">Schließen</button></div></div>`;
       return;
     }
 
@@ -417,7 +417,7 @@ const Meals = (() => {
         ${cookidooHtml}
       </div>
       <div class="ai-section-label">
-        Slots auswaehlen
+        Slots auswählen
         <label class="ai-select-all"><input type="checkbox" id="ai-select-all" ${selectAllState}> Alle</label>
       </div>
       ${slotGrid}
@@ -427,7 +427,7 @@ const Meals = (() => {
           <input type="number" name="servings" value="4" min="1" max="20" required>
         </div>
         <div class="ai-form-field ai-form-field-grow">
-          <label>Besondere Wuensche (optional)</label>
+          <label>Besondere Wünsche (optional)</label>
           <input type="text" name="preferences" placeholder="z.B. vegetarisch, schnell, keine Fischgerichte...">
         </div>
       </div>
@@ -461,7 +461,7 @@ const Meals = (() => {
         const [dt, slot] = cb.value.split('_');
         selectedSlots.push({ date: dt, slot });
       });
-      if (!selectedSlots.length) { errEl.textContent = 'Bitte mindestens einen Slot auswaehlen.'; return; }
+      if (!selectedSlots.length) { errEl.textContent = 'Bitte mindestens einen Slot auswählen.'; return; }
 
       const servings = parseInt(form.querySelector('[name="servings"]').value) || 4;
       const preferences = form.querySelector('[name="preferences"]').value.trim();
@@ -493,13 +493,13 @@ const Meals = (() => {
 
   function _showPreviewStep(suggestions, closeM, config, reasoning) {
     const modalBody = document.getElementById('modal-body');
-    document.getElementById('modal-title').textContent = 'KI-Vorschlag pruefen';
+    document.getElementById('modal-title').textContent = 'KI-Vorschlag prüfen';
 
     if (!suggestions.length) {
       modalBody.innerHTML = `<div class="ai-empty-state">
         <p>Die KI konnte keinen passenden Vorschlag erstellen. Versuche es mit anderen Einstellungen.</p>
         <div class="modal-footer">
-          <button class="btn-small" id="ai-back-btn">Zurueck</button>
+          <button class="btn-small" id="ai-back-btn">Zurück</button>
         </div></div>`;
       document.getElementById('ai-back-btn').addEventListener('click', () => _showConfigStep(config.info, closeM));
       return;
@@ -533,11 +533,11 @@ const Meals = (() => {
 
     const hasCookidoo = suggestions.some(s => s.source === 'cookidoo');
     const cookidooNote = hasCookidoo
-      ? '<p class="ai-preview-note">Cookidoo-Rezepte werden bei Uebernahme automatisch importiert.</p>'
+      ? '<p class="ai-preview-note">Cookidoo-Rezepte werden bei Übernahme automatisch importiert.</p>'
       : '';
 
     const reasoningBtn = reasoning
-      ? '<button class="btn-small btn-reasoning" id="ai-reasoning-btn" title="Warum hat die KI das vorgeschlagen?">&#128161; Begruendung</button>'
+      ? '<button class="btn-small btn-reasoning" id="ai-reasoning-btn" title="Warum hat die KI das vorgeschlagen?">&#128161; Begründung</button>'
       : '';
 
     modalBody.innerHTML = `
@@ -554,9 +554,9 @@ const Meals = (() => {
       </div>
       <p class="modal-error" id="ai-preview-error"></p>
       <div class="modal-footer ai-preview-actions">
-        <button class="btn-small" id="ai-back-btn">Zurueck</button>
+        <button class="btn-small" id="ai-back-btn">Zurück</button>
         <button class="btn-small btn-ai" id="ai-regen-btn">Neu generieren</button>
-        <button class="btn-small btn-primary" id="ai-confirm-btn">Plan uebernehmen</button>
+        <button class="btn-small btn-primary" id="ai-confirm-btn">Plan übernehmen</button>
       </div>`;
 
     if (reasoning) {
@@ -624,7 +624,7 @@ const Meals = (() => {
         }
       } catch (err) {
         errEl.textContent = err.message;
-        btn.textContent = 'Plan uebernehmen';
+        btn.textContent = 'Plan übernehmen';
         btn.disabled = false;
         document.getElementById('ai-regen-btn').disabled = false;
         document.getElementById('ai-back-btn').disabled = false;
@@ -641,7 +641,7 @@ const Meals = (() => {
     popup.className = 'ai-reasoning-overlay';
     popup.innerHTML = `<div class="ai-reasoning-box">
       <div class="ai-reasoning-header">
-        <span>&#128161; KI-Begruendung</span>
+        <span>&#128161; KI-Begründung</span>
         <button class="btn-icon ai-reasoning-close">&times;</button>
       </div>
       <div class="ai-reasoning-body">${esc(text)}</div>

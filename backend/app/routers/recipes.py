@@ -12,6 +12,8 @@ from ..utils import ensure_aware
 from ..models.cooking_history import CookingHistory
 from ..models.ingredient import Ingredient
 from ..models.recipe import Recipe
+from ..models.recipe_category import RecipeCategory
+from ..models.recipe_tag import RecipeTag
 from ..schemas.recipe import (
     CookingHistoryResponse,
     IngredientCreate,
@@ -33,19 +35,65 @@ router = APIRouter(
 )
 
 
+async def _validate_recipe_category(
+    db: AsyncSession, family_id: int, category_id: int | None
+) -> None:
+    if category_id is None:
+        return
+    r = await db.execute(
+        select(RecipeCategory).where(
+            RecipeCategory.id == category_id,
+            RecipeCategory.family_id == family_id,
+        )
+    )
+    if r.scalar_one_or_none() is None:
+        raise HTTPException(status_code=400, detail="Ungültige Rezept-Kategorie")
+
+
+async def _load_recipe_tags(
+    db: AsyncSession, family_id: int, tag_ids: list[int]
+) -> list[RecipeTag]:
+    if not tag_ids:
+        return []
+    r = await db.execute(
+        select(RecipeTag).where(
+            RecipeTag.family_id == family_id,
+            RecipeTag.id.in_(tag_ids),
+        )
+    )
+    tags = list(r.scalars().all())
+    if len(tags) != len(set(tag_ids)):
+        raise HTTPException(status_code=400, detail="Ungültige Rezept-Tags")
+    return tags
+
+
+def _recipe_load_options():
+    return (
+        selectinload(Recipe.ingredients),
+        selectinload(Recipe.category),
+        selectinload(Recipe.tags),
+    )
+
+
 @router.get("/", response_model=list[RecipeResponse])
 async def list_recipes(
     sort_by: str = Query("title", pattern="^(title|last_cooked_at|cook_count|prep_time_active_minutes|created_at)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
+    recipe_category_id: int | None = None,
+    tag_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
 ):
     col = getattr(Recipe, sort_by, Recipe.title)
     stmt = (
         select(Recipe)
-        .options(selectinload(Recipe.ingredients))
+        .options(*_recipe_load_options())
         .where(Recipe.family_id == family_id)
     )
+    if recipe_category_id is not None:
+        stmt = stmt.where(Recipe.recipe_category_id == recipe_category_id)
+    if tag_id is not None:
+        stmt = stmt.where(Recipe.tags.any(RecipeTag.id == tag_id))
     stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
     result = await db.execute(stmt)
     return result.scalars().unique().all()
@@ -57,6 +105,9 @@ async def create_recipe(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
 ):
+    await _validate_recipe_category(db, family_id, data.recipe_category_id)
+    tag_objs = await _load_recipe_tags(db, family_id, data.tag_ids)
+
     recipe = Recipe(
         family_id=family_id,
         title=data.title,
@@ -70,7 +121,9 @@ async def create_recipe(
         notes=data.notes,
         image_url=data.image_url,
         ai_accessible=data.ai_accessible,
+        recipe_category_id=data.recipe_category_id,
     )
+    recipe.tags = tag_objs
     for ing in data.ingredients:
         recipe.ingredients.append(Ingredient(
             name=ing.name,
@@ -114,7 +167,7 @@ async def parse_recipe_url(data: UrlImportRequest):
         log.warning("Scraper failed for %s: %s", url, exc)
         raise HTTPException(
             status_code=422,
-            detail="Rezept konnte nicht erkannt werden. Eventuell wird diese Seite nicht unterstuetzt.",
+            detail="Rezept konnte nicht erkannt werden. Eventuell wird diese Seite nicht unterstützt.",
         )
 
     # Extract fields
@@ -194,7 +247,7 @@ def _parse_ingredient(text: str) -> IngredientCreate:
     # Try to match: optional amount (number, fraction, range) + optional unit + name
     m = re.match(
         r"^(\d+[\.,/]?\d*(?:\s*[-–]\s*\d+[\.,/]?\d*)?)\s*"  # amount (e.g. 200, 1.5, 1/2, 2-3)
-        r"(g|kg|ml|l|EL|TL|Prise|Prisen|Stk|Stück|Stueck|Packung|Pkg|Dose|Dosen|Becher|Bund|Scheibe|Scheiben|Zehe|Zehen|Blatt|Blätter|Handvoll|cm|Tasse|Tassen|Beutel|Pck)\.?\s+"  # unit
+        r"(g|kg|ml|l|EL|TL|Prise|Prisen|Stk|Stück|Stück|Packung|Pkg|Dose|Dosen|Becher|Bund|Scheibe|Scheiben|Zehe|Zehen|Blatt|Blätter|Handvoll|cm|Tasse|Tassen|Beutel|Pck)\.?\s+"  # unit
         r"(.+)$",
         text, re.IGNORECASE
     )
@@ -272,7 +325,12 @@ async def get_recipe(
 ):
     result = await db.execute(
         select(Recipe)
-        .options(selectinload(Recipe.ingredients), selectinload(Recipe.history))
+        .options(
+            selectinload(Recipe.ingredients),
+            selectinload(Recipe.history),
+            selectinload(Recipe.category),
+            selectinload(Recipe.tags),
+        )
         .where(Recipe.id == recipe_id, Recipe.family_id == family_id)
     )
     recipe = result.scalar_one_or_none()
@@ -290,7 +348,11 @@ async def update_recipe(
 ):
     result = await db.execute(
         select(Recipe)
-        .options(selectinload(Recipe.ingredients))
+        .options(
+            selectinload(Recipe.ingredients),
+            selectinload(Recipe.category),
+            selectinload(Recipe.tags),
+        )
         .where(Recipe.id == recipe_id, Recipe.family_id == family_id)
     )
     recipe = result.scalar_one_or_none()
@@ -299,12 +361,19 @@ async def update_recipe(
 
     update_fields = data.model_dump(exclude_unset=True)
     new_ingredients_raw = update_fields.pop("ingredients", None)
+    new_tag_ids = update_fields.pop("tag_ids", None)
 
     if "difficulty" in update_fields and update_fields["difficulty"] is not None:
         update_fields["difficulty"] = update_fields["difficulty"].value
 
+    if "recipe_category_id" in update_fields:
+        await _validate_recipe_category(db, family_id, update_fields["recipe_category_id"])
+
     for key, value in update_fields.items():
         setattr(recipe, key, value)
+
+    if new_tag_ids is not None:
+        recipe.tags = await _load_recipe_tags(db, family_id, new_tag_ids)
 
     if new_ingredients_raw is not None:
         recipe.ingredients.clear()

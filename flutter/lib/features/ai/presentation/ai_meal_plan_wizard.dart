@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/ai_repository.dart';
 import '../domain/ai_models.dart';
-import '../../meals/presentation/week_plan_screen.dart';
+import '../../meals/presentation/week_plan_provider.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 
 class AiMealPlanWizard extends ConsumerStatefulWidget {
   const AiMealPlanWizard({super.key});
@@ -23,10 +25,12 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
   AiMealPlanPreview? _preview;
   AiMealPlanConfirmResult? _confirmResult;
   bool _loading = false;
+  late final String _weekStart; // YYYY-MM-DD (Monday)
 
   @override
   void initState() {
     super.initState();
+    _weekStart = _mondayIso(DateTime.now());
     _loadAvailable();
   }
 
@@ -39,7 +43,10 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
   Future<void> _loadAvailable() async {
     setState(() => _loading = true);
     try {
-      _available = await ref.read(aiRepositoryProvider).getAvailableRecipes(includeCookidoo: _includeCookidoo);
+      _available = await ref.read(aiRepositoryProvider).getAvailableRecipes(
+            weekStart: _weekStart,
+            includeCookidoo: _includeCookidoo,
+          );
       if (_available!.availableSlots.isNotEmpty) {
         _selectedSlots = _available!.availableSlots
             .where((s) => !s.occupied)
@@ -55,7 +62,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
 
   Future<void> _generate() async {
     if (_selectedSlots.isEmpty) {
-      showAppToast(context, message: 'Bitte mindestens einen Slot waehlen', type: ToastType.warning);
+      showAppToast(context, message: 'Bitte mindestens einen Slot wählen', type: ToastType.warning);
       return;
     }
     setState(() {
@@ -68,6 +75,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
         return {'date': parts[0], 'slot': parts[1]};
       }).toList();
       _preview = await ref.read(aiRepositoryProvider).generateMealPlan(
+        weekStart: _weekStart,
         selectedSlots: slots,
         includeCookidoo: _includeCookidoo,
         servings: _servings,
@@ -86,8 +94,10 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
     if (_preview == null) return;
     setState(() => _loading = true);
     try {
-      _confirmResult = await ref.read(aiRepositoryProvider).confirmMealPlan(_preview!.suggestions);
+      _confirmResult = await ref.read(aiRepositoryProvider).confirmMealPlan(_weekStart, _preview!.suggestions);
       ref.invalidate(weekPlanProvider);
+      ref.read(syncTickProvider.notifier).state++;
+      await ref.read(weekPlanProvider.future);
       setState(() => _step = 3);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
@@ -101,8 +111,10 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
     try {
       await ref.read(aiRepositoryProvider).undoMealPlan(_confirmResult!.mealIds);
       ref.invalidate(weekPlanProvider);
+      ref.read(syncTickProvider.notifier).state++;
+      await ref.read(weekPlanProvider.future);
       if (mounted) {
-        showAppToast(context, message: 'Plan rueckgaengig gemacht', type: ToastType.success);
+        showAppToast(context, message: 'Plan rückgängig gemacht', type: ToastType.success);
         Navigator.pop(context);
       }
     } on ApiException catch (e) {
@@ -119,36 +131,52 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _step == 0 ? 'KI-Essensplan konfigurieren'
-                        : _step == 1 ? 'Generiere Vorschlag...'
-                        : _step == 2 ? 'KI-Vorschlag'
-                        : 'Plan bestaetigt!',
-                      style: theme.textTheme.titleLarge,
+        return Material(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _step == 0
+                            ? 'KI-Essensplan konfigurieren'
+                            : _step == 1
+                                ? 'Generiere Vorschlag...'
+                                : _step == 2
+                                    ? 'KI-Vorschlag'
+                                    : 'Plan bestätigt!',
+                        style: theme.textTheme.titleLarge,
+                      ),
                     ),
-                  ),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                ],
-              ),
-              const Divider(),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: _buildStep(theme),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const Divider(height: 16),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    child: _buildStep(theme),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
+  }
+
+  String _mondayIso(DateTime d) {
+    final monday = DateTime(d.year, d.month, d.day).subtract(Duration(days: d.weekday - 1));
+    return '${monday.year.toString().padLeft(4, '0')}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
   }
 
   Widget _buildStep(ThemeData theme) {
@@ -168,26 +196,150 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
 
   Widget _buildConfigStep(ThemeData theme) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+
+    final slots = _available?.availableSlots ?? const <AiSlotOption>[];
+    final selectableKeys = slots
+        .where((s) => !s.occupied)
+        .map((s) => '${s.date}|${s.slot}')
+        .toList(growable: false);
+    final selectedCount =
+        _selectedSlots.where((k) => selectableKeys.contains(k)).length;
+    final totalSelectable = selectableKeys.length;
+
+    final grouped = <String, List<AiSlotOption>>{};
+    for (final s in slots) {
+      final dayLabel = s.day ?? s.date;
+      (grouped[dayLabel] ??= []).add(s);
+    }
+
+    // Keep ordering stable: Monday..Sunday if possible (backend uses German names)
+    const weekdayOrder = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag',
+    ];
+    final dayKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        final ia = weekdayOrder.indexOf(a);
+        final ib = weekdayOrder.indexOf(b);
+        if (ia == -1 && ib == -1) return a.compareTo(b);
+        if (ia == -1) return 1;
+        if (ib == -1) return -1;
+        return ia.compareTo(ib);
+      });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Verfuegbare Slots', style: theme.textTheme.titleSmall),
+        Row(
+          children: [
+            Expanded(
+              child: Text('Slots auswählen', style: theme.textTheme.titleSmall),
+            ),
+            if (totalSelectable > 0)
+              Text(
+                '$selectedCount/$totalSelectable',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
         const SizedBox(height: 8),
-        if (_available != null)
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: _available!.availableSlots.map((slot) {
-              final key = '${slot.date}|${slot.slot}';
-              final isSelected = _selectedSlots.contains(key);
-              return FilterChip(
-                selected: isSelected,
-                onSelected: (v) => setState(() => v ? _selectedSlots.add(key) : _selectedSlots.remove(key)),
-                label: Text('${slot.date} ${slot.slot == 'lunch' ? 'Mittag' : 'Abend'}'),
-                avatar: slot.occupied ? const Icon(Icons.restaurant, size: 16) : null,
-              );
-            }).toList(),
+        if (_available == null)
+          const SizedBox.shrink()
+        else if (slots.isEmpty)
+          Text(
+            'Keine Slots gefunden.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else ...[
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: totalSelectable == 0
+                    ? null
+                    : () {
+                        setState(() {
+                          final keep = _selectedSlots
+                              .where((k) => !selectableKeys.contains(k))
+                              .toSet();
+                          _selectedSlots = {...keep, ...selectableKeys};
+                        });
+                      },
+                icon: const Icon(Icons.select_all),
+                label: const Text('Alle'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: selectedCount == 0
+                    ? null
+                    : () {
+                        setState(() {
+                          _selectedSlots
+                              .removeWhere((k) => selectableKeys.contains(k));
+                        });
+                      },
+                icon: const Icon(Icons.clear),
+                label: const Text('Keine'),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          ...dayKeys.map((day) {
+            final daySlots = grouped[day] ?? const <AiSlotOption>[];
+            AiSlotOption? lunch;
+            AiSlotOption? dinner;
+            for (final s in daySlots) {
+              if (s.slot == 'lunch') lunch = s;
+              if (s.slot == 'dinner') dinner = s;
+            }
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              elevation: 0,
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.25),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(day, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        if (lunch != null)
+                          _SlotChip(
+                            slot: lunch!,
+                            selectedKeys: _selectedSlots,
+                            onToggle: (key, v) => setState(() => v
+                                ? _selectedSlots.add(key)
+                                : _selectedSlots.remove(key)),
+                          ),
+                        if (dinner != null)
+                          _SlotChip(
+                            slot: dinner!,
+                            selectedKeys: _selectedSlots,
+                            onToggle: (key, v) => setState(() => v
+                                ? _selectedSlots.add(key)
+                                : _selectedSlots.remove(key)),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
         const SizedBox(height: 16),
         Row(
           children: [
@@ -205,20 +357,27 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
         SwitchListTile(
           title: const Text('Cookidoo-Rezepte einbeziehen'),
           value: _includeCookidoo,
-          onChanged: (v) => setState(() => _includeCookidoo = v),
+          onChanged: (v) {
+            // Don't refetch here — it resets scroll position in the sheet.
+            // The flag is applied when generating the plan.
+            setState(() => _includeCookidoo = v);
+          },
           contentPadding: EdgeInsets.zero,
         ),
-        TextField(
+        LabeledMultilineTextField(
+          label: 'Wünsche / Präferenzen',
           controller: _preferencesController,
-          decoration: const InputDecoration(
-            labelText: 'Wuensche / Praeferenzen',
-            hintText: 'z.B. vegetarisch, saisonal, schnelle Gerichte...',
-          ),
-          maxLines: 2,
+          hintText:
+              'z.\u00a0B. vegetarisch, saisonal, schnelle Gerichte, Kinder lieber …',
+          minLines: 3,
+          maxLines: 6,
         ),
         const SizedBox(height: 8),
-        Text('${_available?.recipes.length ?? 0} Rezepte verfuegbar',
-            style: theme.textTheme.bodySmall),
+        Text(
+          '${_available?.localCount ?? 0} lokale Rezepte'
+          '${(_available?.cookidooAvailable ?? false) ? ' · ${_available?.cookidooCount ?? 0} Cookidoo' : ''}',
+          style: theme.textTheme.bodySmall,
+        ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -285,7 +444,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
               child: FilledButton.icon(
                 onPressed: _loading ? null : _confirm,
                 icon: const Icon(Icons.check),
-                label: const Text('Bestaetigen'),
+                label: const Text('Bestätigen'),
               ),
             ),
           ],
@@ -310,7 +469,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
             OutlinedButton.icon(
               onPressed: _undo,
               icon: const Icon(Icons.undo),
-              label: const Text('Rueckgaengig'),
+              label: const Text('Rückgängig'),
             ),
             const SizedBox(width: 16),
             FilledButton(
@@ -320,6 +479,70 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _SlotChip extends StatelessWidget {
+  final AiSlotOption slot;
+  final Set<String> selectedKeys;
+  final void Function(String key, bool selected) onToggle;
+
+  const _SlotChip({
+    required this.slot,
+    required this.selectedKeys,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final key = '${slot.date}|${slot.slot}';
+    final isSelected = selectedKeys.contains(key);
+    final isDisabled = slot.occupied;
+    final label = slot.label ?? (slot.slot == 'lunch' ? 'Mittag' : 'Abend');
+
+    return FilterChip(
+      selected: isSelected,
+      onSelected: isDisabled ? null : (v) => onToggle(key, v),
+      showCheckmark: !isDisabled,
+      avatar: Icon(
+        isDisabled
+            ? Icons.lock
+            : slot.slot == 'lunch'
+                ? Icons.wb_sunny_outlined
+                : Icons.nights_stay_outlined,
+        size: 18,
+        color: isDisabled
+            ? theme.colorScheme.outline
+            : isSelected
+                ? theme.colorScheme.onSecondaryContainer
+                : theme.colorScheme.onSurfaceVariant,
+      ),
+      label: Text(
+        slot.recipeTitle != null ? '$label · ${slot.recipeTitle}' : label,
+        overflow: TextOverflow.ellipsis,
+      ),
+      labelStyle: theme.textTheme.labelLarge?.copyWith(
+        color: isDisabled
+            ? theme.colorScheme.outline
+            : isSelected
+                ? theme.colorScheme.onSecondaryContainer
+                : theme.colorScheme.onSurface,
+      ),
+      backgroundColor: theme.colorScheme.surface.withOpacity(0.35),
+      selectedColor: theme.colorScheme.secondaryContainer,
+      disabledColor:
+          theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
+      side: BorderSide(
+        color: isDisabled
+            ? theme.colorScheme.outlineVariant
+            : isSelected
+                ? theme.colorScheme.secondary
+                : theme.colorScheme.outlineVariant,
+      ),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
     );
   }
 }

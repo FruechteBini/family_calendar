@@ -9,20 +9,28 @@ class ShoppingRepository {
 
   ShoppingRepository(this._dio);
 
-  Future<ShoppingList> getList() async {
+  Future<ShoppingList?> getList() async {
     try {
       final response = await _dio.get(Endpoints.shoppingList);
-      return ShoppingList.fromJson(response.data as Map<String, dynamic>);
+      final data = response.data;
+      if (data == null) return null;
+      return ShoppingList.fromJson(data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
-  Future<ShoppingList> generate({int? weekOffset}) async {
+  Future<ShoppingList> generate({DateTime? weekStart}) async {
     try {
-      final data = <String, dynamic>{};
-      if (weekOffset != null) data['week'] = weekOffset;
-      final response = await _dio.post(Endpoints.shoppingGenerate, data: data);
+      final now = DateTime.now();
+      final monday = now.subtract(Duration(days: now.weekday - 1));
+      final d = weekStart ?? monday;
+      final weekStartStr =
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final response = await _dio.post(
+        Endpoints.shoppingGenerate,
+        data: {'week_start': weekStartStr},
+      );
       return ShoppingList.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
@@ -40,10 +48,7 @@ class ShoppingRepository {
 
   Future<void> checkItem(int id, {required bool checked}) async {
     try {
-      await _dio.patch(
-        Endpoints.shoppingItemCheck(id),
-        data: {'checked': checked},
-      );
+      await _dio.patch(Endpoints.shoppingItemCheck(id));
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -57,10 +62,18 @@ class ShoppingRepository {
     }
   }
 
-  Future<ShoppingList> aiSort(int listId) async {
+  Future<ShoppingList> aiSort() async {
     try {
       final response = await _dio.post(Endpoints.shoppingSort);
       return ShoppingList.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<void> clearAll() async {
+    try {
+      await _dio.post(Endpoints.shoppingClearAll);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

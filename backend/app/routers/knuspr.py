@@ -31,7 +31,7 @@ async def search_knuspr(q: str = Query(..., min_length=2)):
         if not results:
             raise HTTPException(
                 status_code=503,
-                detail="Knuspr nicht verfuegbar oder nicht konfiguriert",
+                detail="Knuspr nicht verfügbar oder nicht konfiguriert",
             )
         return results
     except ImportError:

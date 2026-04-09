@@ -64,13 +64,18 @@ Flutter App / Browser → HTTP JSON → FastAPI Router → Pydantic Schema (Vali
 | `routers/events.py` | `/api/events` | CRUD |
 | `routers/todos.py` | `/api/todos` | CRUD + complete, link-event |
 | `routers/proposals.py` | `/api/proposals` + `/api/todos` | create, list, respond, pending |
-| `routers/recipes.py` | `/api/recipes` | CRUD + suggestions, history |
+| `routers/recipes.py` | `/api/recipes` | CRUD + suggestions, history; Filter `recipe_category_id`, `tag_id` |
+| `routers/recipe_categories.py` | `/api/recipe-categories` | CRUD + reorder (eigen von Todo-/Notiz-Kategorien) |
+| `routers/recipe_tags.py` | `/api/recipe-tags` | CRUD |
 | `routers/meals.py` | `/api/meals` | plan CRUD + mark-as-cooked |
 | `routers/shopping.py` | `/api/shopping` | list, generate, items CRUD, sort (KI) |
 | `routers/cookidoo.py` | `/api/cookidoo` | status, collections, recipes, import, calendar |
 | `routers/knuspr.py` | `/api/knuspr` | products, cart, delivery-slots |
-| `routers/ai.py` | `/api/ai` | available-recipes, generate-meal-plan (preview), confirm-meal-plan, undo-meal-plan |
+| `routers/ai.py` | `/api/ai` | available-recipes, generate-meal-plan (preview), confirm-meal-plan, undo-meal-plan, voice-command, prioritize-todos, apply-todo-priorities, categorize-recipes, apply-recipe-categorization |
 | `routers/categories.py` | `/api/categories` | CRUD |
+| `routers/notes.py` | `/api/notes` | CRUD + pin, archive, preview-link, comments, attachments, convert-to-todo |
+| `routers/note_categories.py` | `/api/note-categories` | CRUD + reorder (eigen von Todo-Kategorien) |
+| `routers/note_tags.py` | `/api/note-tags` | CRUD |
 | `routers/family_members.py` | `/api/family-members` | CRUD |
 
 > Alle Router-Pfade relativ zu `backend/app/`
@@ -110,10 +115,11 @@ Flutter App / Browser → HTTP JSON → FastAPI Router → Pydantic Schema (Vali
 | **Flutter neues Feature** | Domain (`features/<name>/domain/`), Repo (`features/<name>/data/`), Screen (`features/<name>/presentation/`), Endpoint (`core/api/endpoints.dart`) |
 | **Flutter Kalender** | `features/calendar/presentation/calendar_screen.dart`, `features/calendar/data/event_repository.dart` |
 | **Flutter Todos** | `features/todos/presentation/todo_list_screen.dart`, `features/todos/data/todo_repository.dart` |
-| **Flutter Rezepte** | `features/recipes/presentation/recipe_list_screen.dart`, `features/recipes/data/recipe_repository.dart` |
+| **Flutter Rezepte** | `features/recipes/presentation/recipe_list_screen.dart`, `recipe_form_dialog.dart`, `recipe_categories_screen.dart`, `ai_categorize_sheet.dart`, `data/recipe_repository.dart`, `recipe_category_repository.dart`, `recipe_tag_repository.dart` |
 | **Flutter Essensplanung** | `features/meals/presentation/week_plan_screen.dart`, `features/meals/data/meal_repository.dart` |
 | **Flutter KI-Essensplanung** | `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/data/ai_repository.dart` |
 | **Flutter Einkaufsliste** | `features/shopping/presentation/shopping_list_screen.dart`, `features/shopping/data/shopping_repository.dart` |
+| **Flutter Notizen** | `features/notes/presentation/notes_screen.dart`, `features/notes/data/note_repository.dart` |
 | **Flutter Vorratskammer** | `features/pantry/presentation/pantry_screen.dart`, `features/pantry/data/pantry_repository.dart` |
 | **Flutter Sprachbefehle** | `features/ai/presentation/voice_fab.dart`, `features/ai/data/ai_repository.dart` |
 | **Flutter Navigation** | `app/router.dart`, `app/app_shell.dart` |

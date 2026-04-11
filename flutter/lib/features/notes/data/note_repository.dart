@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
 import '../../../core/api/api_client.dart';
 import '../../../core/api/endpoints.dart';
 import '../domain/note.dart';
@@ -177,10 +180,31 @@ class NoteRepository {
   }
 
   Future<NoteAttachment> uploadAttachment(int noteId, String filePath) async {
+    return uploadAttachmentData(
+      noteId,
+      filename: path.basename(filePath),
+      filePath: filePath,
+    );
+  }
+
+  /// Web: [bytes] + [filename]; native: [filePath] + [filename].
+  Future<NoteAttachment> uploadAttachmentData(
+    int noteId, {
+    required String filename,
+    String? filePath,
+    Uint8List? bytes,
+  }) async {
+    if (filePath == null && bytes == null) {
+      throw ArgumentError('filePath oder bytes erforderlich');
+    }
     try {
-      final form = FormData.fromMap({
-        'file': await MultipartFile.fromFile(filePath),
-      });
+      final MultipartFile mf;
+      if (filePath != null) {
+        mf = await MultipartFile.fromFile(filePath, filename: filename);
+      } else {
+        mf = MultipartFile.fromBytes(bytes!, filename: filename);
+      }
+      final form = FormData.fromMap({'file': mf});
       final response = await _dio.post(
         Endpoints.noteAttachments(noteId),
         data: form,

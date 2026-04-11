@@ -8,10 +8,25 @@ class Endpoints {
   static const authLinkMember = '/api/auth/link-member';
   static const authFamily = '/api/auth/family';
   static const authFamilyJoin = '/api/auth/family/join';
+  static const authGoogle = '/api/auth/google';
+  static const authGoogleLink = '/api/auth/google/link';
+  static const authGoogleUnlink = '/api/auth/google/unlink';
+  static const authGoogleGrantSync = '/api/auth/google/grant-sync';
+
+  // Google sync
+  static const googleSyncStatus = '/api/google-sync/status';
+  static const googleSyncSettings = '/api/google-sync/settings';
+  static const googleSyncTrigger = '/api/google-sync/trigger';
 
   // Events
   static const events = '/api/events/';
   static String event(int id) => '/api/events/$id';
+
+  // Notifications
+  static const notificationsLevels = '/api/notifications/levels';
+  static String notificationsLevel(int id) => '/api/notifications/levels/$id';
+  static const notificationsLevelsReorder = '/api/notifications/levels/reorder';
+  static const notificationsPreferences = '/api/notifications/preferences';
 
   // Todos
   static const todos = '/api/todos/';
@@ -74,12 +89,24 @@ class Endpoints {
   static const cookidooCalendar = '/api/cookidoo/calendar';
 
   // Knuspr
+  static const knusprStatus = '/api/knuspr/status';
   static const knusprProductSearch = '/api/knuspr/products/search';
   static const knusprCartAdd = '/api/knuspr/cart/add';
   static String knusprCartSendList(int id) =>
       '/api/knuspr/cart/send-list/$id';
+  static String knusprPreviewList(int id) =>
+      '/api/knuspr/cart/preview-list/$id';
+  static String knusprApplySelections(int id) =>
+      '/api/knuspr/cart/apply-selections/$id';
+  static const knusprPriceCheck = '/api/knuspr/price-check';
   static const knusprDeliverySlots = '/api/knuspr/delivery-slots';
+  static const knusprBookSlot = '/api/knuspr/delivery-slots/book';
   static const knusprCart = '/api/knuspr/cart';
+  static const knusprCartGet = '/api/knuspr/cart';
+  static String knusprCartItem(String orderFieldId) =>
+      '/api/knuspr/cart/items/$orderFieldId';
+  static const knusprMappings = '/api/knuspr/mappings';
+  static String knusprMapping(int id) => '/api/knuspr/mappings/$id';
 
   // AI
   static const aiAvailableRecipes = '/api/ai/available-recipes';

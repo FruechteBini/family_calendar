@@ -914,6 +914,7 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
       'complete_todo': 'Aufgabe erledigt',
       'delete_event': 'Termin gelöscht',
       'delete_todo': 'Aufgabe gelöscht',
+      'send_to_knuspr': 'Einkaufsliste an Knuspr gesendet',
     };
     return labels[type] ?? type;
   }

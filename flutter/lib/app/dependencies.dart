@@ -15,3 +15,4 @@ export '../features/pantry/data/pantry_repository.dart';
 export '../features/ai/data/ai_repository.dart';
 export '../features/cookidoo/data/cookidoo_repository.dart';
 export '../features/knuspr/data/knuspr_repository.dart';
+export '../features/knuspr/data/knuspr_status_provider.dart';

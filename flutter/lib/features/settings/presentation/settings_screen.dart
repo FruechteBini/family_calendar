@@ -114,6 +114,22 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.go('/app-info'),
           ),
 
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Benachrichtigungen'),
+            subtitle: const Text('Push (Termine, Todos, Vorschläge, …)'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/notification-settings'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.sync_outlined),
+            title: const Text('Google-Synchronisation'),
+            subtitle: const Text('Google Login, Calendar & Tasks Sync'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/google-sync'),
+          ),
+
           // Family info
           ListTile(
             leading: const Icon(Icons.family_restroom),

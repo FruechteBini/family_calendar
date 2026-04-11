@@ -11,10 +11,14 @@ import '../features/meals/presentation/meals_screen.dart';
 import '../features/members/presentation/members_screen.dart';
 import '../features/categories/presentation/categories_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/settings/presentation/google_sync_settings_screen.dart';
+import '../features/notifications/presentation/notification_settings_screen.dart';
+import '../features/notifications/presentation/notification_levels_screen.dart';
 import '../features/info/presentation/info_screen.dart';
 import '../features/notes/presentation/notes_screen.dart';
 import '../features/notes/presentation/note_categories_screen.dart';
 import '../features/notes/presentation/note_tags_screen.dart';
+import '../features/knuspr/presentation/knuspr_review_screen.dart';
 import '../features/knuspr/presentation/knuspr_screen.dart';
 import '../features/recipes/presentation/recipe_detail_screen.dart';
 import 'app_shell.dart';
@@ -136,6 +140,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: KnusprScreen()),
           ),
           GoRoute(
+            path: '/knuspr/review/:listId',
+            pageBuilder: (context, state) {
+              final idStr = state.pathParameters['listId'] ?? '';
+              final id = int.tryParse(idStr) ?? 0;
+              return NoTransitionPage(
+                child: KnusprReviewScreen(shoppingListId: id),
+              );
+            },
+          ),
+          GoRoute(
             path: '/members',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: MembersScreen()),
@@ -149,6 +163,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: SettingsScreen()),
+          ),
+          GoRoute(
+            path: '/google-sync',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GoogleSyncSettingsScreen()),
+          ),
+          GoRoute(
+            path: '/notification-settings',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: NotificationSettingsScreen()),
+          ),
+          GoRoute(
+            path: '/notification-levels',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: NotificationLevelsScreen()),
           ),
         ],
       ),

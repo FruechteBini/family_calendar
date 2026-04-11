@@ -18,6 +18,15 @@ from .note_tag import NoteTag
 from .note import Note, note_tag_assignments
 from .note_comment import NoteComment
 from .note_attachment import NoteAttachment
+from .device_token import DeviceToken
+from .notification_level import NotificationLevel
+from .notification_preference import NotificationPreference
+from .scheduled_notification import (
+    ScheduledNotification,
+    scheduled_notification_targets,
+)
+from .google_sync import GoogleCalendarSync, GoogleTasksSync
+from .knuspr_mapping import KnusprProductMapping
 
 __all__ = [
     "Family",
@@ -46,4 +55,12 @@ __all__ = [
     "note_tag_assignments",
     "NoteComment",
     "NoteAttachment",
+    "DeviceToken",
+    "NotificationLevel",
+    "NotificationPreference",
+    "ScheduledNotification",
+    "scheduled_notification_targets",
+    "GoogleCalendarSync",
+    "GoogleTasksSync",
+    "KnusprProductMapping",
 ]

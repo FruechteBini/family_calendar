@@ -507,19 +507,36 @@ async def confirm_meal_plan(
         meals_created += 1
 
     shopping_generated = False
+    shopping_list_id: int | None = None
+    knuspr_payload: dict | None = None
     if meals_created > 0:
         try:
             from .shopping import _generate_shopping_list
-            await _generate_shopping_list(monday, family_id, db)
+
+            sl = await _generate_shopping_list(monday, family_id, db)
             shopping_generated = True
+            shopping_list_id = sl.id
         except Exception:
             logger.warning("Auto-Einkaufsliste konnte nicht erstellt werden", exc_info=True)
+
+    if data.send_to_knuspr and shopping_list_id:
+        try:
+            from integrations.knuspr.cart import send_list_to_cart
+
+            knuspr_payload = await send_list_to_cart(
+                shopping_list_id, db, family_id=family_id
+            )
+        except Exception as e:
+            logger.warning("Knuspr nach Essensplan: %s", e)
+            knuspr_payload = {"success": False, "error": str(e)}
 
     return ConfirmMealPlanResponse(
         message=f"{meals_created} Mahlzeiten wurden per KI geplant.",
         meals_created=meals_created,
         meal_ids=meal_ids,
         shopping_list_generated=shopping_generated,
+        shopping_list_id=shopping_list_id,
+        knuspr=knuspr_payload,
     )
 
 
@@ -851,6 +868,11 @@ Beispiel: "Plane mir diese Woche, Montag Abend und Mittwoch Mittag soll was Neue
 
 Beispiel: "Mach einen Essensplan für die ganze Woche, 3 Portionen, eher einfach"
 -> {{"type": "generate_meal_plan", "params": {{"week_start": "2026-03-23", "servings": 3, "preferences": "eher einfache Gerichte bevorzugen", "selected_slots": []}}}}
+
+### send_to_knuspr
+Sendet die aktuelle Einkaufsliste an Knuspr (alle nicht abgehakten Artikel werden im Warenkorb ergänzt).
+Parameter: leeres Objekt {{}} (keine Pflichtfelder).
+Nutze diesen Typ wenn der Nutzer z.B. sagt: "Schick die Liste zu Knuspr", "Bestelle bei Knuspr", "Einkauf an Knuspr senden".
 {modify_actions_block}
 
 ## Referenz-System
@@ -911,6 +933,7 @@ ACTION_TYPE_ORDER = {
     "generate_meal_plan": 6,
     "add_shopping_item": 7,
     "add_pantry_items": 7,
+    "send_to_knuspr": 7,
     "delete_todo": 8,
     "delete_event": 9,
 }
@@ -946,6 +969,8 @@ async def _execute_voice_actions(
                 result_data = await _exec_add_shopping_item(params, db, family_id)
             elif action_type == "add_pantry_items":
                 result_data = await _exec_add_pantry_items(params, db, family_id)
+            elif action_type == "send_to_knuspr":
+                result_data = await _exec_send_to_knuspr(db, family_id)
             elif action_type == "generate_meal_plan":
                 result_data = await _exec_generate_meal_plan(params, db, family_id)
             elif action_type == "update_event":
@@ -1258,6 +1283,27 @@ async def _exec_add_pantry_items(params: dict, db: AsyncSession, family_id: int)
 
     await db.flush()
     return {"added": added, "updated": updated, "count": added + updated}
+
+
+async def _exec_send_to_knuspr(db: AsyncSession, family_id: int) -> dict:
+    stmt = (
+        select(ShoppingList)
+        .where(ShoppingList.status == "active", ShoppingList.family_id == family_id)
+        .order_by(ShoppingList.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    sl = result.scalar_one_or_none()
+    if not sl:
+        return {"error": "Keine aktive Einkaufsliste"}
+    try:
+        from integrations.knuspr.cart import send_list_to_cart
+
+        return await send_list_to_cart(sl.id, db, family_id=family_id)
+    except ImportError:
+        return {"error": "Knuspr-Bridge nicht installiert"}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 async def _exec_generate_meal_plan(params: dict, db: AsyncSession, family_id: int) -> dict:

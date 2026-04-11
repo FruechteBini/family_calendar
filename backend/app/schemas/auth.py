@@ -30,5 +30,20 @@ class UserResponse(BaseModel):
     family: FamilyResponse | None = None
     member_id: int | None = None
     member: FamilyMemberResponse | None = None
+    google_email: str | None = None
+    sync_calendar_enabled: bool = False
+    sync_todos_enabled: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+    server_auth_code: str
+
+
+class GoogleGrantSyncRequest(BaseModel):
+    server_auth_code: str
+    # optional: the client can indicate which scopes it requested
+    calendar: bool = False
+    tasks: bool = False

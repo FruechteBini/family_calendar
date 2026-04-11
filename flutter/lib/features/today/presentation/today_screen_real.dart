@@ -110,17 +110,6 @@ class TodayScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
-                  child: _DinnerCard(
-                    weekPlanAsync: weekPlanAsync,
-                    todayKey: todayKey,
-                    onOpenMeals: () => context.go('/meals'),
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing6)),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
                   child: _SectionHeader(
                     title: 'Termine',
                     actionLabel: 'Alle sehen',
@@ -132,7 +121,10 @@ class TodayScreen extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(AppColors.spacing6, AppColors.spacing3, AppColors.spacing6, 0),
                   child: eventsAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
+                    loading: () => const SizedBox(
+                      height: 36,
+                      child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+                    ),
                     error: (err, _) => EmptyState(
                       icon: Icons.event_outlined,
                       title: 'Termine konnten nicht geladen werden',
@@ -140,11 +132,7 @@ class TodayScreen extends ConsumerWidget {
                     ),
                     data: (events) {
                       if (events.isEmpty) {
-                        return const EmptyState(
-                          icon: Icons.event_available_outlined,
-                          title: 'Keine Termine heute',
-                          subtitle: 'Genieß den Tag oder plane etwas im Kalender.',
-                        );
+                        return const _CompactEmptyHint('Keine Termine heute.');
                       }
                       return Column(
                         children: events.take(5).map((e) => _EventRow(event: e)).toList(),
@@ -166,9 +154,12 @@ class TodayScreen extends ConsumerWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(AppColors.spacing6, AppColors.spacing3, AppColors.spacing6, 120),
+                  padding: const EdgeInsets.fromLTRB(AppColors.spacing6, AppColors.spacing3, AppColors.spacing6, 0),
                   child: todosAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
+                    loading: () => const SizedBox(
+                      height: 36,
+                      child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+                    ),
                     error: (err, _) => EmptyState(
                       icon: Icons.checklist_outlined,
                       title: 'Aufgaben konnten nicht geladen werden',
@@ -176,16 +167,23 @@ class TodayScreen extends ConsumerWidget {
                     ),
                     data: (todos) {
                       if (todos.isEmpty) {
-                        return const EmptyState(
-                          icon: Icons.task_alt_outlined,
-                          title: 'Keine offenen Aufgaben',
-                          subtitle: 'Alles erledigt.',
-                        );
+                        return const _CompactEmptyHint('Keine offenen Aufgaben.');
                       }
                       return Column(
                         children: todos.map((t) => _TodoRow(todo: t)).toList(),
                       );
                     },
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing6)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(AppColors.spacing6, 0, AppColors.spacing6, 120),
+                  child: _DinnerCard(
+                    weekPlanAsync: weekPlanAsync,
+                    todayKey: todayKey,
+                    onOpenMeals: () => context.go('/meals'),
                   ),
                 ),
               ),
@@ -221,6 +219,28 @@ class _SectionHeader extends StatelessWidget {
         ),
         TextButton(onPressed: onAction, child: Text(actionLabel)),
       ],
+    );
+  }
+}
+
+/// Single line under section header when the list is empty (avoids tall EmptyState).
+class _CompactEmptyHint extends StatelessWidget {
+  final String text;
+  const _CompactEmptyHint(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppColors.spacing1),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+      ),
     );
   }
 }

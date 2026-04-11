@@ -1,3 +1,8 @@
+import org.gradle.api.JavaVersion
+import org.gradle.api.tasks.compile.JavaCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 allprojects {
     repositories {
         google()
@@ -17,6 +22,18 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    // Ensure all Android/Kotlin subprojects (including plugins) use a consistent JVM target.
+    tasks.withType(JavaCompile::class.java).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17.toString()
+        targetCompatibility = JavaVersion.VERSION_17.toString()
+    }
+
+    tasks.withType(KotlinCompile::class.java).configureEach {
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+    }
 }
 
 tasks.register<Delete>("clean") {

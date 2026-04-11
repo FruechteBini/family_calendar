@@ -10,6 +10,7 @@ class Event {
   final String? categoryColor;
   final List<int> memberIds;
   final List<EventMember> members;
+  final int? notificationLevelId;
 
   const Event({
     required this.id,
@@ -23,6 +24,7 @@ class Event {
     this.categoryColor,
     this.memberIds = const [],
     this.members = const [],
+    this.notificationLevelId,
   });
 
   factory Event.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class Event {
               ?.map((e) => EventMember.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      notificationLevelId: json['notification_level_id'] as int?,
     );
   }
 
@@ -56,6 +59,8 @@ class Event {
       'all_day': allDay,
       if (categoryId != null) 'category_id': categoryId,
       'member_ids': memberIds,
+      if (notificationLevelId != null)
+        'notification_level_id': notificationLevelId,
     };
   }
 }

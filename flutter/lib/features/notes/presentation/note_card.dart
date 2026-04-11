@@ -1,13 +1,14 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'note_attachment_helpers.dart';
 
 class NoteCard extends ConsumerWidget {
   final Note note;
@@ -170,11 +171,102 @@ class NoteCard extends ConsumerWidget {
     }
   }
 
+  /// Bild- und Video-Anhänge wie Link-Vorschau (16:9-Kacheln, horizontal scrollbar).
+  Widget? _mediaAttachmentStrip(BuildContext context, WidgetRef ref, Note note) {
+    final media = note.attachments
+        .where((a) => noteAttachmentIsImage(a) || noteAttachmentIsVideo(a))
+        .toList();
+    if (media.isEmpty) return null;
+
+    final theme = Theme.of(context);
+    final screenW = MediaQuery.sizeOf(context).width;
+    final thumbW = (screenW - 40).clamp(200.0, 360.0);
+    final thumbH = thumbW * 9 / 16;
+    final headers = noteImageRequestHeaders(ref);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: SizedBox(
+        height: thumbH,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: media.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (ctx, i) {
+            final a = media[i];
+            final url = noteAttachmentFullUrl(ref, a);
+            final isImg = noteAttachmentIsImage(a);
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: thumbW,
+                height: thumbH,
+                child: isImg
+                    ? CachedNetworkImage(
+                        imageUrl: url,
+                        fit: BoxFit.cover,
+                        httpHeaders: headers,
+                        placeholder: (_, __) => Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => _attachmentVideoPlaceholder(
+                          theme,
+                          a.filename,
+                        ),
+                      )
+                    : _attachmentVideoPlaceholder(theme, a.filename),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _attachmentVideoPlaceholder(ThemeData theme, String filename) {
+    return ColoredBox(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: Icon(
+              Icons.play_circle_outline,
+              size: 48,
+              color: theme.colorScheme.primary.withValues(alpha: 0.85),
+            ),
+          ),
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 8,
+            child: Text(
+              filename,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final tint = _cardTint(note.color);
     final borderRadius = BorderRadius.circular(12);
+
+    final attachmentStrip = _mediaAttachmentStrip(context, ref, note);
 
     Widget body;
     switch (note.type) {
@@ -227,80 +319,94 @@ class NoteCard extends ConsumerWidget {
                 ],
               ),
             ),
+            if (attachmentStrip != null) attachmentStrip,
           ],
         );
         break;
       case NoteType.checklist:
         final items = note.checklistItems ?? [];
         final done = items.where((e) => e.checked).length;
-        body = Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(note.displayTitle, style: theme.textTheme.titleMedium),
-              if (items.isNotEmpty)
-                Text(
-                  '$done / ${items.length} erledigt',
-                  style: theme.textTheme.labelSmall,
-                ),
-              const SizedBox(height: 8),
-              ...items.asMap().entries.map((e) {
-                final i = e.key;
-                final it = e.value;
-                return CheckboxListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  value: it.checked,
-                  title: Text(it.text, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    final next = List<ChecklistItem>.from(items);
-                    next[i] = ChecklistItem(text: it.text, checked: v);
-                    try {
-                      await ref.read(noteRepositoryProvider).updateNote(
-                            note.id,
-                            {
-                              'checklist_items': next
-                                  .map((x) => x.toJson())
-                                  .toList(),
-                            },
-                          );
-                      onRefresh();
-                    } on ApiException catch (ex) {
-                      if (context.mounted) {
-                        showAppToast(context,
-                            message: ex.message, type: ToastType.error);
-                      }
-                    }
-                  },
-                );
-              }),
-            ],
-          ),
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (attachmentStrip != null) attachmentStrip,
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(note.displayTitle, style: theme.textTheme.titleMedium),
+                  if (items.isNotEmpty)
+                    Text(
+                      '$done / ${items.length} erledigt',
+                      style: theme.textTheme.labelSmall,
+                    ),
+                  const SizedBox(height: 8),
+                  ...items.asMap().entries.map((e) {
+                    final i = e.key;
+                    final it = e.value;
+                    return CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      value: it.checked,
+                      title: Text(it.text,
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                      onChanged: (v) async {
+                        if (v == null) return;
+                        final next = List<ChecklistItem>.from(items);
+                        next[i] = ChecklistItem(text: it.text, checked: v);
+                        try {
+                          await ref.read(noteRepositoryProvider).updateNote(
+                                note.id,
+                                {
+                                  'checklist_items': next
+                                      .map((x) => x.toJson())
+                                      .toList(),
+                                },
+                              );
+                          onRefresh();
+                        } on ApiException catch (ex) {
+                          if (context.mounted) {
+                            showAppToast(context,
+                                message: ex.message, type: ToastType.error);
+                          }
+                        }
+                      },
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
         );
         break;
       case NoteType.text:
         final md = note.content ?? '';
         final preview = md.length > 400 ? '${md.substring(0, 400)}…' : md;
-        body = Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(note.displayTitle, style: theme.textTheme.titleMedium),
-              if (md.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                MarkdownBody(
-                  data: preview,
-                  shrinkWrap: true,
-                  styleSheet: MarkdownStyleSheet(
-                    p: theme.textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ],
-          ),
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (attachmentStrip != null) attachmentStrip,
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(note.displayTitle, style: theme.textTheme.titleMedium),
+                  if (md.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    MarkdownBody(
+                      data: preview,
+                      shrinkWrap: true,
+                      styleSheet: MarkdownStyleSheet(
+                        p: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         );
     }
 

@@ -56,13 +56,15 @@ class AiRepository {
 
   Future<AiMealPlanConfirmResult> confirmMealPlan(
     String weekStart, // YYYY-MM-DD (Monday)
-    List<AiMealSuggestion> suggestions,
-  ) async {
+    List<AiMealSuggestion> suggestions, {
+    bool sendToKnuspr = false,
+  }) async {
     try {
       final response = await _dio.post(
         Endpoints.aiConfirmMealPlan,
         data: {
           'week_start': weekStart,
+          'send_to_knuspr': sendToKnuspr,
           'items': suggestions
               .map((s) => {
                     'date': s.date,

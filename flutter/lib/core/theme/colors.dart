@@ -73,6 +73,7 @@ class AppColors {
   ];
 
   // ── Spacing Tokens ────────────────────────────────────────────────
+  static const double spacing1 = 4.0;
   static const double spacing2 = 8.0;
   static const double spacing3 = 12.0;
   static const double spacing4 = 16.0;

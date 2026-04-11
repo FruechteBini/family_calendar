@@ -10,6 +10,7 @@ from ..models.proposal import ProposalResponse as ProposalResponseModel
 from ..models.proposal import TodoProposal
 from ..models.todo import Todo, todo_members
 from ..models.user import User
+from ..notification_service import notification_service
 from ..schemas.proposal import (
     PendingProposalDetail,
     ProposalCreate,
@@ -61,6 +62,24 @@ async def create_proposal(
     db.add(proposal)
     await db.flush()
     await db.refresh(proposal)
+    # Push to assigned members (excluding proposer)
+    todo_with_members = await db.get(Todo, todo_id, options=[selectinload(Todo.members)])
+    if todo_with_members and todo_with_members.members:
+        res_users = await db.execute(
+            select(User.id).where(
+                User.family_id == family_id,
+                User.member_id.in_([m.id for m in todo_with_members.members]),
+            )
+        )
+        target_user_ids = [r[0] for r in res_users.all() if r[0] != user.id]
+        await notification_service.send_immediate(
+            db=db,
+            user_ids=target_user_ids,
+            notification_type="proposal_new",
+            title="Neuer Terminvorschlag",
+            body=f'Für "{todo_with_members.title}" gibt es einen neuen Vorschlag',
+            data={"route": "/todos", "todo_id": str(todo_id)},
+        )
     return proposal
 
 
@@ -158,6 +177,24 @@ async def respond_to_proposal(
 
     await db.flush()
     await db.refresh(proposal)
+    # Push to proposer (if linked to a user)
+    proposer_user = None
+    if proposal.proposed_by:
+        res_user = await db.execute(
+            select(User.id).where(
+                User.family_id == family_id, User.member_id == proposal.proposed_by
+            )
+        )
+        proposer_user = res_user.scalar_one_or_none()
+    if proposer_user and proposer_user != user.id:
+        await notification_service.send_immediate(
+            db=db,
+            user_ids=[proposer_user],
+            notification_type="proposal_response",
+            title="Antwort auf Terminvorschlag",
+            body="Jemand hat auf deinen Vorschlag geantwortet",
+            data={"route": "/todos", "todo_id": str(proposal.todo_id)},
+        )
     return proposal
 
 

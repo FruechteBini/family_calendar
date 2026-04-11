@@ -28,6 +28,7 @@ class TodoCreate(BaseModel):
     requires_multiple: bool = False
     is_personal: bool = False
     member_ids: list[int] = []
+    notification_level_id: int | None = None
 
     @field_validator("priority", mode="before")
     @classmethod
@@ -51,6 +52,7 @@ class TodoUpdate(BaseModel):
     event_id: int | None = None
     requires_multiple: bool | None = None
     member_ids: list[int] | None = None
+    notification_level_id: int | None = None
 
 
 class LinkEventRequest(BaseModel):
@@ -82,6 +84,7 @@ class TodoResponse(BaseModel):
     event_id: int | None
     parent_id: int | None
     requires_multiple: bool
+    notification_level_id: int | None = None
     members: list[FamilyMemberResponse]
     subtodos: list[SubtodoResponse]
     created_at: datetime

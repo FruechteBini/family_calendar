@@ -13,6 +13,7 @@ class Todo {
   final int? eventId;
   final int? parentId;
   final bool requiresMultiple;
+  final int? notificationLevelId;
   final List<int> memberIds;
   final List<TodoMember> members;
   final List<Todo> subtodos;
@@ -33,6 +34,7 @@ class Todo {
     this.eventId,
     this.parentId,
     this.requiresMultiple = false,
+    this.notificationLevelId,
     this.memberIds = const [],
     this.members = const [],
     this.subtodos = const [],
@@ -70,6 +72,7 @@ class Todo {
       eventId: json['event_id'] as int?,
       parentId: json['parent_id'] as int?,
       requiresMultiple: json['requires_multiple'] as bool? ?? false,
+      notificationLevelId: json['notification_level_id'] as int?,
       memberIds: (json['member_ids'] as List<dynamic>?)
               ?.map((e) => e as int)
               .toList() ??
@@ -94,6 +97,8 @@ class Todo {
       'requires_multiple': requiresMultiple,
       'is_personal': isPersonal,
       'member_ids': memberIds,
+      if (notificationLevelId != null)
+        'notification_level_id': notificationLevelId,
     };
   }
 }

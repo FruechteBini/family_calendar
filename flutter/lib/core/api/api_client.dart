@@ -38,7 +38,8 @@ final dioProvider = Provider<Dio>((ref) {
   return dio;
 });
 
-final serverUrlProvider = StateProvider<String>((ref) => 'http://localhost:8000');
+// Default reaches host machine from Android emulator (see also login "Server konfigurieren").
+final serverUrlProvider = StateProvider<String>((ref) => 'http://10.0.2.2:8000');
 
 class ApiException implements Exception {
   final String message;

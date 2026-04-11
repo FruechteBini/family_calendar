@@ -36,6 +36,9 @@ class Todo(Base):
     event_id: Mapped[int | None] = mapped_column(
         ForeignKey("events.id", ondelete="SET NULL"), default=None
     )
+    notification_level_id: Mapped[int | None] = mapped_column(
+        ForeignKey("notification_levels.id", ondelete="SET NULL"), default=None
+    )
     requires_multiple: Mapped[bool] = mapped_column(default=False)
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("todos.id", ondelete="CASCADE"), default=None
@@ -50,6 +53,7 @@ class Todo(Base):
         lazy="selectin",
     )
     event = relationship("Event", back_populates="todos", lazy="selectin")
+    notification_level = relationship("NotificationLevel", lazy="selectin")
     members = relationship("FamilyMember", secondary=todo_members, lazy="selectin")
     subtodos = relationship(
         "Todo",

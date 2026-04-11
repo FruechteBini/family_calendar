@@ -14,4 +14,12 @@ anthropic==0.86.0
 recipe-scrapers>=15.0.0
 httpx==0.28.1
 beautifulsoup4==4.12.3
-lxml==5.3.0
+lxml>=5.4.0
+firebase-admin==6.5.0
+APScheduler==3.10.4
+
+# Google OAuth + Calendar/Tasks sync
+google-auth
+google-auth-oauthlib
+google-api-python-client
+google-auth-httplib2

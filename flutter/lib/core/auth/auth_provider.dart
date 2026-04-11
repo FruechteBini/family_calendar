@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api/api_client.dart' show serverUrlProvider, ApiException;
 import '../api/endpoints.dart';
 import '../../features/auth/domain/user.dart';
+import 'google_auth_service.dart';
 
 const _storage = FlutterSecureStorage();
 const _tokenKey = 'kalender_token';
@@ -30,6 +31,7 @@ class AuthState {
 
 class AuthStateNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
+  final GoogleAuthService _googleAuth = GoogleAuthService();
 
   AuthStateNotifier(this._ref) : super(const AuthState(isLoading: true)) {
     _loadSavedAuth();
@@ -91,6 +93,84 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       state = AuthState(token: token, user: user);
     } on DioException catch (e) {
       state = state.copyWith(isLoading: false);
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<void> loginWithGoogle() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final payload = await _googleAuth.signInBasic();
+      final serverUrl = _ref.read(serverUrlProvider);
+      final dio = Dio(BaseOptions(baseUrl: serverUrl));
+      final response = await dio.post(
+        Endpoints.authGoogle,
+        data: {
+          'id_token': payload.idToken,
+          'server_auth_code': payload.serverAuthCode,
+        },
+      );
+      final token = response.data['access_token'] as String;
+      await _storage.write(key: _tokenKey, value: token);
+      final user = await _fetchCurrentUser(token);
+      state = AuthState(token: token, user: user);
+    } on DioException catch (e) {
+      state = state.copyWith(isLoading: false);
+      throw ApiException.fromDioError(e);
+    } catch (e) {
+      state = state.copyWith(isLoading: false);
+      final msg = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+      throw ApiException(msg);
+    }
+  }
+
+  Future<void> linkGoogle() async {
+    final dio = _authedDio();
+    try {
+      final payload = await _googleAuth.signInBasic();
+      await dio.post(
+        Endpoints.authGoogleLink,
+        data: {
+          'id_token': payload.idToken,
+          'server_auth_code': payload.serverAuthCode,
+        },
+      );
+      await refreshUser();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<void> unlinkGoogle() async {
+    final dio = _authedDio();
+    try {
+      await dio.post(Endpoints.authGoogleUnlink);
+      await refreshUser();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<void> grantGoogleSyncScopes({
+    required bool calendar,
+    required bool tasks,
+  }) async {
+    final dio = _authedDio();
+    try {
+      final payload = await _googleAuth.requestSyncScopes(
+        calendar: calendar,
+        tasks: tasks,
+      );
+      await dio.post(
+        Endpoints.authGoogleGrantSync,
+        data: {
+          'server_auth_code': payload.serverAuthCode,
+          'calendar': calendar,
+          'tasks': tasks,
+        },
+      );
+      await refreshUser();
+    } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }

@@ -1021,11 +1021,9 @@ async def search_knuspr_product(query: str) -> str:
 async def add_to_knuspr_cart(product_id: str, quantity: int = 1) -> str:
     """Produkt in den Knuspr-Warenkorb legen."""
     try:
-        from integrations.knuspr.client import get_client
-        kn = await get_client()
-        if not kn:
-            return json.dumps({"error": "Knuspr nicht konfiguriert"})
-        await kn.add_to_cart(product_id, quantity=quantity)
+        from integrations.knuspr.client import add_to_cart
+
+        await add_to_cart(product_id, quantity=quantity)
         return json.dumps({"success": True, "product_id": product_id, "quantity": quantity})
     except ImportError:
         return json.dumps({"error": "Knuspr-Bridge nicht installiert"})
@@ -1067,11 +1065,9 @@ async def get_knuspr_delivery_slots() -> str:
 async def clear_knuspr_cart() -> str:
     """Knuspr-Warenkorb leeren."""
     try:
-        from integrations.knuspr.client import get_client
-        kn = await get_client()
-        if not kn:
-            return json.dumps({"error": "Knuspr nicht konfiguriert"})
-        await kn.clear_cart()
+        from integrations.knuspr.client import clear_cart
+
+        await clear_cart()
         return json.dumps({"success": True, "message": "Warenkorb geleert"})
     except ImportError:
         return json.dumps({"error": "Knuspr-Bridge nicht installiert"})
@@ -1178,6 +1174,10 @@ async def resource_cooking_history_90d() -> str:
 if __name__ == "__main__":
     transport = os.getenv("MCP_TRANSPORT", "stdio")
     if transport == "sse":
-        mcp.run(transport="sse", host="0.0.0.0", port=8001)
+        # FastMCP.run() in `mcp` doesn't accept host/port; run via uvicorn instead.
+        import uvicorn
+
+        port = int(os.getenv("MCP_PORT", "8001"))
+        uvicorn.run(mcp.sse_app(), host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")

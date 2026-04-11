@@ -70,7 +70,7 @@ Flutter App / Browser → HTTP JSON → FastAPI Router → Pydantic Schema (Vali
 | `routers/meals.py` | `/api/meals` | plan CRUD + mark-as-cooked |
 | `routers/shopping.py` | `/api/shopping` | list, generate, items CRUD, sort (KI) |
 | `routers/cookidoo.py` | `/api/cookidoo` | status, collections, recipes, import, calendar |
-| `routers/knuspr.py` | `/api/knuspr` | products, cart, delivery-slots |
+| `routers/knuspr.py` | `/api/knuspr` | status, products, cart (+preview/apply/price-check), slots, mappings |
 | `routers/ai.py` | `/api/ai` | available-recipes, generate-meal-plan (preview), confirm-meal-plan, undo-meal-plan, voice-command, prioritize-todos, apply-todo-priorities, categorize-recipes, apply-recipe-categorization |
 | `routers/categories.py` | `/api/categories` | CRUD |
 | `routers/notes.py` | `/api/notes` | CRUD + pin, archive, preview-link, comments, attachments, convert-to-todo |

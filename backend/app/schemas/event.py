@@ -14,6 +14,7 @@ class EventCreate(BaseModel):
     all_day: bool = False
     category_id: int | None = None
     member_ids: list[int] = []
+    notification_level_id: int | None = None
 
 
 class EventUpdate(BaseModel):
@@ -24,6 +25,7 @@ class EventUpdate(BaseModel):
     all_day: bool | None = None
     category_id: int | None = None
     member_ids: list[int] | None = None
+    notification_level_id: int | None = None
 
 
 class EventTodoResponse(BaseModel):
@@ -45,6 +47,7 @@ class EventResponse(BaseModel):
     category: CategoryResponse | None
     members: list[FamilyMemberResponse]
     todos: list[EventTodoResponse] = []
+    notification_level_id: int | None = None
     created_at: datetime
     updated_at: datetime
 

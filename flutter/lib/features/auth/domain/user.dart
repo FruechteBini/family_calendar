@@ -3,12 +3,18 @@ class User {
   final String username;
   final int? familyId;
   final int? memberId;
+  final String? googleEmail;
+  final bool syncCalendarEnabled;
+  final bool syncTodosEnabled;
 
   const User({
     required this.id,
     required this.username,
     this.familyId,
     this.memberId,
+    this.googleEmail,
+    this.syncCalendarEnabled = false,
+    this.syncTodosEnabled = false,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -17,15 +23,27 @@ class User {
       username: json['username'] as String,
       familyId: json['family_id'] as int?,
       memberId: json['member_id'] as int?,
+      googleEmail: json['google_email'] as String?,
+      syncCalendarEnabled: (json['sync_calendar_enabled'] as bool?) ?? false,
+      syncTodosEnabled: (json['sync_todos_enabled'] as bool?) ?? false,
     );
   }
 
-  User copyWith({int? familyId, int? memberId}) {
+  User copyWith({
+    int? familyId,
+    int? memberId,
+    String? googleEmail,
+    bool? syncCalendarEnabled,
+    bool? syncTodosEnabled,
+  }) {
     return User(
       id: id,
       username: username,
       familyId: familyId ?? this.familyId,
       memberId: memberId ?? this.memberId,
+      googleEmail: googleEmail ?? this.googleEmail,
+      syncCalendarEnabled: syncCalendarEnabled ?? this.syncCalendarEnabled,
+      syncTodosEnabled: syncTodosEnabled ?? this.syncTodosEnabled,
     );
   }
 }

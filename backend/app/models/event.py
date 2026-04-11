@@ -28,9 +28,13 @@ class Event(Base):
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="SET NULL"), default=None
     )
+    notification_level_id: Mapped[int | None] = mapped_column(
+        ForeignKey("notification_levels.id", ondelete="SET NULL"), default=None
+    )
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     category = relationship("Category", lazy="selectin")
     members = relationship("FamilyMember", secondary=event_members, lazy="selectin")
     todos = relationship("Todo", back_populates="event", lazy="selectin")
+    notification_level = relationship("NotificationLevel", lazy="selectin")

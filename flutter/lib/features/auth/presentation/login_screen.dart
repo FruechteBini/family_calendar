@@ -63,6 +63,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _loginWithGoogle() async {
+    setState(() => _errorMessage = null);
+    final auth = ref.read(authStateProvider.notifier);
+    try {
+      if (_showServerConfig) {
+        await auth.setServerUrl(_serverUrlController.text.trim());
+      }
+      await auth.loginWithGoogle();
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = e.message);
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
+    } catch (e) {
+      if (mounted) {
+        final msg = '$e'.replaceFirst('Exception: ', '');
+        setState(() => _errorMessage = msg);
+        showAppToast(context, message: msg, type: ToastType.error);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
@@ -130,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Server-URL',
                             prefixIcon: Icon(Icons.dns_outlined),
-                            hintText: 'http://192.168.1.100:8000',
+                            hintText: 'http://10.0.2.2:8000 (Emulator)',
                           ),
                           keyboardType: TextInputType.url,
                           validator: Validators.serverUrl,
@@ -178,6 +200,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : Text(_isRegister ? 'Registrieren' : 'Anmelden'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'oder',
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: theme.hintColor),
+                            ),
+                          ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: authState.isLoading ? null : _loginWithGoogle,
+                          icon: const Icon(Icons.account_circle_outlined),
+                          label: const Text('Mit Google anmelden'),
                         ),
                       ),
                       const SizedBox(height: 12),

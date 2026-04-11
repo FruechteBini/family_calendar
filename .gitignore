@@ -25,9 +25,27 @@ dist/
 # Environment / secrets
 .env
 .env.*
+!.env.production.template
 *.env
+# Flutter: copy dart_defines.example.json → dart_defines.json (local Google Web Client ID)
+flutter/dart_defines.json
 *.pem
 *.key
+
+# Firebase / push notification secrets
+backend/secrets/
+**/firebase-service-account*.json
+flutter/android/app/google-services.json
+
+# Cursor IDE (local)
+.cursor/
+
+# Flutter iOS generated (regenerate: flutter pub get / build)
+flutter/ios/Flutter/ephemeral/
+flutter/ios/Flutter/Generated.xcconfig
+flutter/ios/Flutter/flutter_export_environment.sh
+flutter/ios/Runner/GeneratedPluginRegistrant.h
+flutter/ios/Runner/GeneratedPluginRegistrant.m
 
 # Misc
 .DS_Store

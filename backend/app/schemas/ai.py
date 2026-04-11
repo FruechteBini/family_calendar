@@ -36,6 +36,7 @@ class PreviewMealPlanResponse(BaseModel):
 class ConfirmMealPlanRequest(BaseModel):
     week_start: date
     items: list[MealSuggestion]
+    send_to_knuspr: bool = False
 
 
 class ConfirmMealPlanResponse(BaseModel):
@@ -43,6 +44,8 @@ class ConfirmMealPlanResponse(BaseModel):
     meals_created: int
     meal_ids: list[int]
     shopping_list_generated: bool
+    shopping_list_id: int | None = None
+    knuspr: dict | None = None
 
 
 class UndoMealPlanRequest(BaseModel):

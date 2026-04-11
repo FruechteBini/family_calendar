@@ -173,16 +173,27 @@ class AiMealSuggestion {
 class AiMealPlanConfirmResult {
   final List<int> mealIds;
   final int? shoppingListId;
+  final Map<String, dynamic>? knuspr;
 
-  const AiMealPlanConfirmResult({this.mealIds = const [], this.shoppingListId});
+  const AiMealPlanConfirmResult({
+    this.mealIds = const [],
+    this.shoppingListId,
+    this.knuspr,
+  });
 
   factory AiMealPlanConfirmResult.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? k;
+    final raw = json['knuspr'];
+    if (raw is Map<String, dynamic>) {
+      k = raw;
+    }
     return AiMealPlanConfirmResult(
       mealIds: (json['meal_ids'] as List<dynamic>?)
               ?.map((e) => e as int)
               .toList() ??
           [],
       shoppingListId: json['shopping_list_id'] as int?,
+      knuspr: k,
     );
   }
 }
@@ -199,12 +210,20 @@ class VoiceCommandResult {
   });
 
   factory VoiceCommandResult.fromJson(Map<String, dynamic> json) {
+    final actions = (json['actions'] as List<dynamic>?)
+            ?.map((e) => VoiceAction.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const <VoiceAction>[];
+
+    // Backend returns {summary, actions} and encodes errors inside action.result.error.
+    // Some clients may send explicit {success}, so prefer it when present.
+    final explicitSuccess = json['success'];
+    final computedSuccess =
+        actions.isNotEmpty && actions.any((a) => a.success == true);
+
     return VoiceCommandResult(
-      success: json['success'] as bool? ?? false,
-      actions: (json['actions'] as List<dynamic>?)
-              ?.map((e) => VoiceAction.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      success: explicitSuccess is bool ? explicitSuccess : computedSuccess,
+      actions: actions,
       summary: json['summary'] as String?,
     );
   }
@@ -224,11 +243,22 @@ class VoiceAction {
   });
 
   factory VoiceAction.fromJson(Map<String, dynamic> json) {
+    final result = json['result'];
+    final resultMap = result is Map<String, dynamic> ? result : null;
+    final hasError = resultMap != null &&
+        resultMap.containsKey('error') &&
+        resultMap['error'] != null &&
+        (resultMap['error'] as Object).toString().trim().isNotEmpty;
+
+    final explicitSuccess = json['success'];
+    final computedSuccess = resultMap != null ? !hasError : false;
+
     return VoiceAction(
       type: json['type'] as String,
-      success: json['success'] as bool? ?? false,
+      success: explicitSuccess is bool ? explicitSuccess : computedSuccess,
       message: json['message'] as String?,
-      data: json['data'] as Map<String, dynamic>?,
+      data: (json['data'] as Map?)?.cast<String, dynamic>() ??
+          resultMap?.cast<String, dynamic>(),
     );
   }
 }

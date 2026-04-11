@@ -13,6 +13,7 @@ import '../../../shared/utils/date_utils.dart';
 import '../../../shared/utils/app_time_picker.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../notifications/presentation/widgets/notification_level_picker.dart';
 
 final _categoriesProvider = FutureProvider<List<Category>>((ref) {
   return ref.watch(categoryRepositoryProvider).getCategories();
@@ -43,6 +44,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
   bool _allDay = false;
   int? _categoryId;
   Set<int> _memberIds = {};
+  int? _notificationLevelId;
   bool _saving = false;
 
   bool get _isEditing => widget.event != null;
@@ -60,6 +62,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     _allDay = e?.allDay ?? false;
     _categoryId = e?.categoryId;
     _memberIds = (e?.memberIds ?? []).toSet();
+    _notificationLevelId = (e?.notificationLevelId);
   }
 
   @override
@@ -90,6 +93,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
         'all_day': _allDay,
         'category_id': _categoryId,
         'member_ids': _memberIds.toList(),
+        'notification_level_id': _notificationLevelId,
       };
       final repo = ref.read(eventRepositoryProvider);
       if (_isEditing) {
@@ -187,6 +191,11 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                     categories: categories,
                     selectedId: _categoryId,
                     onChanged: (v) => setState(() => _categoryId = v),
+                  ),
+                  const SizedBox(height: 12),
+                  NotificationLevelPicker(
+                    value: _notificationLevelId,
+                    onChanged: (v) => setState(() => _notificationLevelId = v),
                   ),
                   const SizedBox(height: 12),
                   Text('Mitglieder', style: Theme.of(context).textTheme.bodySmall),

@@ -16,6 +16,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../shared/utils/date_utils.dart' as utils;
 import 'proposal_sheet.dart';
+import '../../notifications/presentation/widgets/notification_level_picker.dart';
 
 final _formCategoriesProvider = FutureProvider<List<cat.Category>>((ref) async {
   return ref.watch(categoryRepositoryProvider).getCategories();
@@ -46,6 +47,7 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
   bool _isPersonal = false;
   Set<int> _memberIds = {};
   bool _requiresMultiple = false;
+  int? _notificationLevelId;
   bool _saving = false;
 
   bool get _isEditing => widget.todo != null;
@@ -63,6 +65,7 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
     _isPersonal = t?.isPersonal ?? false;
     _memberIds = (t?.memberIds ?? []).toSet();
     _requiresMultiple = t?.requiresMultiple ?? false;
+    _notificationLevelId = t?.notificationLevelId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isEditing || _isPersonal) return;
       final mid = ref.read(authStateProvider).user?.memberId;
@@ -92,6 +95,7 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
         if (_priority != 'none') 'priority': _priority,
         'due_date': _dueDate?.toIso8601String(),
         'category_id': _categoryId,
+        'notification_level_id': _notificationLevelId,
       };
       if (!_isEditing) {
         data['is_personal'] = _isPersonal;
@@ -314,6 +318,13 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                         prefixIcon: const Icon(Icons.label_outline),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  NotificationLevelPicker(
+                    value: _notificationLevelId,
+                    onChanged: _isPersonal
+                        ? (_) {}
+                        : (v) => setState(() => _notificationLevelId = v),
                   ),
                   const SizedBox(height: 12),
                   if (!_isPersonal) ...[

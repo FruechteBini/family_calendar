@@ -1,6 +1,6 @@
 # Familienkalender — Funktionsuebersicht
 
-Letzte Aktualisierung: 2026-04-09
+Letzte Aktualisierung: 2026-04-10
 
 ---
 
@@ -202,7 +202,7 @@ Letzte Aktualisierung: 2026-04-09
 | KI-Vorschlag generieren (Preview) | ✅ | – | – | `POST /api/ai/generate-meal-plan` |
 | KI-Begruendung anzeigen (Popup) | ✅ | – | – | Response-Feld `reasoning` |
 | Vorschlag pruefen + Neu generieren | ✅ | – | – | Frontend-Dialog |
-| Plan bestaetigen + speichern | ✅ | – | – | `POST /api/ai/confirm-meal-plan` |
+| Plan bestaetigen + speichern | ✅ | ✅ | – | `POST /api/ai/confirm-meal-plan` (optional `send_to_knuspr`) |
 | Auto-Einkaufsliste bei Bestaetigung | ✅ | – | – | Backend-Logik |
 | Cookidoo-Rezepte auto-importieren | ✅ | – | – | Backend-Logik |
 | Plan rueckgaengig machen (Undo) | ✅ | – | – | `POST /api/ai/undo-meal-plan` |
@@ -223,7 +223,8 @@ Letzte Aktualisierung: 2026-04-09
 | Artikel loeschen (nur manuelle) | ✅ | ✅ | – | `DELETE /api/shopping/items/{id}` |
 | Gruppierung nach Kategorie | ✅ | ✅ | – | Frontend-Logik |
 | Fortschrittsanzeige | ✅ | ✅ | – | Frontend-Logik |
-| An Knuspr senden | ✅ | – | ✅ | `POST /api/knuspr/cart/send-list/{id}` |
+| An Knuspr senden (schnell / Produktwahl / App) | – | ✅ | ✅ | `POST /api/knuspr/cart/send-list/{id}`, Preview `.../preview-list/{id}`, Review-Route `/knuspr/review/{id}` |
+| Knuspr-Preise schaetzen (pro Zeile + Summe) | – | ✅ | – | `POST /api/knuspr/price-check` |
 | KI-Sortierung nach Supermarkt-Abteilungen | ✅ | – | – | `POST /api/shopping/sort` |
 
 ### KI-Einkaufslisten-Sortierung
@@ -278,13 +279,23 @@ Beim Generieren der Einkaufsliste aus dem Wochenplan wird automatisch die Vorrat
 
 ## 13. Knuspr-Integration (Online-Supermarkt)
 
+Backend nutzt das Paket **knuspr-api** (Modul `knuspr`); Zugangsdaten: `KNUSPR_EMAIL`, `KNUSPR_PASSWORD`.
+
 | Funktion | Web | Android | MCP | API-Endpunkt |
 |----------|:---:|:-------:|:---:|-------------|
-| Produkte suchen | – | – | ✅ | `GET /api/knuspr/products/search` |
-| Produkt in Warenkorb | – | – | ✅ | `POST /api/knuspr/cart/add` |
-| Einkaufsliste an Knuspr senden | ✅ | – | ✅ | `POST /api/knuspr/cart/send-list/{id}` |
-| Lieferslots abrufen | – | – | ✅ | `GET /api/knuspr/delivery-slots` |
-| Warenkorb leeren | – | – | ✅ | `DELETE /api/knuspr/cart` |
+| Verfuegbarkeit / Konfiguration | – | ✅ | – | `GET /api/knuspr/status` |
+| Produkte suchen | – | ✅ | ✅ | `GET /api/knuspr/products/search` |
+| Produkt in Warenkorb | – | ✅ | ✅ | `POST /api/knuspr/cart/add` |
+| Mehrere Produkte (Batch) | – | – | – | `POST /api/knuspr/cart/add-batch` |
+| Warenkorb anzeigen / Zeile entfernen | – | ✅ | – | `GET /api/knuspr/cart`, `DELETE /api/knuspr/cart/items/{order_field_id}` |
+| Einkaufsliste schnell senden | – | ✅ | ✅ | `POST /api/knuspr/cart/send-list/{id}` |
+| Vorschau Treffer (ohne Warenkorb) | – | ✅ | – | `POST /api/knuspr/cart/preview-list/{id}` |
+| Auswahl anwenden | – | ✅ | – | `POST /api/knuspr/cart/apply-selections/{id}` |
+| Preis-Schaetzung fuer Artikelnamen | – | ✅ | – | `POST /api/knuspr/price-check` |
+| Lieferslots | – | ✅ | ✅ | `GET /api/knuspr/delivery-slots` |
+| Lieferslot buchen (best effort) | – | ✅ | – | `POST /api/knuspr/delivery-slots/book` |
+| Warenkorb leeren | – | ✅ | ✅ | `DELETE /api/knuspr/cart` |
+| Produkt-Zuordnungen (Familie) | – | ✅ | – | `GET/POST/DELETE /api/knuspr/mappings` |
 
 ---
 
@@ -359,6 +370,7 @@ Beim Generieren der Einkaufsliste aus dem Wochenplan wird automatisch die Vorrat
 | **Design-Modus** | Hell / Dunkel / System (wie bisher) |
 | **Rezepte: Kategorien & Tags** | Tab-Leiste nach Kategorie filtern (+ Verwalten / Anordnen), horizontale Tag-**FilterChips** (Mehrfachauswahl = Schnittmenge), Karten mit Kategoriefarbe und Tags; **KI**-Button oeffnet Vorschau-Bottom-Sheet zum Uebernehmen. |
 | **Offline-Cache Rezepte** | Drift `schemaVersion` 3: `CachedRecipeCategories`, erweiterte `CachedRecipes` (Kategorie + `tagsJson`); Sync laedt `/api/recipe-categories/` und Rezepte mit verschachtelter Kategorie/Tags. |
+| **Knuspr** | Tab **Essen → Einkauf**: bei `GET /api/knuspr/status` mit `available: true` erscheinen **Preis-Icon** und **Liefersymbol-Menue** (Produkte waehlen, schnell in Warenkorb, App oeffnen). Vollstaendiger Knuspr-Bereich unter Route `/knuspr` und Review unter `/knuspr/review/{listId}`. |
 
 ---
 
@@ -384,6 +396,7 @@ Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar 
 | Rezept erstellen | `create_recipe` | "Neues Rezept Kartoffelsuppe, einfach, 30 Minuten" |
 | Essensplan belegen | `set_meal_slot` | "Am Dienstag Abend gibt es Spaghetti Bolognese" |
 | Einkaufsartikel hinzufuegen | `add_shopping_item` | "Fuege 500g Mehl zur Einkaufsliste hinzu" |
+| Einkaufsliste an Knuspr | `send_to_knuspr` | "Schick die Einkaufsliste zu Knuspr" |
 | Vorratskammer befuellen | `add_pantry_items` | "Wir haben noch Salz, Pfeffer, 20 Dosen Tomaten gehackt, Mehl bis Juni" |
 | Essensplan per KI erstellen | `generate_meal_plan` | "Plane mir diese Woche, Montag Abend und Mittwoch Mittag, was Neues und was Bewaehrtes" |
 | Termin verschieben / bearbeiten | `update_event` | "Verschiebe das Meeting auf Mittwoch um 15 Uhr" |
@@ -455,8 +468,8 @@ Alle Daten sind per `family_id` einer Familie zugeordnet. Jeder User gehoert zu 
 | shopping | `/api/shopping` | 6 |
 | pantry | `/api/pantry` | 8 |
 | cookidoo | `/api/cookidoo` | 6 |
-| knuspr | `/api/knuspr` | 5 |
+| knuspr | `/api/knuspr` | 15 |
 | ai | `/api/ai` | 7 |
 | categories | `/api/categories` | 4 |
 | family_members | `/api/family-members` | 4 |
-| **Gesamt** | | **74 Endpunkte** |
+| **Gesamt** | | **84 Endpunkte** |

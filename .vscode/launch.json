@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter (Google: dart_defines.json)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/flutter",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file=${workspaceFolder}/flutter/dart_defines.json"
+      ]
+    },
+    {
+      "name": "Flutter (ohne Google dart-defines)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/flutter",
+      "program": "lib/main.dart"
+    }
+  ]
+}

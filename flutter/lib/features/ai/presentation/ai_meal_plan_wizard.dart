@@ -20,6 +20,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
   AiAvailableRecipes? _available;
   Set<String> _selectedSlots = {};
   bool _includeCookidoo = false;
+  bool _sendToKnuspr = false;
   int _servings = 2;
   final _preferencesController = TextEditingController();
   AiMealPlanPreview? _preview;
@@ -94,7 +95,11 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
     if (_preview == null) return;
     setState(() => _loading = true);
     try {
-      _confirmResult = await ref.read(aiRepositoryProvider).confirmMealPlan(_weekStart, _preview!.suggestions);
+      _confirmResult = await ref.read(aiRepositoryProvider).confirmMealPlan(
+            _weekStart,
+            _preview!.suggestions,
+            sendToKnuspr: _sendToKnuspr,
+          );
       ref.invalidate(weekPlanProvider);
       ref.read(syncTickProvider.notifier).state++;
       await ref.read(weekPlanProvider.future);
@@ -177,6 +182,15 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
   String _mondayIso(DateTime d) {
     final monday = DateTime(d.year, d.month, d.day).subtract(Duration(days: d.weekday - 1));
     return '${monday.year.toString().padLeft(4, '0')}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+  }
+
+  String _knusprSummary(Map<String, dynamic> k) {
+    if (k['error'] != null) return 'Knuspr: ${k['error']}';
+    final ok = k['success'] == true;
+    if (!ok) return 'Knuspr: fehlgeschlagen';
+    final a = k['total_added'];
+    final f = k['total_failed'];
+    return 'Knuspr: $a Artikel hinzugefügt, $f fehlgeschlagen';
   }
 
   Widget _buildStep(ThemeData theme) {
@@ -318,7 +332,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
                       children: [
                         if (lunch != null)
                           _SlotChip(
-                            slot: lunch!,
+                            slot: lunch,
                             selectedKeys: _selectedSlots,
                             onToggle: (key, v) => setState(() => v
                                 ? _selectedSlots.add(key)
@@ -326,7 +340,7 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
                           ),
                         if (dinner != null)
                           _SlotChip(
-                            slot: dinner!,
+                            slot: dinner,
                             selectedKeys: _selectedSlots,
                             onToggle: (key, v) => setState(() => v
                                 ? _selectedSlots.add(key)
@@ -429,6 +443,16 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
                 trailing: s.isCookidoo ? const Icon(Icons.cloud, size: 16) : null,
               ),
             )),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          title: const Text('Direkt bei Knuspr bestellen'),
+          subtitle: const Text(
+            'Nach dem Speichern: offene Artikel in den Knuspr-Warenkorb legen',
+          ),
+          value: _sendToKnuspr,
+          onChanged: _loading ? null : (v) => setState(() => _sendToKnuspr = v),
+          contentPadding: EdgeInsets.zero,
+        ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -462,6 +486,14 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
         const SizedBox(height: 8),
         if (_confirmResult?.shoppingListId != null)
           Text('Einkaufsliste wurde automatisch aktualisiert', style: theme.textTheme.bodyMedium),
+        if (_confirmResult?.knuspr != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _knusprSummary(_confirmResult!.knuspr!),
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+        ],
         const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,

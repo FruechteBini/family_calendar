@@ -138,7 +138,7 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | `backend/app/routers/meals.py` | `/api/meals` | plan CRUD + mark-as-cooked |
 | `backend/app/routers/shopping.py` | `/api/shopping` | list, generate, items CRUD, sort (KI) |
 | `backend/app/routers/cookidoo.py` | `/api/cookidoo` | status, collections, recipes, import, calendar |
-| `backend/app/routers/knuspr.py` | `/api/knuspr` | products, cart, delivery-slots |
+| `backend/app/routers/knuspr.py` | `/api/knuspr` | status, search, cart (get/add/batch/clear/line), send-list, preview, apply-selections, price-check, delivery-slots + book, mappings CRUD |
 | `backend/app/routers/ai.py` | `/api/ai` | available-recipes, generate-meal-plan (preview), confirm-meal-plan, undo-meal-plan, prioritize-todos, apply-todo-priorities, categorize-recipes, apply-recipe-categorization |
 | `backend/app/routers/categories.py` | `/api/categories` | CRUD |
 | `backend/app/routers/notes.py` | `/api/notes` | CRUD, pin, archive, Farbe, reorder, Link-Preview, Duplikat-Check, Todo-Konvertierung, Kommentare, Datei-Anhaenge |
@@ -174,7 +174,7 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | **Kategorien** | Event/Todo-Kategorien | `routers/categories.py`, `models/category.py`, `schemas/category.py` | Auth |
 | **Notizen** | Text/Link/Checklisten, eigene Kategorien & Tags, Kommentare, Anhaenge | `routers/notes.py`, `routers/note_categories.py`, `routers/note_tags.py`, `models/note*.py`, `schemas/note*.py`, `link_preview.py` | Auth, httpx, beautifulsoup4, lxml |
 | **Cookidoo** | Thermomix Rezept-Import | `routers/cookidoo.py`, `integrations/cookidoo/client.py`, `integrations/cookidoo/importer.py` | Auth, Rezepte, cookidoo-api |
-| **Knuspr** | Online-Supermarkt Integration | `routers/knuspr.py`, `integrations/knuspr/client.py`, `integrations/knuspr/cart.py` | Auth, Einkaufsliste, knuspr-api |
+| **Knuspr** | Online-Supermarkt Integration | `routers/knuspr.py`, `schemas/knuspr.py`, `models/knuspr_mapping.py`, `integrations/knuspr/client.py`, `integrations/knuspr/cart.py` | Auth, Einkaufsliste, knuspr-api |
 | **AI** | KI-Essensplanung, Todo-Priorisierung, Rezept-Kategorisierung/Labeling via Claude | `routers/ai.py`, `schemas/ai.py` | Auth, Rezepte, Cookidoo (optional), anthropic |
 | **MCP-Server** | Claude Desktop Integration | `mcp_server.py` | Alle Backend-Models, mcp SDK |
 
@@ -189,11 +189,11 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | **Flutter Todos** | Todo CRUD, Proposals, Quick-Add, Filter | `features/todos/domain/todo.dart`, `features/todos/data/todo_repository.dart`, `features/todos/presentation/todo_list_screen.dart` | Auth, Categories, Members |
 | **Flutter Rezepte** | Rezept CRUD, URL-Import, Cookidoo-Browser, Kategorie-Tabs + Tag-Filter, KI-Sortieren-Sheet, Kategorieverwaltung | `features/recipes/domain/recipe.dart`, `recipe_category.dart`, `recipe_tag.dart`, `data/recipe_repository.dart`, `recipe_category_repository.dart`, `recipe_tag_repository.dart`, `presentation/recipe_list_screen.dart`, `recipe_form_dialog.dart`, `recipe_categories_screen.dart`, `ai_categorize_sheet.dart` | Auth |
 | **Flutter Essensplanung** | Wochenplan, Slot-Zuweisung, Gekocht-Markierung | `features/meals/domain/meal_plan.dart`, `features/meals/data/meal_repository.dart`, `features/meals/presentation/week_plan_screen.dart` | Auth, Rezepte |
-| **Flutter Einkaufsliste** | Generieren, KI-Sort, Items CRUD | `features/shopping/domain/shopping.dart`, `features/shopping/data/shopping_repository.dart`, `features/shopping/presentation/shopping_list_screen.dart` | Auth, Rezepte, Essensplanung |
+| **Flutter Einkaufsliste** | Generieren, KI-Sort, Items CRUD, Knuspr-Menue + Preis-Schaetzung (`shopping_list_screen_real.dart`) | `features/shopping/domain/shopping.dart`, `features/shopping/data/shopping_repository.dart`, `features/shopping/presentation/shopping_list_screen_real.dart` | Auth, Rezepte, Essensplanung, Knuspr-Status |
 | **Flutter Vorratskammer** | Pantry CRUD, Bulk-Add, Alerts | `features/pantry/domain/pantry_item.dart`, `features/pantry/data/pantry_repository.dart`, `features/pantry/presentation/pantry_screen.dart` | Auth |
 | **Flutter AI** | KI-Essensplan Wizard, Voice FAB, Rezept-Kategorisierung (`categorizeRecipes` / `applyRecipeCategorization`) | `features/ai/domain/ai_models.dart`, `features/ai/data/ai_repository.dart`, `features/ai/presentation/ai_meal_plan_wizard.dart`, `features/ai/presentation/voice_fab.dart` | Auth, Rezepte, speech_to_text |
 | **Flutter Cookidoo** | Collections browsen, Rezept-Import | `features/cookidoo/domain/cookidoo.dart`, `features/cookidoo/data/cookidoo_repository.dart`, `features/cookidoo/presentation/cookidoo_browser.dart` | Auth, Rezepte |
-| **Flutter Knuspr** | Produktsuche, Warenkorb, Lieferslots | `features/knuspr/domain/knuspr.dart`, `features/knuspr/data/knuspr_repository.dart`, `features/knuspr/presentation/knuspr_screen.dart` | Auth, Einkaufsliste |
+| **Flutter Knuspr** | Suche, Server-Warenkorb, Slots, Zuordnungen, Review-Screen | `features/knuspr/domain/knuspr.dart`, `data/knuspr_repository.dart`, `data/knuspr_status_provider.dart`, `presentation/knuspr_screen.dart`, `presentation/knuspr_review_screen.dart` | Auth, Einkaufsliste |
 | **Flutter Settings** | Theme, **Sekundärfarbe (Akzent, Color Picker)**, Server-URL, User/Family Info | `features/settings/presentation/settings_screen.dart` | Auth, shared_preferences |
 | **Flutter Offline/Sync** | Drift DB (Schema v3: `CachedRecipeCategories`, Rezept-Kategorie/Tags im Cache), Pending-Queue, Background Sync | `core/database/app_database.dart`, `core/database/tables/tables.dart`, `core/sync/sync_service.dart`, `core/sync/pending_change.dart` | Drift, workmanager |
 | **Flutter Theme** | Material 3 Light/Dark, AppColors, nutzerdefinierte Akzentfarbe (`ColorScheme.fromSeed`), `FamilienThemeTokens` (Accent-Gradient) | `core/theme/app_theme.dart`, `core/theme/colors.dart`, `core/theme/accent_color_provider.dart`, `core/theme/theme_context.dart`, `core/theme/theme.dart` | shared_preferences |
@@ -360,7 +360,7 @@ Browser/App → HTTP JSON → FastAPI Router → Pydantic Schema (Validierung)
 | Flutter Vorratskammer | `features/pantry/presentation/pantry_screen.dart`, `features/pantry/data/pantry_repository.dart`, `features/pantry/domain/pantry_item.dart` |
 | Flutter Sprachbefehle | `features/ai/presentation/voice_fab.dart`, `features/ai/data/ai_repository.dart` |
 | Flutter Cookidoo | `features/cookidoo/presentation/cookidoo_browser.dart`, `features/cookidoo/data/cookidoo_repository.dart` |
-| Flutter Knuspr | `features/knuspr/presentation/knuspr_screen.dart`, `features/knuspr/data/knuspr_repository.dart` |
+| Flutter Knuspr | `features/knuspr/presentation/knuspr_screen.dart`, `knuspr_review_screen.dart`, `data/knuspr_repository.dart`, `data/knuspr_status_provider.dart` |
 | Flutter Auth aendern | `core/auth/auth_provider.dart`, `core/auth/auth_interceptor.dart`, `features/auth/presentation/login_screen.dart` |
 | Flutter Navigation/Shell | `app/router.dart`, `app/app_shell.dart` |
 | Flutter Theme/Styling / Akzentfarbe | `core/theme/app_theme.dart`, `core/theme/colors.dart`, `core/theme/accent_color_provider.dart`, `core/theme/theme_context.dart`, `app/app.dart` |

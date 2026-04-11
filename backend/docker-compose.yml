@@ -21,6 +21,9 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://kalender:kalender@db:5432/kalender
+      FIREBASE_CREDENTIALS_PATH: /app/secrets/firebase-service-account.json
+    volumes:
+      - ./secrets:/app/secrets:ro
     depends_on:
       db:
         condition: service_started
@@ -37,6 +40,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://kalender:kalender@db:5432/kalender
+      FIREBASE_CREDENTIALS_PATH: /app/secrets/firebase-service-account.json
     depends_on:
       - api
     restart: unless-stopped

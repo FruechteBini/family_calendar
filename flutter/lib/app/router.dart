@@ -6,11 +6,13 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/family/presentation/family_onboarding_screen.dart';
 import '../features/today/presentation/today_screen_real.dart';
 import '../features/calendar/presentation/calendar_screen_real.dart';
+import '../features/calendar/presentation/event_detail_screen.dart';
 import '../features/todos/presentation/todo_list_screen.dart';
 import '../features/meals/presentation/meals_screen.dart';
 import '../features/members/presentation/members_screen.dart';
 import '../features/categories/presentation/categories_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/settings/presentation/settings_submenu_screens.dart';
 import '../features/settings/presentation/google_sync_settings_screen.dart';
 import '../features/notifications/presentation/notification_settings_screen.dart';
 import '../features/notifications/presentation/notification_levels_screen.dart';
@@ -89,6 +91,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: CalendarScreen()),
           ),
           GoRoute(
+            path: '/events/:id',
+            pageBuilder: (context, state) {
+              final idStr = state.pathParameters['id'] ?? '';
+              final id = int.tryParse(idStr) ?? 0;
+              return NoTransitionPage(child: EventDetailScreen(eventId: id));
+            },
+          ),
+          GoRoute(
             path: '/todos',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: TodoListScreen()),
@@ -163,6 +173,23 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: SettingsScreen()),
+          ),
+          // Full paths (not nested under /settings): nested children are not matched
+          // reliably for this ShellRoute + NoTransitionPage setup in go_router.
+          GoRoute(
+            path: '/settings/todos',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SettingsTodosMenuScreen()),
+          ),
+          GoRoute(
+            path: '/settings/notes',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SettingsNotesMenuScreen()),
+          ),
+          GoRoute(
+            path: '/settings/family',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SettingsFamilyMenuScreen()),
           ),
           GoRoute(
             path: '/google-sync',

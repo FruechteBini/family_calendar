@@ -59,3 +59,9 @@ final noteCategoryRepositoryProvider =
     Provider<NoteCategoryRepository>((ref) {
   return NoteCategoryRepository(ref.watch(dioProvider));
 });
+
+/// Single cache for note categories (tabs, note form, category screen).
+final noteCategoriesListProvider =
+    FutureProvider<List<NoteCategory>>((ref) {
+  return ref.watch(noteCategoryRepositoryProvider).getCategories();
+});

@@ -259,7 +259,19 @@ class _ActionRow extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Hinzugefügt: ${r.totalAdded}, fehlgeschlagen: ${r.totalFailed}'),
+              Text(
+                'Hinzugefügt: ${r.totalAdded}, fehlgeschlagen: ${r.totalFailed}, '
+                'ohne Knuspr-Favorit: ${r.totalSkipped}',
+              ),
+              if (r.totalSkipped > 0) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Für diese Artikel gab es keinen lieferbaren Knuspr-Favoriten in der Suche. '
+                  'Bitte „Produkte wählen…“ nutzen.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                ...r.skipped.map((s) => Text('• ${s['item']}')),
+              ],
               if (r.failed.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text('Fehler:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -397,12 +409,21 @@ class _ActionRow extends ConsumerWidget {
           icon: const Icon(Icons.local_shipping_outlined),
           onSelected: (v) async {
             if (v == 'browse') context.push('/knuspr');
-            if (v == 'review') context.push('/knuspr/review/${l.id}');
+            if (v == 'review') {
+              final changed =
+                  await context.push<bool>('/knuspr/review/${l.id}');
+              if (changed == true && context.mounted) {
+                ref.invalidate(shoppingListProvider);
+              }
+            }
             if (v == 'quick') {
               try {
                 final r =
                     await ref.read(knusprRepositoryProvider).sendShoppingList(l.id);
-                if (context.mounted) await _showKnusprResult(context, r);
+                if (context.mounted) {
+                  await _showKnusprResult(context, r);
+                  ref.invalidate(shoppingListProvider);
+                }
               } on ApiException catch (e) {
                 if (context.mounted) {
                   showAppToast(context, message: e.message, type: ToastType.error);
@@ -412,7 +433,10 @@ class _ActionRow extends ConsumerWidget {
           },
           itemBuilder: (ctx) => const [
             PopupMenuItem(value: 'review', child: Text('Produkte wählen…')),
-            PopupMenuItem(value: 'quick', child: Text('Schnell in Warenkorb')),
+            PopupMenuItem(
+              value: 'quick',
+              child: Text('Schnell (nur Knuspr-Favoriten)'),
+            ),
             PopupMenuItem(value: 'browse', child: Text('Knuspr-App öffnen')),
           ],
         ),

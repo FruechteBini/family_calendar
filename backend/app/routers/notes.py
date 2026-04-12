@@ -232,7 +232,6 @@ async def list_notes(
 
     stmt = stmt.order_by(
         Note.is_pinned.desc(),
-        Note.position.asc(),
         Note.created_at.desc(),
     )
     result = await db.execute(stmt)

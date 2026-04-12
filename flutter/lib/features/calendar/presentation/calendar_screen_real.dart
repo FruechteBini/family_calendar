@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/toast.dart';
 import '../../../core/sync/sync_service.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
@@ -144,12 +144,8 @@ class CalendarScreen extends ConsumerWidget {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, i) => _EventTile(
                         event: dayEvents[i],
-                        onTap: () async {
-                          await showDialog<void>(
-                            context: context,
-                            builder: (_) => EventFormDialog(event: dayEvents[i], initialDate: selected),
-                          );
-                          ref.invalidate(monthEventsProvider(month));
+                        onTap: () {
+                          context.push('/events/${dayEvents[i].id}');
                         },
                       ),
                     ),

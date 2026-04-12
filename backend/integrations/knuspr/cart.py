@@ -69,6 +69,39 @@ async def _record_mapping(
         )
 
 
+async def _delete_shopping_item_for_list(
+    db: AsyncSession,
+    shopping_list_id: int,
+    family_id: int,
+    *,
+    shopping_item_id: int | None = None,
+    item_name: str | None = None,
+) -> None:
+    """Remove a line from the in-app list after it was added to the Knuspr cart."""
+    base = (
+        select(ShoppingItem)
+        .join(ShoppingList)
+        .where(
+            ShoppingList.id == shopping_list_id,
+            ShoppingList.family_id == family_id,
+        )
+    )
+    if shopping_item_id is not None:
+        r = await db.execute(base.where(ShoppingItem.id == shopping_item_id))
+    elif item_name and item_name.strip():
+        r = await db.execute(
+            base.where(
+                ShoppingItem.name == item_name.strip(),
+                ShoppingItem.checked.is_(False),
+            ).limit(1)
+        )
+    else:
+        return
+    row = r.scalar_one_or_none()
+    if row:
+        await db.delete(row)
+
+
 def _match_from_dict(d: dict[str, Any]) -> dict[str, Any]:
     return {
         "product_id": d["id"],
@@ -76,7 +109,21 @@ def _match_from_dict(d: dict[str, Any]) -> dict[str, Any]:
         "price": d.get("price"),
         "unit": d.get("unit"),
         "available": d.get("available", True),
+        "favourite": d.get("favourite", False),
     }
+
+
+def _preview_match_sort_key(m: dict[str, Any]) -> tuple[int, int]:
+    """Order: favourite+available, other+available, favourite+unavailable, rest."""
+    fav = bool(m.get("favourite"))
+    avail = bool(m.get("available", True))
+    if fav and avail:
+        return (0, 0)
+    if avail:
+        return (1, 0)
+    if fav:
+        return (2, 0)
+    return (3, 0)
 
 
 async def preview_shopping_list(
@@ -114,15 +161,16 @@ async def preview_shopping_list(
             }
             matches.append(_match_from_dict(fake))
             seen_ids.add(mapped.knuspr_product_id)
-        found = await knuspr_client.search_products(item.name, limit=5)
+        found = await knuspr_client.search_products(item.name, limit=8)
         for p in found:
             pid = p["id"]
             if pid in seen_ids:
                 continue
             matches.append(_match_from_dict(p))
             seen_ids.add(pid)
-            if len(matches) >= 3:
+            if len(matches) >= 8:
                 break
+        matches.sort(key=_preview_match_sort_key)
         lines.append(
             {
                 "shopping_item_id": item.id,
@@ -156,6 +204,8 @@ async def apply_selections_to_cart(
         pid = str(sel.get("product_id", ""))
         qty = int(sel.get("quantity") or 1)
         pname = str(sel.get("product_name") or name)
+        raw_sid = sel.get("shopping_item_id")
+        shopping_item_id = int(raw_sid) if raw_sid is not None else None
         if not pid:
             failed.append({"item": name, "reason": "Keine Produkt-ID"})
             continue
@@ -163,6 +213,13 @@ async def apply_selections_to_cart(
             await knuspr_client.add_to_cart(pid, quantity=qty)
             added.append({"item": name, "product": pname or pid})
             await _record_mapping(db, family_id, name, pid, pname)
+            await _delete_shopping_item_for_list(
+                db,
+                shopping_list_id,
+                family_id,
+                shopping_item_id=shopping_item_id,
+                item_name=name if shopping_item_id is None else None,
+            )
         except Exception as e:
             failed.append({"item": name, "reason": str(e)})
 
@@ -170,15 +227,20 @@ async def apply_selections_to_cart(
         "success": True,
         "added": added,
         "failed": failed,
+        "skipped": [],
         "total_added": len(added),
         "total_failed": len(failed),
+        "total_skipped": 0,
     }
 
 
 async def send_list_to_cart(
     shopping_list_id: int, db: AsyncSession, family_id: int | None = None,
 ) -> dict[str, Any]:
-    """Search each unchecked item on Knuspr and add best match to cart."""
+    """Add unchecked items only when Knuspr search lists them as favourite and in stock.
+
+    Other items stay on the in-app list for „Produkte wählen“. Successfully added lines are removed locally.
+    """
     stmt = (
         select(ShoppingList)
         .options(selectinload(ShoppingList.items))
@@ -194,31 +256,30 @@ async def send_list_to_cart(
     fid = sl.family_id
     added = []
     failed = []
+    skipped = []
 
-    for item in sl.items:
-        if item.checked:
-            continue
+    unchecked = [it for it in sl.items if not it.checked]
+    for item in unchecked:
         qty = shopping_item_quantity(item)
-        norm = normalize_ingredient_name(item.name)
         try:
-            mapped = await _get_mapping(db, fid, norm)
-            if mapped:
-                await knuspr_client.add_to_cart(mapped.knuspr_product_id, quantity=qty)
-                pname = mapped.knuspr_product_name or item.name
-                added.append({"item": item.name, "product": pname})
-                await _record_mapping(
-                    db, fid, item.name, mapped.knuspr_product_id, pname,
-                )
+            products = await knuspr_client.search_products(item.name, limit=8)
+            fav_avail = [
+                p for p in products if p.get("favourite") and p.get("available", True)
+            ]
+            if not fav_avail:
+                skipped.append({"item": item.name})
                 continue
-            products = await knuspr_client.search_products(item.name, limit=1)
-            product = products[0] if products else None
-            if product and product.get("available", True):
-                await knuspr_client.add_to_cart(product["id"], quantity=qty)
-                pname = str(product.get("name", ""))
-                added.append({"item": item.name, "product": pname})
-                await _record_mapping(db, fid, item.name, str(product["id"]), pname)
-            else:
-                failed.append({"item": item.name, "reason": "Nicht gefunden oder nicht verfügbar"})
+            product = fav_avail[0]
+            await knuspr_client.add_to_cart(product["id"], quantity=qty)
+            pname = str(product.get("name", ""))
+            added.append({"item": item.name, "product": pname})
+            await _record_mapping(db, fid, item.name, str(product["id"]), pname)
+            await _delete_shopping_item_for_list(
+                db,
+                shopping_list_id,
+                fid,
+                shopping_item_id=item.id,
+            )
         except Exception as e:
             failed.append({"item": item.name, "reason": str(e)})
 
@@ -226,6 +287,8 @@ async def send_list_to_cart(
         "success": True,
         "added": added,
         "failed": failed,
+        "skipped": skipped,
         "total_added": len(added),
         "total_failed": len(failed),
+        "total_skipped": len(skipped),
     }

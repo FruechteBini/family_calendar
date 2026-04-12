@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_provider.dart';
@@ -217,15 +218,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const Expanded(child: Divider()),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: authState.isLoading ? null : _loginWithGoogle,
-                          icon: const Icon(Icons.account_circle_outlined),
-                          label: const Text('Mit Google anmelden'),
+                      if (!kIsWeb) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: authState.isLoading ? null : _loginWithGoogle,
+                            icon: const Icon(Icons.account_circle_outlined),
+                            label: const Text('Mit Google anmelden'),
+                          ),
                         ),
-                      ),
+                      ],
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () => setState(() => _isRegister = !_isRegister),

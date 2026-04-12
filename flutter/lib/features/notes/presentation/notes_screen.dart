@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../core/api/api_client.dart';
@@ -19,9 +20,6 @@ final notesScopeProvider = StateProvider<NotesScope>((ref) => NotesScope.family)
 final _notesArchivedProvider = StateProvider<bool>((ref) => false);
 final _notesCategoryIdProvider = StateProvider<int?>((ref) => null);
 final _notesSearchQueryProvider = StateProvider<String>((ref) => '');
-
-final _noteCategoriesForTabsProvider =
-    FutureProvider((ref) => ref.read(noteCategoryRepositoryProvider).getCategories());
 
 final notesListProvider = FutureProvider<List<Note>>((ref) {
   final scope = ref.watch(notesScopeProvider);
@@ -64,7 +62,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
     if (ok == true && mounted) {
       ref.invalidate(notesListProvider);
-      ref.invalidate(_noteCategoriesForTabsProvider);
+      ref.invalidate(noteCategoriesListProvider);
     }
   }
 
@@ -95,24 +93,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             buildQuickNotePayload(raw, isPersonal: isPersonal),
           );
       ref.invalidate(notesListProvider);
-      ref.invalidate(_noteCategoriesForTabsProvider);
+      ref.invalidate(noteCategoriesListProvider);
       if (mounted) {
         showAppToast(context,
             message: 'Notiz angelegt', type: ToastType.success);
       }
-    } on ApiException catch (e) {
-      if (mounted) {
-        showAppToast(context, message: e.message, type: ToastType.error);
-      }
-    }
-  }
-
-  Future<void> _onReorder(List<Note> ordered) async {
-    try {
-      await ref.read(noteRepositoryProvider).reorderNotes(
-            ordered.map((n) => n.id).toList(),
-          );
-      ref.invalidate(notesListProvider);
     } on ApiException catch (e) {
       if (mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);
@@ -127,7 +112,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final scope = ref.watch(notesScopeProvider);
     final archived = ref.watch(_notesArchivedProvider);
     final selectedCat = ref.watch(_notesCategoryIdProvider);
-    final catsAsync = ref.watch(_noteCategoriesForTabsProvider);
+    final catsAsync = ref.watch(noteCategoriesListProvider);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
@@ -172,41 +157,27 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
           catsAsync.when(
             data: (cats) {
-              final tabs = <Widget>[
-                const Tab(text: 'Alle'),
-                ...cats.map((c) => Tab(text: '${c.icon} ${c.name}')),
-              ];
-              var initial = 0;
-              if (selectedCat != null) {
-                final i = cats.indexWhere((c) => c.id == selectedCat);
-                if (i >= 0) initial = i + 1;
-              }
               return Padding(
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: DefaultTabController(
-                        key: ValueKey('nc_$initial'),
-                        length: tabs.length,
-                        initialIndex: initial.clamp(0, tabs.length - 1),
-                        child: Builder(
-                          builder: (ctx) => TabBar(
-                            isScrollable: true,
-                            tabAlignment: TabAlignment.start,
-                            onTap: (i) {
-                              if (i == 0) {
-                                ref.read(_notesCategoryIdProvider.notifier).state =
-                                    null;
-                              } else {
-                                ref.read(_notesCategoryIdProvider.notifier).state =
-                                    cats[i - 1].id;
-                              }
-                              ref.invalidate(notesListProvider);
-                            },
-                            tabs: tabs,
-                          ),
-                        ),
+                      child: CategoryFilterStrip(
+                        entries: cats
+                            .map(
+                              (c) => CategoryStripEntry(
+                                id: c.id,
+                                label: '${c.icon} ${c.name}',
+                                colorHex: c.color,
+                              ),
+                            )
+                            .toList(),
+                        selectedCategoryId: selectedCat,
+                        onCategorySelected: (id) {
+                          ref.read(_notesCategoryIdProvider.notifier).state = id;
+                          ref.invalidate(notesListProvider);
+                        },
                       ),
                     ),
                     IconButton(
@@ -217,7 +188,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             builder: (_) => const NoteCategoriesScreen(),
                           ),
                         );
-                        ref.invalidate(_noteCategoriesForTabsProvider);
+                        ref.invalidate(noteCategoriesListProvider);
                       },
                       icon: const Icon(Icons.add),
                     ),
@@ -300,40 +271,20 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  archived ? 'Archiv' : 'Notizen',
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                              ),
-                              if (rest.length > 1)
-                                Text(
-                                  'Zum Sortieren lange ziehen',
-                                  style: theme.textTheme.labelSmall,
-                                ),
-                            ],
+                          child: Text(
+                            archived ? 'Archiv' : 'Notizen',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                         ),
                       ),
-                      SliverReorderableList(
-                        itemCount: rest.length,
-                        onReorder: (oldI, newI) {
-                          if (newI > oldI) newI -= 1;
-                          final next = List<Note>.from(rest);
-                          final item = next.removeAt(oldI);
-                          next.insert(newI, item);
-                          _onReorder([...pinned, ...next]);
-                        },
-                        itemBuilder: (ctx, i) {
-                          final n = rest[i];
-                          return ReorderableDelayedDragStartListener(
-                            key: ValueKey('note_${n.id}'),
-                            index: i,
-                            child: Padding(
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) {
+                            final n = rest[i];
+                            return Padding(
+                              key: ValueKey('note_${n.id}'),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 6,
@@ -345,9 +296,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                 onEdit: () => _openForm(note: n),
                                 onOpenComments: () => _openComments(n),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                          childCount: rest.length,
+                        ),
                       ),
                     ],
                   ),

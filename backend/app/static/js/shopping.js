@@ -234,8 +234,14 @@ const Shopping = (() => {
         alert('Alle Artikel bereits abgehakt.');
         return;
       }
-      await API.post(`/api/knuspr/cart/send-list/${shoppingList.id}`);
-      alert('Einkaufsliste an Knuspr gesendet!');
+      const res = await API.post(`/api/knuspr/cart/send-list/${shoppingList.id}`);
+      const d = res || {};
+      const skip = d.total_skipped != null ? d.total_skipped : 0;
+      alert(
+        `Knuspr: ${d.total_added ?? 0} Favoriten in den Warenkorb, ` +
+          `${d.total_failed ?? 0} fehlgeschlagen, ${skip} ohne Favorit (bleiben auf der Liste).`,
+      );
+      await refresh();
     } catch (err) {
       alert('Knuspr-Fehler: ' + err.message);
     }

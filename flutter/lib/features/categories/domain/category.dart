@@ -2,13 +2,15 @@ class Category {
   final int id;
   final int position;
   final String name;
-  final String? color;
+  final String color;
+  final String icon;
 
   const Category({
     required this.id,
     required this.position,
     required this.name,
-    this.color,
+    required this.color,
+    required this.icon,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -16,14 +18,16 @@ class Category {
       id: json['id'] as int,
       position: json['position'] as int? ?? 0,
       name: json['name'] as String,
-      color: json['color'] as String?,
+      color: json['color'] as String? ?? '#0052CC',
+      icon: json['icon'] as String? ?? '\u{1F4C1}',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      if (color != null) 'color': color,
+      'color': color,
+      'icon': icon,
       'position': position,
     };
   }

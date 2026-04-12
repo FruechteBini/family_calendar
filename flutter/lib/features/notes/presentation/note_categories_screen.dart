@@ -7,10 +7,6 @@ import '../../../shared/widgets/toast.dart';
 import '../data/note_category_repository.dart';
 import '../domain/note_category.dart';
 
-final noteCategoriesListProvider = FutureProvider<List<NoteCategory>>((ref) {
-  return ref.watch(noteCategoryRepositoryProvider).getCategories();
-});
-
 class NoteCategoriesScreen extends ConsumerStatefulWidget {
   const NoteCategoriesScreen({super.key});
 

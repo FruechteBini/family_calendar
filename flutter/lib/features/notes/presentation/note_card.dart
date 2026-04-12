@@ -9,6 +9,7 @@ import '../../../shared/widgets/toast.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
 import 'note_attachment_helpers.dart';
+import '../../todos/presentation/todo_form_dialog.dart';
 
 class NoteCard extends ConsumerWidget {
   final Note note;
@@ -89,8 +90,11 @@ class NoteCard extends ConsumerWidget {
           );
           break;
         case 'todo':
-          await repo.convertToTodo(note.id, archiveNote: true);
-          if (context.mounted) {
+          final created = await showDialog<bool>(
+            context: context,
+            builder: (_) => TodoFormDialog(convertFromNote: note),
+          );
+          if (context.mounted && created == true) {
             showAppToast(context,
                 message: 'Todo erstellt', type: ToastType.success);
           }

@@ -15,6 +15,9 @@ import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
 import '../../notifications/presentation/widgets/notification_level_picker.dart';
 
+/// Returned from [EventFormDialog] when the user saves or deletes (not on cancel).
+enum EventFormDialogOutcome { saved, deleted }
+
 final _categoriesProvider = FutureProvider<List<Category>>((ref) {
   return ref.watch(categoryRepositoryProvider).getCategories();
 });
@@ -101,7 +104,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
       } else {
         await repo.createEvent(data);
       }
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop(EventFormDialogOutcome.saved);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
     } finally {
@@ -124,7 +127,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(eventRepositoryProvider).deleteEvent(widget.event!.id);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop(EventFormDialogOutcome.deleted);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
     }

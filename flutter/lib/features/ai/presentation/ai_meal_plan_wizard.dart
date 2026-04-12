@@ -190,7 +190,9 @@ class _AiMealPlanWizardState extends ConsumerState<AiMealPlanWizard> {
     if (!ok) return 'Knuspr: fehlgeschlagen';
     final a = k['total_added'];
     final f = k['total_failed'];
-    return 'Knuspr: $a Artikel hinzugefügt, $f fehlgeschlagen';
+    final s = k['total_skipped'];
+    final skipPart = s is num && s > 0 ? ', ${s.toInt()} ohne Favorit' : '';
+    return 'Knuspr: $a Artikel hinzugefügt, $f fehlgeschlagen$skipPart';
   }
 
   Widget _buildStep(ThemeData theme) {

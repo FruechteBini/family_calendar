@@ -150,16 +150,20 @@ class KnusprSendResult {
   final bool success;
   final int totalAdded;
   final int totalFailed;
+  final int totalSkipped;
   final List<Map<String, dynamic>> added;
   final List<Map<String, dynamic>> failed;
+  final List<Map<String, dynamic>> skipped;
   final String? error;
 
   const KnusprSendResult({
     required this.success,
     this.totalAdded = 0,
     this.totalFailed = 0,
+    this.totalSkipped = 0,
     this.added = const [],
     this.failed = const [],
+    this.skipped = const [],
     this.error,
   });
 
@@ -168,11 +172,16 @@ class KnusprSendResult {
       success: json['success'] as bool? ?? false,
       totalAdded: json['total_added'] as int? ?? 0,
       totalFailed: json['total_failed'] as int? ?? 0,
+      totalSkipped: json['total_skipped'] as int? ?? 0,
       added: (json['added'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           [],
       failed: (json['failed'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [],
+      skipped: (json['skipped'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           [],
@@ -187,6 +196,7 @@ class PreviewMatch {
   final double? price;
   final String? unit;
   final bool available;
+  final bool favourite;
 
   const PreviewMatch({
     required this.productId,
@@ -194,6 +204,7 @@ class PreviewMatch {
     this.price,
     this.unit,
     this.available = true,
+    this.favourite = false,
   });
 
   factory PreviewMatch.fromJson(Map<String, dynamic> json) {
@@ -203,6 +214,7 @@ class PreviewMatch {
       price: (json['price'] as num?)?.toDouble(),
       unit: json['unit'] as String?,
       available: json['available'] as bool? ?? true,
+      favourite: json['favourite'] as bool? ?? false,
     );
   }
 }

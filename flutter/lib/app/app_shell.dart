@@ -170,12 +170,23 @@ class _FamilyAwareTopBar extends ConsumerWidget {
         router.pop();
         return;
       }
+      // Opened with context.go (no stack), e.g. deep link — return to settings
+      if (loc.startsWith('/notification-settings') ||
+          loc.startsWith('/google-sync') ||
+          loc.startsWith('/app-info')) {
+        context.go('/settings');
+        return;
+      }
       if (loc.startsWith('/settings')) {
         context.go(ref.read(lastMainTabLocationProvider));
         return;
       }
       if (loc.startsWith('/knuspr') || loc.startsWith('/recipes/')) {
         context.go('/meals');
+        return;
+      }
+      if (loc.startsWith('/events/')) {
+        context.go(ref.read(lastMainTabLocationProvider));
         return;
       }
       context.go('/today');

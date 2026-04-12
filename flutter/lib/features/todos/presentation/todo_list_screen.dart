@@ -8,6 +8,7 @@ import '../../categories/presentation/categories_screen.dart';
 import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
 import '../../../core/auth/auth_provider.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
@@ -214,16 +215,6 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
           ),
           categoriesAsync.when(
             data: (cats) {
-              final tabs = <Widget>[
-                const Tab(text: 'Alle'),
-                ...cats.map((c) => Tab(text: c.name)),
-              ];
-              final initialIndex = () {
-                if (selectedCategoryId == null) return 0;
-                final idx = cats.indexWhere((c) => c.id == selectedCategoryId);
-                return idx >= 0 ? idx + 1 : 0;
-              }();
-
               Future<void> openReorderSheet() async {
                 final repo = ref.read(categoryRepositoryProvider);
                 final local = <cat.Category>[...cats];
@@ -311,32 +302,27 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
               }
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: DefaultTabController(
-                        length: tabs.length,
-                        initialIndex: initialIndex,
-                        child: Builder(
-                          builder: (context) => TabBar(
-                            isScrollable: true,
-                            tabAlignment: TabAlignment.start,
-                            onTap: (i) {
-                              if (i == 0) {
-                                ref
-                                    .read(_selectedCategoryIdProvider.notifier)
-                                    .state = null;
-                              } else {
-                                ref
-                                    .read(_selectedCategoryIdProvider.notifier)
-                                    .state = cats[i - 1].id;
-                              }
-                              ref.invalidate(todosProvider);
-                            },
-                            tabs: tabs,
-                          ),
-                        ),
+                      child: CategoryFilterStrip(
+                        entries: cats
+                            .map(
+                              (c) => CategoryStripEntry(
+                                id: c.id,
+                                label: '${c.icon} ${c.name}',
+                                colorHex: c.color,
+                              ),
+                            )
+                            .toList(),
+                        selectedCategoryId: selectedCategoryId,
+                        onCategorySelected: (id) {
+                          ref.read(_selectedCategoryIdProvider.notifier).state =
+                              id;
+                          ref.invalidate(todosProvider);
+                        },
                       ),
                     ),
                     IconButton(

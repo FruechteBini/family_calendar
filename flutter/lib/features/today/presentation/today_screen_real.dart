@@ -352,6 +352,8 @@ class _EventRow extends StatelessWidget {
         leading: const Icon(Icons.event_outlined),
         title: Text(event.title),
         subtitle: Text(time),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/events/${event.id}'),
       ),
     );
   }

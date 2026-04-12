@@ -71,6 +71,7 @@ class _KnusprReviewScreenState extends ConsumerState<KnusprReviewScreen> {
       if (!m.available) continue;
       selections.add({
         'item_name': line.itemName,
+        'shopping_item_id': line.shoppingItemId,
         'product_id': m.productId,
         'quantity': line.quantity,
         'product_name': m.name,
@@ -149,11 +150,32 @@ class _KnusprReviewScreenState extends ConsumerState<KnusprReviewScreen> {
                                   )
                                 else
                                   DropdownButtonFormField<int>(
+                                    isExpanded: true,
                                     value: sel < 0 ? -1 : sel,
                                     decoration: const InputDecoration(
                                       labelText: 'Produkt',
                                       border: OutlineInputBorder(),
                                     ),
+                                    selectedItemBuilder: (context) => [
+                                      const Text(
+                                        'Überspringen',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      ...List.generate(line.matches.length, (j) {
+                                        final m = line.matches[j];
+                                        final price = m.price != null
+                                            ? ' ${m.price!.toStringAsFixed(2)} €'
+                                            : '';
+                                        final fav =
+                                            m.favourite ? ' · Knuspr-Favorit' : '';
+                                        return Text(
+                                          '${m.name}$price${m.available ? '' : ' (n.v.)'}$fav',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        );
+                                      }),
+                                    ],
                                     items: [
                                       const DropdownMenuItem(
                                         value: -1,
@@ -166,10 +188,13 @@ class _KnusprReviewScreenState extends ConsumerState<KnusprReviewScreen> {
                                           final price = m.price != null
                                               ? ' ${m.price!.toStringAsFixed(2)} €'
                                               : '';
+                                          final fav =
+                                              m.favourite ? ' · Favorit' : '';
                                           return DropdownMenuItem(
                                             value: j,
                                             child: Text(
-                                              '${m.name}$price${m.available ? '' : ' (n.v.)'}',
+                                              '${m.name}$price${m.available ? '' : ' (n.v.)'}$fav',
+                                              maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           );

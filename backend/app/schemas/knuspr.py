@@ -52,12 +52,18 @@ class KnusprCartSendFail(BaseModel):
     reason: str
 
 
+class KnusprCartSkippedItem(BaseModel):
+    item: str
+
+
 class KnusprCartResult(BaseModel):
     success: bool
     added: list[KnusprCartSendItemResult] = []
     failed: list[KnusprCartSendFail] = []
+    skipped: list[KnusprCartSkippedItem] = []
     total_added: int = 0
     total_failed: int = 0
+    total_skipped: int = 0
     error: str | None = None
 
 
@@ -92,6 +98,7 @@ class PreviewMatchProduct(BaseModel):
     price: float | None = None
     unit: str | None = None
     available: bool = True
+    favourite: bool = False
 
 
 class PreviewListLine(BaseModel):
@@ -111,6 +118,7 @@ class ApplySelectionItem(BaseModel):
     product_id: str
     quantity: int = Field(default=1, ge=1, le=99)
     product_name: str | None = None
+    shopping_item_id: int | None = None
 
 
 class ApplySelectionsRequest(BaseModel):

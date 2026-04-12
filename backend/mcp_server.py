@@ -1033,7 +1033,7 @@ async def add_to_knuspr_cart(product_id: str, quantity: int = 1) -> str:
 
 @mcp.tool()
 async def send_shopping_list_to_knuspr(shopping_list_id: int) -> str:
-    """Gesamte Einkaufsliste an Knuspr senden (alle nicht abgehakten Artikel)."""
+    """Nicht abgehakte Artikel mit lieferbarem Knuspr-Suchtreffer „Favorit“ in den Warenkorb legen; Rest bleibt auf der Liste."""
     db = await get_db()
     try:
         from integrations.knuspr.cart import send_list_to_cart

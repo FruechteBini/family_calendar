@@ -1,10 +1,10 @@
-FROM ghcr.io/cirruslabs/flutter:3.24.0 AS build
+FROM ghcr.io/cirruslabs/flutter:3.41.6 AS build
 
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock* ./
 RUN flutter pub get
 COPY . .
-RUN flutter build web --wasm --release
+RUN flutter build web --release
 
 FROM nginx:alpine
 COPY --from=build /app/build/web /usr/share/nginx/html

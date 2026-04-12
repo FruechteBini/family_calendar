@@ -28,6 +28,15 @@ class Event {
   });
 
   factory Event.fromJson(Map<String, dynamic> json) {
+    final cat = json['category'] as Map<String, dynamic>?;
+    final members = (json['members'] as List<dynamic>?)
+            ?.map((e) => EventMember.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
+    final memberIds = (json['member_ids'] as List<dynamic>?)
+            ?.map((e) => e as int)
+            .toList() ??
+        (members.isNotEmpty ? members.map((m) => m.id).toList() : <int>[]);
     return Event(
       id: json['id'] as int,
       title: json['title'] as String,
@@ -35,17 +44,11 @@ class Event {
       startTime: DateTime.parse((json['start'] ?? json['start_time']) as String),
       endTime: DateTime.parse((json['end'] ?? json['end_time']) as String),
       allDay: json['all_day'] as bool? ?? false,
-      categoryId: json['category_id'] as int?,
-      categoryName: json['category_name'] as String?,
-      categoryColor: json['category_color'] as String?,
-      memberIds: (json['member_ids'] as List<dynamic>?)
-              ?.map((e) => e as int)
-              .toList() ??
-          [],
-      members: (json['members'] as List<dynamic>?)
-              ?.map((e) => EventMember.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      categoryId: json['category_id'] as int? ?? cat?['id'] as int?,
+      categoryName: json['category_name'] as String? ?? cat?['name'] as String?,
+      categoryColor: json['category_color'] as String? ?? cat?['color'] as String?,
+      memberIds: memberIds,
+      members: members,
       notificationLevelId: json['notification_level_id'] as int?,
     );
   }
@@ -82,7 +85,7 @@ class EventMember {
     return EventMember(
       id: json['id'] as int,
       name: json['name'] as String,
-      emoji: json['emoji'] as String?,
+      emoji: json['emoji'] as String? ?? json['avatar_emoji'] as String?,
       color: json['color'] as String?,
     );
   }

@@ -186,12 +186,53 @@ async def run_with_client(fn: Callable[[Any], T], *, retry_on_auth: bool = True)
         return await asyncio.to_thread(fn, client)
 
 
+def _raw_product_to_dict(p: dict[str, Any]) -> dict[str, Any]:
+    """Normalize raw Knuspr API product JSON to our API shape.
+
+    Works directly on the dict from the JSON response – avoids knuspr-api 0.3.0
+    bugs where brand/other fields can be None but the Pydantic model requires str.
+    """
+    raw_price = p.get("price")
+    price_val: float | None = None
+    if isinstance(raw_price, dict):
+        try:
+            price_val = float(raw_price.get("full") or 0) or None
+        except (TypeError, ValueError):
+            pass
+    elif raw_price is not None:
+        try:
+            price_val = float(raw_price)
+        except (TypeError, ValueError):
+            pass
+
+    img = p.get("imgPath") or p.get("image_path") or p.get("image_url")
+    image_url: str | None = None
+    if img:
+        s = str(img)
+        image_url = s if s.startswith("http") else f"https://www.knuspr.de{s}" if s.startswith("/") else s
+
+    return {
+        "id": str(p.get("productId", "")),
+        "name": str(p.get("productName") or ""),
+        "price": price_val,
+        "unit": str(p.get("textualAmount") or "") or None,
+        "available": bool(p.get("inStock", True)),
+        # Knuspr/Rohlik search payloads mark account favourites on each hit (no separate favourites API).
+        "favourite": bool(p.get("favourite") or p.get("favorite")),
+        "image_url": image_url,
+        "category": str(p.get("primaryCategoryName") or "") or None,
+    }
+
+
 def _product_to_dict(p: Any) -> dict[str, Any]:
-    """Normalize SearchResult (or duck-typed) to API shape."""
+    """Normalize SearchResult (or duck-typed) to API shape – legacy, kept for compatibility."""
+    if isinstance(p, dict):
+        return _raw_product_to_dict(p)
+
     pid = str(getattr(p, "id", p))
     name = str(getattr(p, "name", ""))
     try:
-        price_val = float(p.price_value)  # SearchResult property
+        price_val: float | None = float(p.price_value)  # SearchResult property
     except Exception:
         raw = getattr(p, "price", None)
         if isinstance(raw, dict):
@@ -220,6 +261,7 @@ def _product_to_dict(p: Any) -> dict[str, Any]:
         "price": price_val,
         "unit": unit,
         "available": bool(available),
+        "favourite": bool(getattr(p, "favourite", False)),
         "image_url": image_url,
         "category": getattr(p, "primary_category_name", None) or getattr(p, "category", None),
     }
@@ -231,18 +273,53 @@ async def get_client():
 
 
 async def search_products(query: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Search Knuspr products via direct HTTP to avoid knuspr-api 0.3.0 model bugs (brand=None crash)."""
     if _import_knuspr_client()[0] is None:
         return []
 
+    import json as _json
+
+    from knuspr import endpoints as _ep
+
     def _search(c):
-        results = c.search_products(query, limit=limit)
-        return [_product_to_dict(p) for p in (results or [])]
+        params = {
+            "search": query,
+            "offset": "0",
+            "limit": str(limit),
+            "companyId": "1",
+            "filterData": _json.dumps({"filters": []}),
+            "canCorrect": "true",
+        }
+        raw = c._get(_ep.SEARCH, params=params)
+        products = raw.get("productList", [])
+        out = []
+        for p in products:
+            badge = p.get("badge")
+            if isinstance(badge, list) and any(
+                b.get("slug") == "promoted" for b in badge if isinstance(b, dict)
+            ):
+                continue
+            out.append(_raw_product_to_dict(p))
+        return out
 
     try:
         return await run_with_client(_search)
     except Exception as e:
-        logger.error("Knuspr search error: %s", e)
+        logger.error("Knuspr search error for %r: %s", query, e)
         return []
+
+
+def pick_search_hit_for_cart(products: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Prefer Knuspr account favourite among in-stock hits, else first in-stock, else first hit."""
+    if not products:
+        return None
+    avail = [p for p in products if p.get("available", True)]
+    fav_avail = [p for p in avail if p.get("favourite")]
+    if fav_avail:
+        return fav_avail[0]
+    if avail:
+        return avail[0]
+    return products[0]
 
 
 async def get_delivery_slots() -> list[dict[str, Any]]:

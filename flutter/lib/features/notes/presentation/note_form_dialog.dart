@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/api/api_client.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_category_repository.dart';
 import '../data/note_repository.dart';
@@ -19,9 +20,6 @@ import '../domain/note_attachment.dart';
 import 'note_attachment_helpers.dart';
 
 final _urlInText = RegExp(r'https?://[^\s]+', caseSensitive: false);
-
-final _noteFormCategoriesProvider =
-    FutureProvider((ref) => ref.read(noteCategoryRepositoryProvider).getCategories());
 
 final _noteFormTagsProvider =
     FutureProvider((ref) => ref.read(noteTagRepositoryProvider).getTags());
@@ -392,6 +390,80 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
     });
   }
 
+  Future<void> _openCreateNoteCategoryDialog() async {
+    final name = TextEditingController();
+    try {
+      var hex = kCategoryPresetHexColors.first;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setModal) => AlertDialog(
+            title: const Text('Neue Kategorie'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Farbe',
+                    style: Theme.of(ctx).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  CategoryPresetColorRow(
+                    selectedHex: hex,
+                    onSelect: (h) => setModal(() => hex = h),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Anlegen'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok != true || !mounted) return;
+      final trimmed = name.text.trim();
+      if (trimmed.isEmpty) {
+        showAppToast(context,
+            message: 'Name erforderlich', type: ToastType.error);
+        return;
+      }
+      try {
+        final created =
+            await ref.read(noteCategoryRepositoryProvider).createCategory({
+          'name': trimmed,
+          'color': hex,
+          'icon': '\u{1F4DD}',
+        });
+        ref.invalidate(noteCategoriesListProvider);
+        setState(() => _categoryId = created.id);
+      } on ApiException catch (e) {
+        if (mounted) {
+          showAppToast(context, message: e.message, type: ToastType.error);
+        }
+      }
+    } finally {
+      name.dispose();
+    }
+  }
+
   Future<void> _save() async {
     if (_type == NoteType.text) {
       final hasBody =
@@ -601,7 +673,7 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final catsAsync = ref.watch(_noteFormCategoriesProvider);
+    final catsAsync = ref.watch(noteCategoriesListProvider);
     final tagsAsync = ref.watch(_noteFormTagsProvider);
 
     final detectedUrl = _type == NoteType.text
@@ -778,27 +850,45 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
               const SizedBox(height: 10),
               catsAsync.when(
                 loading: () => const LinearProgressIndicator(),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (cats) => DropdownButtonFormField<int?>(
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                  // Controlled selection; initialValue is not equivalent here (Flutter 3.33+).
-                  // ignore: deprecated_member_use
-                  value: _categoryId,
-                  items: [
-                    const DropdownMenuItem<int?>(
-                      value: null,
-                      child: Text('Keine'),
-                    ),
-                    ...cats.map(
-                      (c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name),
+                error: (e, _) => Text(
+                  'Kategorien konnten nicht geladen werden: $e',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                data: (cats) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          CategoryAccentChip(
+                            label: 'Keine',
+                            accentColor: null,
+                            selected: _categoryId == null,
+                            onTap: () => setState(() => _categoryId = null),
+                          ),
+                          const SizedBox(width: 8),
+                          ...cats.map(
+                            (c) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: CategoryAccentChip(
+                                label: '${c.icon} ${c.name}',
+                                accentColor: c.color,
+                                selected: _categoryId == c.id,
+                                onTap: () =>
+                                    setState(() => _categoryId = c.id),
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _saving ? null : _openCreateNoteCategoryDialog,
+                            icon: const Icon(Icons.add_circle_outline, size: 20),
+                            label: const Text('Neu'),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                  onChanged: (v) => setState(() => _categoryId = v),
                 ),
               ),
               const SizedBox(height: 8),

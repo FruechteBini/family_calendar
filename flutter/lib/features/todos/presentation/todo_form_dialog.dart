@@ -17,6 +17,9 @@ import '../../../core/auth/auth_provider.dart';
 import '../../../shared/utils/date_utils.dart' as utils;
 import 'proposal_sheet.dart';
 import '../../notifications/presentation/widgets/notification_level_picker.dart';
+import '../../notes/data/note_repository.dart';
+import '../../notes/domain/note.dart';
+import '../../notes/domain/note_todo_prefill.dart';
 
 final _formCategoriesProvider = FutureProvider<List<cat.Category>>((ref) async {
   return ref.watch(categoryRepositoryProvider).getCategories();
@@ -28,8 +31,18 @@ final _formMembersProvider = FutureProvider<List<FamilyMember>>((ref) async {
 
 class TodoFormDialog extends ConsumerStatefulWidget {
   final Todo? todo;
+  /// When set (and [todo] is null), opens like a new todo prefilled from this note.
+  /// After create, the note is archived if still active.
+  final Note? convertFromNote;
 
-  const TodoFormDialog({super.key, this.todo});
+  const TodoFormDialog({
+    super.key,
+    this.todo,
+    this.convertFromNote,
+  }) : assert(
+          todo == null || convertFromNote == null,
+          'todo and convertFromNote are mutually exclusive',
+        );
 
   @override
   ConsumerState<TodoFormDialog> createState() => _TodoFormDialogState();
@@ -56,16 +69,40 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
   void initState() {
     super.initState();
     final t = widget.todo;
-    _titleController = TextEditingController(text: t?.title ?? '');
-    _descController = TextEditingController(text: t?.description ?? '');
+    final fromNote = widget.convertFromNote;
     _proposalMessageController = TextEditingController();
-    _priority = t?.priority ?? 'none';
-    _dueDate = t?.dueDate;
-    _categoryId = t?.categoryId;
-    _isPersonal = t?.isPersonal ?? false;
-    _memberIds = (t?.memberIds ?? []).toSet();
-    _requiresMultiple = t?.requiresMultiple ?? false;
-    _notificationLevelId = t?.notificationLevelId;
+    if (t != null) {
+      _titleController = TextEditingController(text: t.title);
+      _descController = TextEditingController(text: t.description ?? '');
+      _priority = t.priority;
+      _dueDate = t.dueDate;
+      _categoryId = t.categoryId;
+      _isPersonal = t.isPersonal;
+      _memberIds = t.memberIds.toSet();
+      _requiresMultiple = t.requiresMultiple;
+      _notificationLevelId = t.notificationLevelId;
+    } else if (fromNote != null) {
+      final p = noteTodoPrefillFromNote(fromNote);
+      _titleController = TextEditingController(text: p.title);
+      _descController = TextEditingController(text: p.description ?? '');
+      _priority = 'medium';
+      _dueDate = null;
+      _categoryId = null;
+      _isPersonal = p.isPersonal;
+      _memberIds = {};
+      _requiresMultiple = false;
+      _notificationLevelId = null;
+    } else {
+      _titleController = TextEditingController();
+      _descController = TextEditingController();
+      _priority = 'none';
+      _dueDate = null;
+      _categoryId = null;
+      _isPersonal = false;
+      _memberIds = {};
+      _requiresMultiple = false;
+      _notificationLevelId = null;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isEditing || _isPersonal) return;
       final mid = ref.read(authStateProvider).user?.memberId;
@@ -112,6 +149,21 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
         saved = await repo.updateTodo(widget.todo!.id, data);
       } else {
         saved = await repo.createTodo(data);
+        final src = widget.convertFromNote;
+        if (src != null && !src.isArchived && mounted) {
+          try {
+            await ref.read(noteRepositoryProvider).toggleArchive(src.id);
+          } on ApiException catch (e) {
+            if (mounted) {
+              showAppToast(
+                context,
+                message:
+                    'Todo erstellt, Notiz konnte nicht archiviert werden: ${e.message}',
+                type: ToastType.warning,
+              );
+            }
+          }
+        }
       }
 
       // Optional: send proposal immediately after save.
@@ -194,7 +246,11 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                     children: [
                       Expanded(
                           child: Text(
-                              _isEditing ? 'Todo bearbeiten' : 'Neues Todo',
+                              _isEditing
+                                  ? 'Todo bearbeiten'
+                                  : widget.convertFromNote != null
+                                      ? 'Todo aus Notiz'
+                                      : 'Neues Todo',
                               style: Theme.of(context).textTheme.titleLarge)),
                       if (_isEditing)
                         IconButton(

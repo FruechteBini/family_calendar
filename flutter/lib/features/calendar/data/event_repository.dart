@@ -9,6 +9,15 @@ class EventRepository {
 
   EventRepository(this._dio);
 
+  Future<Event> getEvent(int id) async {
+    try {
+      final response = await _dio.get(Endpoints.event(id));
+      return Event.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<List<Event>> getEvents({
     DateTime? startDate,
     DateTime? endDate,

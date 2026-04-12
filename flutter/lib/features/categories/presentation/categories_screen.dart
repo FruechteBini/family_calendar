@@ -196,10 +196,9 @@ class _CategoryTile extends StatelessWidget {
   });
 
   Color _parseColor() {
-    if (category.color == null) return Colors.grey;
     try {
-      return Color(
-          int.parse('FF${category.color!.replaceFirst('#', '')}', radix: 16));
+      return Color(int.parse(
+          'FF${category.color.replaceFirst('#', '')}', radix: 16));
     } catch (_) {
       return Colors.grey;
     }

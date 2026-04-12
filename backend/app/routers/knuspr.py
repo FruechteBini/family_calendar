@@ -250,14 +250,14 @@ async def apply_selections(
 @router.post("/price-check", response_model=PriceCheckResponse)
 async def price_check(data: PriceCheckRequest):
     try:
-        from integrations.knuspr.client import search_products
+        from integrations.knuspr.client import pick_search_hit_for_cart, search_products
 
         lines: list[PriceCheckLine] = []
         total = 0.0
         for it in data.items:
-            found_list = await search_products(it.name, limit=1)
-            if found_list:
-                p = found_list[0]
+            found_list = await search_products(it.name, limit=8)
+            p = pick_search_hit_for_cart(found_list) if found_list else None
+            if p:
                 price = p.get("price")
                 if price is not None:
                     total += float(price)

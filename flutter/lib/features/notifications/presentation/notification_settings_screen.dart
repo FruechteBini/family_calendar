@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/notifications/push_notifications.dart';
@@ -81,14 +80,6 @@ class NotificationSettingsScreen extends ConsumerWidget {
                   title: Text('Push ist aktiv'),
                   subtitle: Text('Du kannst unten festlegen, welche Push-Benachrichtigungen du erhalten möchtest.'),
                 ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.tune),
-                title: const Text('Dringlichkeits-Stufen'),
-                subtitle: const Text('Zeiten pro Stufe bearbeiten, löschen, neu anlegen'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/notification-levels'),
-              ),
               const Divider(),
               section('Erinnerungen', [
                 tile(NotificationType.eventReminder, 'Termin-Erinnerungen', 'Erinnerungen vor dem Termin'),

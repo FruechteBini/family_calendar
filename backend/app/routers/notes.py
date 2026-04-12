@@ -61,7 +61,8 @@ _todo_load_for_convert = [
     selectinload(Todo.category),
     selectinload(Todo.created_by),
     selectinload(Todo.members),
-    selectinload(Todo.subtodos),
+    selectinload(Todo.attachments),
+    selectinload(Todo.subtodos).selectinload(Todo.attachments),
 ]
 
 

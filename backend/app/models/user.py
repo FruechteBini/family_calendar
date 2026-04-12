@@ -24,6 +24,10 @@ class User(Base):
     sync_calendar_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sync_todos_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Todo UX preferences (per user account)
+    require_subtodos_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    auto_complete_parent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # The default Google calendar/task list can be customized later.
     google_calendar_id: Mapped[str] = mapped_column(String(255), nullable=False, default="primary")
     google_tasklist_id: Mapped[str] = mapped_column(String(255), nullable=False, default="@@default@@")

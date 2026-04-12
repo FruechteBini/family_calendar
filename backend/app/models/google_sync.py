@@ -9,7 +9,8 @@ from ..database import Base, utcnow
 class GoogleCalendarSync(Base):
     __tablename__ = "google_calendar_sync"
     __table_args__ = (
-        UniqueConstraint("family_id", "event_id", name="ux_google_calendar_sync_family_event"),
+        # Pro Benutzer: dieselbe Familie kann mehrere Google-Konten verbinden.
+        UniqueConstraint("family_id", "user_id", "event_id", name="ux_google_calendar_sync_family_user_event"),
         UniqueConstraint("family_id", "google_calendar_id", "google_event_id", name="ux_google_calendar_sync_family_google"),
     )
 
@@ -40,7 +41,7 @@ class GoogleCalendarSync(Base):
 class GoogleTasksSync(Base):
     __tablename__ = "google_tasks_sync"
     __table_args__ = (
-        UniqueConstraint("family_id", "todo_id", name="ux_google_tasks_sync_family_todo"),
+        UniqueConstraint("family_id", "user_id", "todo_id", name="ux_google_tasks_sync_family_user_todo"),
         UniqueConstraint("family_id", "google_tasklist_id", "google_task_id", name="ux_google_tasks_sync_family_google"),
     )
 

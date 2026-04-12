@@ -1,3 +1,31 @@
+import 'todo_attachment.dart';
+
+class TodoLinkedEvent {
+  final int id;
+  final String title;
+  final DateTime start;
+  final DateTime end;
+  final bool allDay;
+
+  const TodoLinkedEvent({
+    required this.id,
+    required this.title,
+    required this.start,
+    required this.end,
+    this.allDay = false,
+  });
+
+  factory TodoLinkedEvent.fromJson(Map<String, dynamic> json) {
+    return TodoLinkedEvent(
+      id: json['id'] as int,
+      title: json['title'] as String,
+      start: DateTime.parse((json['start'] ?? json['start_time']) as String),
+      end: DateTime.parse((json['end'] ?? json['end_time']) as String),
+      allDay: json['all_day'] as bool? ?? false,
+    );
+  }
+}
+
 class Todo {
   final int id;
   final bool isPersonal;
@@ -11,13 +39,18 @@ class Todo {
   final int? categoryId;
   final String? categoryName;
   final int? eventId;
+  final TodoLinkedEvent? linkedEvent;
   final int? parentId;
+  final int sortOrder;
   final bool requiresMultiple;
   final int? notificationLevelId;
   final List<int> memberIds;
   final List<TodoMember> members;
   final List<Todo> subtodos;
+  final List<TodoAttachment> attachments;
   final int proposalCount;
+  /// Present on PATCH /complete response when completing a sub-todo auto-completed the parent.
+  final bool parentAutoCompleted;
 
   const Todo({
     required this.id,
@@ -32,13 +65,17 @@ class Todo {
     this.categoryId,
     this.categoryName,
     this.eventId,
+    this.linkedEvent,
     this.parentId,
+    this.sortOrder = 0,
     this.requiresMultiple = false,
     this.notificationLevelId,
     this.memberIds = const [],
     this.members = const [],
     this.subtodos = const [],
+    this.attachments = const [],
     this.proposalCount = 0,
+    this.parentAutoCompleted = false,
   });
 
   factory Todo.fromJson(Map<String, dynamic> json) {
@@ -70,7 +107,11 @@ class Todo {
       categoryId: catId,
       categoryName: catName,
       eventId: json['event_id'] as int?,
+      linkedEvent: json['event'] is Map<String, dynamic>
+          ? TodoLinkedEvent.fromJson(json['event'] as Map<String, dynamic>)
+          : null,
       parentId: json['parent_id'] as int?,
+      sortOrder: json['sort_order'] as int? ?? 0,
       requiresMultiple: json['requires_multiple'] as bool? ?? false,
       notificationLevelId: json['notification_level_id'] as int?,
       memberIds: (json['member_ids'] as List<dynamic>?)
@@ -78,12 +119,30 @@ class Todo {
               .toList() ??
           membersRaw.map((m) => m['id'] as int).toList(),
       members: membersRaw.map(TodoMember.fromJson).toList(),
-      subtodos: (json['subtodos'] as List<dynamic>?)
+           subtodos: (json['subtodos'] as List<dynamic>?)
               ?.map((e) => Todo.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      attachments: (json['attachments'] as List<dynamic>?)
+              ?.map((e) =>
+                  TodoAttachment.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       proposalCount: json['proposal_count'] as int? ?? 0,
+      parentAutoCompleted:
+          json['parent_auto_completed'] as bool? ?? false,
     );
+  }
+
+  /// Sub-todos sorted by [sortOrder] then id.
+  static List<Todo> sortedSubtodos(List<Todo> subtodos) {
+    final list = [...subtodos];
+    list.sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      if (c != 0) return c;
+      return a.id.compareTo(b.id);
+    });
+    return list;
   }
 
   Map<String, dynamic> toCreateJson() {

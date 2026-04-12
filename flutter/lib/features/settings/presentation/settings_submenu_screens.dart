@@ -4,32 +4,63 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/preferences/todo_preferences.dart';
 import '../../../shared/widgets/toast.dart';
 
 /// Todos → Dringlichkeits-Stufen, Kategorien
-class SettingsTodosMenuScreen extends StatelessWidget {
+class SettingsTodosMenuScreen extends ConsumerWidget {
   const SettingsTodosMenuScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefsAsync = ref.watch(todoPreferencesProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Todos')),
-      body: ListView(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.tune),
-            title: const Text('Dringlichkeits-Stufen'),
-            subtitle: const Text('Zeiten pro Stufe bearbeiten, löschen, neu anlegen'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/notification-levels'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.label_outlined),
-            title: const Text('Kategorien'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/categories'),
-          ),
-        ],
+      body: prefsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Fehler: $e')),
+        data: (prefs) => ListView(
+          children: [
+            SwitchListTile(
+              secondary: const Icon(Icons.checklist),
+              title: const Text('Sub-Todos vor Abhaken erforderlich'),
+              subtitle: const Text(
+                'Alle Sub-Todos müssen erledigt sein, bevor das Haupt-Todo abgehakt werden kann',
+              ),
+              value: prefs.requireSubtodosComplete,
+              onChanged: (v) => ref
+                  .read(todoPreferencesProvider.notifier)
+                  .setRequireSubtodosComplete(v),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.auto_awesome),
+              title: const Text('Haupt-Todo automatisch abhaken'),
+              subtitle: const Text(
+                'Wenn das letzte Sub-Todo erledigt wird, wird das Haupt-Todo automatisch abgehakt',
+              ),
+              value: prefs.autoCompleteParent,
+              onChanged: (v) => ref
+                  .read(todoPreferencesProvider.notifier)
+                  .setAutoCompleteParent(v),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('Dringlichkeits-Stufen'),
+              subtitle: const Text(
+                  'Zeiten pro Stufe bearbeiten, löschen, neu anlegen'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/notification-levels'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.label_outlined),
+              title: const Text('Kategorien'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/categories'),
+            ),
+          ],
+        ),
       ),
     );
   }

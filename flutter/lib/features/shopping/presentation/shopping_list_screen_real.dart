@@ -6,8 +6,6 @@ import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/app_input_field.dart';
 import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/primary_button.dart';
-import '../../../shared/widgets/secondary_button.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../pantry/data/pantry_repository.dart';
 import '../../pantry/domain/pantry_item.dart';
@@ -100,28 +98,21 @@ class _ShoppingListScreenState extends ConsumerState<ShoppingListScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(shoppingListProvider);
-            ref.invalidate(pantryAlertsProvider);
-            await ref.read(shoppingListProvider.future);
-          },
-          child: listAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, _) => EmptyState(
-              icon: Icons.shopping_cart_outlined,
-              title: 'Einkaufsliste konnte nicht geladen werden',
-              subtitle: err is ApiException ? err.message : err.toString(),
-            ),
-            data: (list) => _ShoppingListBody(
-              list: list,
-              alertsAsync: alertsAsync,
-              addController: _addController,
-              knusprPriceByItemId: _knusprPriceByItemId,
-              knusprPricesLoading: _knusprPricesLoading,
-              onLoadKnusprPrices:
-                  list == null ? null : () => _loadKnusprPrices(list),
-            ),
+        child: listAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => EmptyState(
+            icon: Icons.shopping_cart_outlined,
+            title: 'Einkaufsliste konnte nicht geladen werden',
+            subtitle: err is ApiException ? err.message : err.toString(),
+          ),
+          data: (list) => _ShoppingListBody(
+            list: list,
+            alertsAsync: alertsAsync,
+            addController: _addController,
+            knusprPriceByItemId: _knusprPriceByItemId,
+            knusprPricesLoading: _knusprPricesLoading,
+            onLoadKnusprPrices:
+                list == null ? null : () => _loadKnusprPrices(list),
           ),
         ),
       ),
@@ -146,43 +137,98 @@ class _ShoppingListBody extends ConsumerWidget {
     required this.onLoadKnusprPrices,
   });
 
-  @override
+   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = list;
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(
-        AppColors.spacing4,
-        AppColors.spacing6,
-        AppColors.spacing4,
-        100,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _Header(list: l),
-          const SizedBox(height: AppColors.spacing4),
-          _ActionRow(
-            list: l,
-            knusprPricesLoading: knusprPricesLoading,
-            onLoadKnusprPrices: onLoadKnusprPrices,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppColors.spacing4,
+            AppColors.spacing3,
+            AppColors.spacing4,
+            AppColors.spacing2,
           ),
-          const SizedBox(height: AppColors.spacing4),
-          _PantryAlerts(alertsAsync: alertsAsync),
-          const SizedBox(height: AppColors.spacing4),
-          _AddRow(controller: addController),
-          const SizedBox(height: AppColors.spacing6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Header(list: l),
+              const SizedBox(height: AppColors.spacing2),
+              _ActionRow(
+                list: l,
+                knusprPricesLoading: knusprPricesLoading,
+                onLoadKnusprPrices: onLoadKnusprPrices,
+              ),
+              _PantryAlerts(alertsAsync: alertsAsync),
+              const SizedBox(height: AppColors.spacing2),
+              _AddRow(controller: addController),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppColors.spacing4,
+              0,
+              AppColors.spacing4,
+              AppColors.spacing4,
+            ),
+            child: _ShoppingListScrollable(
+              list: l,
+              knusprPriceByItemId: knusprPriceByItemId,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Pull-to-refresh + scroll: list fills remaining height so it reads as the main focus.
+class _ShoppingListScrollable extends ConsumerWidget {
+  final ShoppingList? list;
+  final Map<int, String> knusprPriceByItemId;
+
+  const _ShoppingListScrollable({
+    required this.list,
+    required this.knusprPriceByItemId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = list;
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(shoppingListProvider);
+        ref.invalidate(pantryAlertsProvider);
+        await ref.read(shoppingListProvider.future);
+      },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
           if (l == null)
-            const EmptyState(
-              icon: Icons.shopping_cart_outlined,
-              title: 'Noch keine Einkaufsliste',
-              subtitle: 'Tippe auf „Generieren“, um eine Liste aus dem Wochenplan zu erstellen.',
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: EmptyState(
+                  icon: Icons.shopping_cart_outlined,
+                  title: 'Noch keine Einkaufsliste',
+                  subtitle:
+                      'Tippe auf „Aus Wochenplan importieren“, um Einträge aus dem Wochenplan zu übernehmen.',
+                ),
+              ),
             )
           else
-            _ItemsByCategory(
-              items: l.items,
-              knusprPriceByItemId: knusprPriceByItemId,
+            SliverPadding(
+              padding: const EdgeInsets.only(bottom: AppColors.spacing6),
+              sliver: SliverToBoxAdapter(
+                child: _ItemsByCategory(
+                  items: l.items,
+                  knusprPriceByItemId: knusprPriceByItemId,
+                ),
+              ),
             ),
         ],
       ),
@@ -199,39 +245,40 @@ class _Header extends StatelessWidget {
     final l = list;
     final progress = l?.progress ?? 0;
 
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Einkauf',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                color: AppColors.onSurface,
-              ),
-        ),
-        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: l == null ? 0 : progress,
-                  minHeight: 8,
-                  backgroundColor: AppColors.surfaceContainerHighest,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.primary,
-                  ),
+              child: Text(
+                'Einkaufsliste',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.3,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
             Text(
               l == null ? '0/0' : '${l.checkedItems}/${l.totalItems}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppColors.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: l == null ? 0 : progress,
+            minHeight: 4,
+            backgroundColor: AppColors.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+          ),
         ),
       ],
     );
@@ -332,7 +379,9 @@ class _ActionRow extends ConsumerWidget {
       try {
         await ref.read(shoppingRepositoryProvider).generate();
         ref.invalidate(shoppingListProvider);
-        if (context.mounted) showAppToast(context, message: 'Liste erstellt', type: ToastType.success);
+        if (context.mounted) {
+          showAppToast(context, message: 'Aus Wochenplan importiert', type: ToastType.success);
+        }
       } on ApiException catch (e) {
         if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
       }
@@ -443,47 +492,43 @@ class _ActionRow extends ConsumerWidget {
       ];
     }
 
-    return LayoutBuilder(
-      builder: (context, c) {
-        final compact = c.maxWidth < 380;
-        if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              PrimaryButton(label: 'Generieren', onPressed: generate),
-              const SizedBox(height: 10),
-              SecondaryButton(label: 'KI sortieren', onPressed: list == null ? null : sortAi),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ...knusprActions(),
-                  IconButton(
-                    tooltip: 'Alle löschen',
-                    onPressed: list == null ? null : clearAll,
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                ],
-              ),
-            ],
-          );
-        }
+    ButtonStyle compactOutline(BuildContext ctx) {
+      return OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        textStyle: Theme.of(ctx).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+      );
+    }
 
-        return Row(
-          children: [
-            Expanded(child: PrimaryButton(label: 'Generieren', onPressed: generate)),
-            const SizedBox(width: 12),
-            Expanded(child: SecondaryButton(label: 'KI sortieren', onPressed: list == null ? null : sortAi)),
-            const SizedBox(width: 8),
-            ...knusprActions(),
-            IconButton(
-              tooltip: 'Alle löschen',
-              onPressed: list == null ? null : clearAll,
-              icon: const Icon(Icons.delete_outline),
-            ),
-          ],
-        );
-      },
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          OutlinedButton(
+            style: compactOutline(context),
+            onPressed: generate,
+            child: const Text('Aus Wochenplan importieren'),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            style: compactOutline(context),
+            onPressed: list == null ? null : sortAi,
+            child: const Text('KI sortieren'),
+          ),
+          const SizedBox(width: 4),
+          ...knusprActions(),
+          IconButton(
+            tooltip: 'Alle löschen',
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: EdgeInsets.zero,
+            onPressed: list == null ? null : clearAll,
+            icon: const Icon(Icons.delete_outline, size: 22),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -499,33 +544,42 @@ class _PantryAlerts extends ConsumerWidget {
       error: (_, __) => const SizedBox.shrink(),
       data: (alerts) {
         if (alerts.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Vorratswarnungen', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: alerts.take(6).map((a) {
-                return ActionChip(
-                  label: Text(a.itemName),
-                  onPressed: () async {
-                    try {
-                      await ref.read(pantryRepositoryProvider).addAlertToShopping(a.id);
-                      ref.invalidate(shoppingListProvider);
-                      ref.invalidate(pantryAlertsProvider);
-                      if (context.mounted) {
-                        showAppToast(context, message: 'Hinzugefuegt', type: ToastType.success);
+        return Padding(
+          padding: const EdgeInsets.only(top: AppColors.spacing2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vorratswarnungen',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: alerts.take(6).map((a) {
+                  return ActionChip(
+                    label: Text(a.itemName),
+                    onPressed: () async {
+                      try {
+                        await ref.read(pantryRepositoryProvider).addAlertToShopping(a.id);
+                        ref.invalidate(shoppingListProvider);
+                        ref.invalidate(pantryAlertsProvider);
+                        if (context.mounted) {
+                          showAppToast(context, message: 'Hinzugefuegt', type: ToastType.success);
+                        }
+                      } on ApiException catch (e) {
+                        if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
                       }
-                    } on ApiException catch (e) {
-                      if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-          ],
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -538,7 +592,9 @@ class _AddRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: AppInputField(
@@ -548,10 +604,15 @@ class _AddRow extends ConsumerWidget {
             onSubmitted: () => _submit(context, ref),
           ),
         ),
-        const SizedBox(width: 12),
-        PrimaryButton(
-          label: 'Hinzufügen',
+        const SizedBox(width: 8),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           onPressed: () => _submit(context, ref),
+          child: Text('Hinzufügen', style: TextStyle(fontSize: 13, color: cs.onPrimary)),
         ),
       ],
     );
@@ -585,7 +646,7 @@ class _ItemsByCategory extends ConsumerWidget {
       return const EmptyState(
         icon: Icons.shopping_cart_outlined,
         title: 'Liste ist leer',
-        subtitle: 'Füge Artikel hinzu oder generiere aus dem Wochenplan.',
+        subtitle: 'Füge Artikel hinzu oder importiere aus dem Wochenplan.',
       );
     }
 
@@ -625,23 +686,35 @@ class _CategorySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(category, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            category,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: AppColors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
         ...items.map((it) {
           final subtitle = [
             if (it.amount != null && it.amount!.isNotEmpty) it.amount!,
             if (it.unit != null && it.unit!.isNotEmpty) it.unit!,
           ].join(' ');
           final knHint = knusprPriceByItemId[it.id];
-          return Card(
-            color: AppColors.surfaceContainerHigh,
-            child: ListTile(
-              leading: Checkbox(
-                value: it.checked,
-                onChanged: (_) async {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppColors.spacing2),
+            child: Material(
+              color: AppColors.surfaceContainer,
+              borderRadius: BorderRadius.circular(AppColors.radiusDefault),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () async {
                   try {
                     await ref.read(shoppingRepositoryProvider).checkItem(it.id, checked: !it.checked);
                     ref.invalidate(shoppingListProvider);
@@ -649,25 +722,64 @@ class _CategorySection extends ConsumerWidget {
                     if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
                   }
                 },
-              ),
-              title: Text(it.name),
-              subtitle: () {
-                final parts = <String>[];
-                if (subtitle.isNotEmpty) parts.add(subtitle);
-                if (knHint != null) parts.add('Knuspr: $knHint');
-                if (parts.isEmpty) return null;
-                return Text(parts.join(' · '));
-              }(),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () async {
-                  try {
-                    await ref.read(shoppingRepositoryProvider).deleteItem(it.id);
-                    ref.invalidate(shoppingListProvider);
-                  } on ApiException catch (e) {
-                    if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
-                  }
-                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        value: it.checked,
+                        onChanged: (_) async {
+                          try {
+                            await ref.read(shoppingRepositoryProvider).checkItem(it.id, checked: !it.checked);
+                            ref.invalidate(shoppingListProvider);
+                          } on ApiException catch (e) {
+                            if (context.mounted) {
+                              showAppToast(context, message: e.message, type: ToastType.error);
+                            }
+                          }
+                        },
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              it.name,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                decoration: it.checked ? TextDecoration.lineThrough : null,
+                                color: it.checked ? AppColors.onSurfaceVariant : AppColors.onSurface,
+                              ),
+                            ),
+                            if (subtitle.isNotEmpty || knHint != null)
+                              Text(
+                                [
+                                  if (subtitle.isNotEmpty) subtitle,
+                                  if (knHint != null) 'Knuspr: $knHint',
+                                ].join(' · '),
+                                style: theme.textTheme.bodySmall?.copyWith(color: AppColors.onSurfaceVariant),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        icon: const Icon(Icons.delete_outline, size: 22),
+                        onPressed: () async {
+                          try {
+                            await ref.read(shoppingRepositoryProvider).deleteItem(it.id);
+                            ref.invalidate(shoppingListProvider);
+                          } on ApiException catch (e) {
+                            if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           );

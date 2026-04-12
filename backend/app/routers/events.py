@@ -12,9 +12,11 @@ from ..database import async_session
 from ..google_sync_service import GoogleSyncService
 from ..models.event import Event
 from ..models.family_member import FamilyMember
+from ..models.todo import Todo
 from ..models.user import User
 from ..models.notification_level import NotificationLevel
 from ..notification_service import notification_service
+from ..todo_event_binding import apply_event_binding_to_todo, reschedule_todo_reminders
 from ..schemas.event import EventCreate, EventResponse, EventUpdate
 from ..utils import resolve_members
 
@@ -223,6 +225,17 @@ async def update_event(
         event.members = await resolve_members(db, member_ids, family_id)
 
     await db.flush()
+
+    r_linked = await db.execute(
+        select(Todo).where(Todo.event_id == event.id, Todo.family_id == family_id)
+    )
+    linked_todos = list(r_linked.scalars().unique().all())
+    for t in linked_todos:
+        apply_event_binding_to_todo(t, event)
+        await reschedule_todo_reminders(db, family_id, t, user.id)
+    if linked_todos:
+        await db.flush()
+
     # Reschedule reminders on any change (time/level/members)
     res_users = await db.execute(
         select(User.id).where(

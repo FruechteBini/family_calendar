@@ -6,6 +6,9 @@ import '../../categories/data/category_repository.dart';
 import '../../categories/domain/category.dart';
 import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
+import '../../todos/data/todo_repository.dart';
+import '../../todos/domain/todo.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../shared/widgets/category_picker.dart';
 import '../../../shared/widgets/member_chip.dart';
 import '../../../shared/widgets/toast.dart';
@@ -24,6 +27,10 @@ final _categoriesProvider = FutureProvider<List<Category>>((ref) {
 
 final _membersProvider = FutureProvider<List<FamilyMember>>((ref) {
   return ref.watch(memberRepositoryProvider).getMembers();
+});
+
+final _todosForEventLinkProvider = FutureProvider.autoDispose<List<Todo>>((ref) {
+  return ref.watch(todoRepositoryProvider).getTodos(scope: 'all', completed: false);
 });
 
 class EventFormDialog extends ConsumerStatefulWidget {
@@ -49,8 +56,17 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
   Set<int> _memberIds = {};
   int? _notificationLevelId;
   bool _saving = false;
+  final _extraTodoTitleController = TextEditingController();
+  final List<String> _pendingNewTodoTitles = [];
+  final Set<int> _unlinkTodoIds = {};
+  final Set<int> _selectedExistingTodoIds = {};
 
   bool get _isEditing => widget.event != null;
+
+  Set<int> get _activeLinkedTodoIds => {
+        for (final t in widget.event?.linkedTodos ?? const <EventLinkedTodo>[])
+          if (!_unlinkTodoIds.contains(t.id)) t.id,
+      };
 
   @override
   void initState() {
@@ -72,11 +88,35 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _extraTodoTitleController.dispose();
     super.dispose();
   }
 
   DateTime _combine(DateTime date, TimeOfDay time) =>
       DateTime(date.year, date.month, date.day, time.hour, time.minute);
+
+  Future<void> _applyTodoLinks(int eventId) async {
+    final todoRepo = ref.read(todoRepositoryProvider);
+    if (_isEditing) {
+      for (final id in _unlinkTodoIds) {
+        await todoRepo.linkTodoToEvent(id, null);
+      }
+    }
+    for (final id in _selectedExistingTodoIds) {
+      await todoRepo.linkTodoToEvent(id, eventId);
+    }
+    for (final title in _pendingNewTodoTitles) {
+      final t = title.trim();
+      if (t.isEmpty) continue;
+      await todoRepo.createTodo({
+        'title': t,
+        'is_personal': false,
+        'member_ids': _memberIds.toList(),
+        'event_id': eventId,
+        'priority': 'low',
+      });
+    }
+  }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -99,11 +139,24 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
         'notification_level_id': _notificationLevelId,
       };
       final repo = ref.read(eventRepositoryProvider);
+      final Event saved;
       if (_isEditing) {
-        await repo.updateEvent(widget.event!.id, data);
+        saved = await repo.updateEvent(widget.event!.id, data);
       } else {
-        await repo.createEvent(data);
+        saved = await repo.createEvent(data);
       }
+      try {
+        await _applyTodoLinks(saved.id);
+      } on ApiException catch (e) {
+        if (mounted) {
+          showAppToast(
+            context,
+            message: 'Termin gespeichert, Todos: ${e.message}',
+            type: ToastType.error,
+          );
+        }
+      }
+      ref.read(syncTickProvider.notifier).state++;
       if (mounted) Navigator.of(context).pop(EventFormDialogOutcome.saved);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
@@ -214,6 +267,8 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                       }
                     }),
                   ),
+                  const SizedBox(height: 12),
+                  _buildTodosExpansion(context),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -237,6 +292,175 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  void _addPendingTodoLine() {
+    final t = _extraTodoTitleController.text.trim();
+    if (t.isEmpty) return;
+    setState(() {
+      _pendingNewTodoTitles.add(t);
+      _extraTodoTitleController.clear();
+    });
+  }
+
+  Widget _buildTodosExpansion(BuildContext context) {
+    final theme = Theme.of(context);
+    final todosAsync = ref.watch(_todosForEventLinkProvider);
+    final eventId = widget.event?.id;
+    final visibleLinked =
+        widget.event?.linkedTodos.where((t) => !_unlinkTodoIds.contains(t.id)).toList() ?? [];
+
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      title: Row(
+        children: [
+          Icon(Icons.task_alt, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Text('Todos verknüpfen', style: theme.textTheme.titleSmall),
+        ],
+      ),
+      subtitle: Text(
+        'Fälligkeit und Push-Stufe kommen vom Termin.',
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      children: [
+        if (visibleLinked.isNotEmpty) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Verknüpft', style: theme.textTheme.labelMedium),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final t in visibleLinked)
+                InputChip(
+                  label: Text(
+                    t.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      decoration: t.completed ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  onDeleted: () => setState(() => _unlinkTodoIds.add(t.id)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Bestehende hinzufügen', style: theme.textTheme.labelMedium),
+        ),
+        const SizedBox(height: 4),
+        todosAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+          error: (e, _) => Text('$e', style: TextStyle(color: theme.colorScheme.error)),
+          data: (all) {
+            final linked = _activeLinkedTodoIds;
+            final available = all.where((t) {
+              if (t.completed || t.parentId != null) return false;
+              if (t.eventId != null && t.eventId != eventId) return false;
+              if (linked.contains(t.id)) return false;
+              return true;
+            }).toList();
+            if (available.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Keine weiteren offenen Todos.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              );
+            }
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const ClampingScrollPhysics(),
+                itemCount: available.length,
+                itemBuilder: (context, i) {
+                  final t = available[i];
+                  final checked = _selectedExistingTodoIds.contains(t.id);
+                  return CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: checked,
+                    title: Text(t.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) {
+                          _unlinkTodoIds.remove(t.id);
+                          _selectedExistingTodoIds.add(t.id);
+                        } else {
+                          _selectedExistingTodoIds.remove(t.id);
+                        }
+                      });
+                    },
+                  );
+                },
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Neues Todo', style: theme.textTheme.labelMedium),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _extraTodoTitleController,
+                decoration: const InputDecoration(
+                  hintText: 'Titel',
+                  isDense: true,
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _addPendingTodoLine(),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Zur Liste',
+              onPressed: _addPendingTodoLine,
+              icon: const Icon(Icons.add_circle_outline),
+            ),
+          ],
+        ),
+        if (_pendingNewTodoTitles.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final t in _pendingNewTodoTitles)
+                InputChip(
+                  label: Text(t, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  onDeleted: () => setState(() => _pendingNewTodoTitles.remove(t)),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 

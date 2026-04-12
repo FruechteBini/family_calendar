@@ -12,7 +12,7 @@ Unified codebase for Web, Android, and iOS replacing three separate implementati
 | Routing | GoRouter |
 | Local DB | Drift (SQLite) |
 | Auth | JWT via flutter_secure_storage |
-| Speech | speech_to_text |
+| Speech | speech_to_text + permission_handler (Mikrofon, Android/iOS) |
 | Sync | workmanager |
 
 ## Getting Started
@@ -33,7 +33,7 @@ flutter build ios              # iOS (requires macOS + Xcode)
 lib/
 ├── main.dart                  # Entry point
 ├── app/                       # App shell, router, theme
-├── core/                      # API client, auth, database, sync, theme
+├── core/                      # API client, auth, database, sync, speech, theme
 ├── features/                  # Feature modules (calendar, todos, meals, ...)
 │   └── <feature>/
 │       ├── data/              # Repository + DTOs

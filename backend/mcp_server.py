@@ -39,6 +39,7 @@ from app.models.meal_plan import MealPlan
 from app.models.recipe import Recipe
 from app.models.shopping_list import ShoppingItem, ShoppingList
 from app.models.todo import Todo
+from app.todo_event_binding import apply_event_binding_to_todo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp_server")
@@ -510,7 +511,12 @@ async def link_todo_to_event(todo_id: int, event_id: int | None) -> str:
             event = await db.get(Event, event_id)
             if not event:
                 return json.dumps({"error": "Event nicht gefunden"})
-        todo.event_id = event_id
+            if event.family_id != todo.family_id:
+                return json.dumps({"error": "Termin gehört zu einer anderen Familie"})
+            todo.event_id = event_id
+            apply_event_binding_to_todo(todo, event)
+        else:
+            todo.event_id = None
         await db.flush()
         await db.refresh(todo)
         result = _todo_dict(todo)
@@ -1174,10 +1180,26 @@ async def resource_cooking_history_90d() -> str:
 if __name__ == "__main__":
     transport = os.getenv("MCP_TRANSPORT", "stdio")
     if transport == "sse":
-        # FastMCP.run() in `mcp` doesn't accept host/port; run via uvicorn instead.
         import uvicorn
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.requests import Request
+        from starlette.responses import Response
+
+        MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+
+        class ApiKeyMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request: Request, call_next):
+                if MCP_API_KEY:
+                    token = request.headers.get("Authorization", "")
+                    key = request.query_params.get("api_key", "")
+                    if token != f"Bearer {MCP_API_KEY}" and key != MCP_API_KEY:
+                        return Response("Unauthorized", status_code=401)
+                return await call_next(request)
+
+        app = mcp.sse_app()
+        app.add_middleware(ApiKeyMiddleware)
 
         port = int(os.getenv("MCP_PORT", "8001"))
-        uvicorn.run(mcp.sse_app(), host="0.0.0.0", port=port)
+        uvicorn.run(app, host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")

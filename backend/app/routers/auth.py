@@ -29,6 +29,8 @@ from ..schemas.auth import (
     LoginRequest,
     SetupRequest,
     TokenResponse,
+    UserPreferencesResponse,
+    UserPreferencesUpdate,
     UserResponse,
 )
 from ..schemas.family import FamilyCreate, FamilyJoin, FamilyResponse
@@ -89,6 +91,32 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.get("/preferences", response_model=UserPreferencesResponse)
+async def get_preferences(user: User = Depends(get_current_user)):
+    return UserPreferencesResponse(
+        require_subtodos_complete=user.require_subtodos_complete,
+        auto_complete_parent=user.auto_complete_parent,
+    )
+
+
+@router.patch("/preferences", response_model=UserPreferencesResponse)
+async def update_preferences(
+    data: UserPreferencesUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if data.require_subtodos_complete is not None:
+        user.require_subtodos_complete = data.require_subtodos_complete
+    if data.auto_complete_parent is not None:
+        user.auto_complete_parent = data.auto_complete_parent
+    await db.flush()
+    await db.refresh(user)
+    return UserPreferencesResponse(
+        require_subtodos_complete=user.require_subtodos_complete,
+        auto_complete_parent=user.auto_complete_parent,
+    )
 
 
 @router.patch("/link-member", response_model=UserResponse)

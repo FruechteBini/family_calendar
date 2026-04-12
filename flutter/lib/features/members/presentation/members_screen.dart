@@ -67,40 +67,43 @@ class MembersScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: Text(isEdit ? 'Mitglied bearbeiten' : 'Neues Mitglied'),
         content: StatefulBuilder(
-          builder: (ctx, setState) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LabeledOutlineTextField(
-                label: 'Name',
-                controller: nameController,
-                prefixIcon: const Icon(Icons.person_outline),
-              ),
-              const SizedBox(height: 12),
-              LabeledOutlineTextField(
-                label: 'Emoji (optional)',
-                controller: emojiController,
-                prefixIcon: const Icon(Icons.emoji_emotions_outlined),
-                maxLength: 2,
-              ),
-              const SizedBox(height: 12),
-              LabeledOutlineTextField(
-                label: 'Farbe (Hex)',
-                controller: colorController,
-                hintText: '#1565C0',
-                prefixIcon: const Icon(Icons.palette_outlined),
-              ),
-              if (canOfferLink) ...[
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Danach mit mir verknüpfen'),
-                  subtitle: const Text(
-                      'Wählt dieses Familienmitglied als „ich“ in der App.'),
-                  value: linkAfterCreate,
-                  onChanged: (v) => setState(() => linkAfterCreate = v),
+          builder: (ctx, setState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LabeledOutlineTextField(
+                  label: 'Name',
+                  controller: nameController,
+                  prefixIcon: const Icon(Icons.person_outline),
                 ),
+                const SizedBox(height: 12),
+                LabeledOutlineTextField(
+                  label: 'Emoji (optional)',
+                  controller: emojiController,
+                  prefixIcon: const Icon(Icons.emoji_emotions_outlined),
+                  maxLength: 2,
+                ),
+                const SizedBox(height: 12),
+                LabeledOutlineTextField(
+                  label: 'Farbe (Hex)',
+                  controller: colorController,
+                  hintText: '#1565C0',
+                  prefixIcon: const Icon(Icons.palette_outlined),
+                ),
+                if (canOfferLink) ...[
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Danach mit mir verknüpfen'),
+                    subtitle: const Text(
+                        'Wählt dieses Familienmitglied als „ich“ in der App.'),
+                    value: linkAfterCreate,
+                    onChanged: (v) => setState(() => linkAfterCreate = v),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         actions: [

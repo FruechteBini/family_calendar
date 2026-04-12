@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 
@@ -173,22 +173,73 @@ async def get_shopping_list() -> list[dict[str, Any]]:
         return []
 
 
+def _instructions_from_recipe_step_groups(raw: dict[str, Any]) -> str | None:
+    """Build numbered instruction text from Cookidoo API ``recipeStepGroups``."""
+    groups = raw.get("recipeStepGroups")
+    if not isinstance(groups, list) or not groups:
+        return None
+    lines: list[str] = []
+    step_no = 1
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        title = str(group.get("title") or "").strip()
+        steps = group.get("recipeSteps")
+        if title and isinstance(steps, list) and steps:
+            lines.append(title)
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            formatted = str(step.get("formattedText") or "").strip()
+            step_title = str(step.get("title") or "").strip()
+            body = formatted or step_title
+            if body:
+                lines.append(f"{step_no}. {body}")
+                step_no += 1
+    text = "\n".join(lines).strip()
+    return text or None
+
+
 async def get_recipe_detail(cookidoo_id: str) -> dict[str, Any] | None:
     client = await _ensure_auth()
     if not client:
         return None
     try:
-        r = await client.get_recipe_details(cookidoo_id)
-        ingredients = [_serialize_ingredient(i) for i in getattr(r, "ingredients", [])]
-        # Extract instructions from notes or instructions field
-        instructions_list = getattr(r, "instructions", None) or getattr(r, "notes", None) or []
-        instructions_text = None
-        if instructions_list and isinstance(instructions_list, list):
-            steps = [s for s in instructions_list if s and s.strip()]
-            if steps:
-                instructions_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(steps))
+        # One HTTP GET: cookidoo-api's ``get_recipe_details`` omits step groups from the model;
+        # parse raw JSON for Zubereitungsschritte.
+        from cookidoo_api.const import RECIPE_PATH
+        from cookidoo_api.helpers import cookidoo_recipe_details_from_json
+        from cookidoo_api.raw_types import RecipeDetailsJSON
 
-        # Some cookidoo-api versions expose a textual description/summary separately.
+        url = client.api_endpoint / RECIPE_PATH.format(
+            **client._cfg.localization.__dict__, id=cookidoo_id
+        )
+        async with client._session.get(url, headers=client._api_headers) as resp:
+            if resp.status == 401:
+                logger.warning("Cookidoo recipe detail HTTP 401 for id=%s", cookidoo_id)
+                return None
+            resp.raise_for_status()
+            raw = cast(dict[str, Any], await resp.json())
+
+        r = cookidoo_recipe_details_from_json(
+            cast(RecipeDetailsJSON, raw), client._cfg.localization
+        )
+        ingredients = [_serialize_ingredient(i) for i in getattr(r, "ingredients", [])]
+
+        instructions_text = _instructions_from_recipe_step_groups(raw)
+        if not instructions_text:
+            instr_attr = getattr(r, "instructions", None)
+            if isinstance(instr_attr, list):
+                steps = [str(s).strip() for s in instr_attr if s and str(s).strip()]
+                if steps:
+                    instructions_text = "\n".join(
+                        f"{i + 1}. {step}" for i, step in enumerate(steps)
+                    )
+            elif isinstance(instr_attr, str) and instr_attr.strip():
+                instructions_text = instr_attr.strip()
+
         description = (
             getattr(r, "description", None)
             or getattr(r, "summary", None)
@@ -198,6 +249,15 @@ async def get_recipe_detail(cookidoo_id: str) -> dict[str, Any] | None:
             description = "\n".join([str(s) for s in description if s])
         if description is not None:
             description = str(description).strip() or None
+
+        if not description and hasattr(r, "notes"):
+            hint_lines = [
+                str(n).strip()
+                for n in (getattr(r, "notes", None) or [])
+                if n and str(n).strip()
+            ]
+            if hint_lines:
+                description = "\n".join(hint_lines)
 
         return {
             "cookidoo_id": r.id,
@@ -237,6 +297,45 @@ async def get_calendar_week(day: date) -> list[dict[str, Any]]:
     except Exception as e:
         logger.error("Cookidoo calendar error: %s", e)
         return []
+
+
+async def add_recipes_to_planning_day(
+    cookidoo_ids: list[str],
+    day: date | None = None,
+) -> dict[str, Any] | None:
+    """Trägt Rezepte in Cookidoo „Mein Tag“ ein (sync zum Thermomix / Cookidoo-App)."""
+    client = await _ensure_auth()
+    if not client:
+        return None
+    seen: set[str] = set()
+    ids: list[str] = []
+    for raw in cookidoo_ids:
+        cid = str(raw).strip() if raw else ""
+        if not cid or cid in seen:
+            continue
+        seen.add(cid)
+        ids.append(cid)
+    if not ids:
+        return None
+    target_day = day or date.today()
+    try:
+        cal_day = await client.add_recipes_to_calendar(target_day, ids)
+        return {
+            "day": target_day.isoformat(),
+            "recipes": [
+                {"cookidoo_id": r.id, "name": getattr(r, "name", "")}
+                for r in getattr(cal_day, "recipes", []) or []
+            ],
+        }
+    except Exception as e:
+        logger.error(
+            "Cookidoo add_recipes_to_calendar day=%s ids=%s: %s",
+            target_day.isoformat(),
+            ids,
+            e,
+            exc_info=True,
+        )
+        raise
 
 
 def _map_difficulty(val) -> str:

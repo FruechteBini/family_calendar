@@ -783,7 +783,7 @@ ScrollView (vertikal):
 | Essensplanung redesignen | `flutter/lib/features/meals/presentation/week_plan_screen.dart` |
 | Einkaufsliste redesignen | `flutter/lib/features/shopping/presentation/shopping_list_screen.dart` |
 | Vorratskammer redesignen | `flutter/lib/features/pantry/presentation/pantry_screen.dart` |
-| Voice FAB redesignen | `flutter/lib/features/ai/presentation/voice_fab.dart` |
+| Voice FAB + Sprach-Sheet redesignen | `flutter/lib/app/app_shell.dart` (`_FamilienherdVoiceFAB`, `_VoiceCommandSheet`), `flutter/lib/core/speech/` |
 | Shared Widgets (Karten, etc.) | `flutter/lib/core/widgets/` (ggf. neue Dateien) |
 
 ### Reihenfolge
@@ -795,7 +795,7 @@ ScrollView (vertikal):
 5. **Essensplanung** — `week_plan_screen.dart` nach Mockup
 6. **Einkaufsliste** — `shopping_list_screen.dart` nach Mockup
 7. **Vorratskammer** — `pantry_screen.dart` nach Mockup
-8. **Sprachassistent** — `voice_fab.dart` Sheet-Design
+8. **Sprachassistent** — `app_shell.dart` Bottom-Sheet (`_VoiceCommandSheet`) + `core/speech/`
 
 ### Regeln fuer Implementierer
 

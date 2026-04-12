@@ -283,7 +283,7 @@ class _MealSlotTile extends ConsumerWidget {
       onTap: () {
         final id = meal?.recipeId;
         if (id != null) {
-          context.go('/recipes/$id');
+          context.push('/recipes/$id');
         } else {
           _openMealActions(context, ref);
         }

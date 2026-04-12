@@ -2,6 +2,7 @@ import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user, require_family_id
@@ -15,6 +16,13 @@ router = APIRouter(
 )
 
 logger = logging.getLogger("kalender.cookidoo")
+
+
+class CookidooPlanDayRequest(BaseModel):
+    """Rezepte auf einen Cookidoo-Planungstag legen (z. B. „heute kochen“ → Thermomix)."""
+
+    cookidoo_ids: list[str] = Field(..., min_length=1)
+    day: date | None = None
 
 
 def _get_integration():
@@ -105,6 +113,51 @@ async def import_from_cookidoo(
     except Exception as e:
         logger.error("Cookidoo import error: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/plan-day")
+async def plan_recipes_on_cookidoo_day(body: CookidooPlanDayRequest):
+    """Rezepte in Cookidoo „Mein Tag“ einplanen (erscheint u. a. am Gerät in der Kochliste)."""
+    _get_integration()
+    try:
+        from integrations.cookidoo.client import add_recipes_to_planning_day
+    except ImportError as e:
+        logger.error("Cookidoo plan-day: fehlende Erweiterung: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Cookidoo-Backend veraltet oder unvollständig: "
+                "Neuesten Stand deployen (Docker-Image neu bauen / API neu starten)."
+            ),
+        ) from e
+    try:
+        result = await add_recipes_to_planning_day(
+            body.cookidoo_ids,
+            day=body.day,
+        )
+        if not result:
+            raise HTTPException(
+                status_code=503,
+                detail="Cookidoo nicht verfügbar oder nicht konfiguriert",
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Cookidoo plan-day error: %s", e, exc_info=True)
+        msg = str(e)
+        if "add_recipes_to_planning_day" in msg or "has no attribute" in msg:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "API-Server nutzt noch alten Code ohne „Heute kochen“. "
+                    "Bitte Backend neu deployen (Image bauen, Container neu starten)."
+                ),
+            ) from e
+        raise HTTPException(
+            status_code=502,
+            detail=f"Cookidoo: {msg}",
+        ) from e
 
 
 @router.get("/calendar")

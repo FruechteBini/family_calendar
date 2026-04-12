@@ -120,6 +120,17 @@ def _add_missing_columns(conn):
         )
         logger.info("Spalte 'notification_level_id' zu todos hinzugefügt")
 
+    if "sort_order" not in todo_columns:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE todos
+                ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0
+                """
+            )
+        )
+        logger.info("Spalte 'sort_order' zu todos hinzugefügt")
+
     event_columns = {c["name"] for c in inspector.get_columns("events")}
     if "notification_level_id" not in event_columns:
         conn.execute(
@@ -197,6 +208,22 @@ def _add_missing_columns(conn):
         conn.execute(text("ALTER TABLE users ADD COLUMN sync_todos_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
         logger.info("Spalte 'sync_todos_enabled' zu users hinzugefügt")
 
+    if "require_subtodos_complete" not in user_columns:
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN require_subtodos_complete BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
+        logger.info("Spalte 'require_subtodos_complete' zu users hinzugefügt")
+
+    if "auto_complete_parent" not in user_columns:
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN auto_complete_parent BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
+        logger.info("Spalte 'auto_complete_parent' zu users hinzugefügt")
+
     if "google_calendar_id" not in user_columns:
         conn.execute(text("ALTER TABLE users ADD COLUMN google_calendar_id VARCHAR(255) NOT NULL DEFAULT 'primary'"))
         logger.info("Spalte 'google_calendar_id' zu users hinzugefügt")
@@ -237,7 +264,7 @@ def _add_missing_columns(conn):
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_google_calendar_sync_event_id ON google_calendar_sync (event_id)"))
         conn.execute(
             text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS ux_google_calendar_sync_family_event ON google_calendar_sync (family_id, event_id)"
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_google_calendar_sync_family_user_event ON google_calendar_sync (family_id, user_id, event_id)"
             )
         )
         conn.execute(
@@ -272,7 +299,7 @@ def _add_missing_columns(conn):
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_google_tasks_sync_todo_id ON google_tasks_sync (todo_id)"))
         conn.execute(
             text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS ux_google_tasks_sync_family_todo ON google_tasks_sync (family_id, todo_id)"
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_google_tasks_sync_family_user_todo ON google_tasks_sync (family_id, user_id, todo_id)"
             )
         )
         conn.execute(
@@ -281,6 +308,51 @@ def _add_missing_columns(conn):
             )
         )
         logger.info("Tabelle 'google_tasks_sync' erstellt")
+
+    # Google-Sync: früher nur (family_id, event_id) — zweites Familienmitglied mit Sync → 500.
+    if inspector.has_table("google_calendar_sync"):
+        cal_ix = {i["name"] for i in inspector.get_indexes("google_calendar_sync") if i.get("name")}
+        cal_uc = {u["name"] for u in inspector.get_unique_constraints("google_calendar_sync")}
+        if "ux_google_calendar_sync_family_event" in cal_ix:
+            conn.execute(text("DROP INDEX IF EXISTS ux_google_calendar_sync_family_event"))
+            logger.info("Index ux_google_calendar_sync_family_event entfernt (ersetzt durch family+user+event)")
+        if "ux_google_calendar_sync_family_event" in cal_uc:
+            conn.execute(
+                text(
+                    "ALTER TABLE google_calendar_sync DROP CONSTRAINT IF EXISTS ux_google_calendar_sync_family_event"
+                )
+            )
+            logger.info("Constraint ux_google_calendar_sync_family_event entfernt")
+        if "ux_google_calendar_sync_family_user_event" not in cal_ix and "ux_google_calendar_sync_family_user_event" not in cal_uc:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_google_calendar_sync_family_user_event "
+                    "ON google_calendar_sync (family_id, user_id, event_id)"
+                )
+            )
+            logger.info("Index ux_google_calendar_sync_family_user_event angelegt")
+
+    if inspector.has_table("google_tasks_sync"):
+        todo_ix = {i["name"] for i in inspector.get_indexes("google_tasks_sync") if i.get("name")}
+        todo_uc = {u["name"] for u in inspector.get_unique_constraints("google_tasks_sync")}
+        if "ux_google_tasks_sync_family_todo" in todo_ix:
+            conn.execute(text("DROP INDEX IF EXISTS ux_google_tasks_sync_family_todo"))
+            logger.info("Index ux_google_tasks_sync_family_todo entfernt (ersetzt durch family+user+todo)")
+        if "ux_google_tasks_sync_family_todo" in todo_uc:
+            conn.execute(
+                text(
+                    "ALTER TABLE google_tasks_sync DROP CONSTRAINT IF EXISTS ux_google_tasks_sync_family_todo"
+                )
+            )
+            logger.info("Constraint ux_google_tasks_sync_family_todo entfernt")
+        if "ux_google_tasks_sync_family_user_todo" not in todo_ix and "ux_google_tasks_sync_family_user_todo" not in todo_uc:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_google_tasks_sync_family_user_todo "
+                    "ON google_tasks_sync (family_id, user_id, todo_id)"
+                )
+            )
+            logger.info("Index ux_google_tasks_sync_family_user_todo angelegt")
 
 
 @asynccontextmanager

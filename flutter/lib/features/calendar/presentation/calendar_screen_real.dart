@@ -65,11 +65,13 @@ class CalendarScreen extends ConsumerWidget {
       backgroundColor: AppColors.surface,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          await showDialog<void>(
+          final outcome = await showDialog<EventFormDialogOutcome?>(
             context: context,
             builder: (_) => EventFormDialog(initialDate: selected),
           );
-          ref.invalidate(monthEventsProvider(month));
+          if (outcome == EventFormDialogOutcome.saved) {
+            ref.invalidate(monthEventsProvider(month));
+          }
         },
         child: const Icon(Icons.add),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api/api_client.dart' show serverUrlProvider, ApiException;
 import '../api/endpoints.dart';
+import '../preferences/todo_preferences.dart';
 import '../../features/auth/domain/user.dart';
 import 'google_auth_service.dart';
 
@@ -48,6 +49,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       try {
         final user = await _fetchCurrentUser(token);
         state = AuthState(token: token, user: user);
+        _ref.invalidate(todoPreferencesProvider);
       } catch (_) {
         state = const AuthState();
         await _storage.delete(key: _tokenKey);
@@ -91,6 +93,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       await _storage.write(key: _tokenKey, value: token);
       final user = await _fetchCurrentUser(token);
       state = AuthState(token: token, user: user);
+      _ref.invalidate(todoPreferencesProvider);
     } on DioException catch (e) {
       state = state.copyWith(isLoading: false);
       throw ApiException.fromDioError(e);
@@ -114,6 +117,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       await _storage.write(key: _tokenKey, value: token);
       final user = await _fetchCurrentUser(token);
       state = AuthState(token: token, user: user);
+      _ref.invalidate(todoPreferencesProvider);
     } on DioException catch (e) {
       state = state.copyWith(isLoading: false);
       throw ApiException.fromDioError(e);
@@ -229,6 +233,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _fetchCurrentUser(state.token!);
       state = state.copyWith(user: user);
+      _ref.invalidate(todoPreferencesProvider);
     } catch (_) {}
   }
 

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Column, ForeignKey, String, Table, Text
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base, utcnow
@@ -43,6 +43,7 @@ class Todo(Base):
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("todos.id", ondelete="CASCADE"), default=None
     )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
@@ -60,6 +61,11 @@ class Todo(Base):
         back_populates="parent",
         lazy="selectin",
         cascade="all, delete-orphan",
-        order_by="Todo.created_at",
+        order_by="Todo.sort_order, Todo.created_at",
     )
     parent = relationship("Todo", back_populates="subtodos", remote_side=[id], lazy="noload")
+    attachments = relationship(
+        "TodoAttachment",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )

@@ -38,8 +38,10 @@ final dioProvider = Provider<Dio>((ref) {
   return dio;
 });
 
-// Default reaches host machine from Android emulator (see also login "Server konfigurieren").
-final serverUrlProvider = StateProvider<String>((ref) => 'http://10.0.2.2:8000');
+/// Production NAS (Synology). Override via Login → „Server konfigurieren“ or secure storage.
+const kDefaultServerUrl = 'https://blanzis.synology.me';
+
+final serverUrlProvider = StateProvider<String>((ref) => kDefaultServerUrl);
 
 class ApiException implements Exception {
   final String message;

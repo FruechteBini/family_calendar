@@ -8,6 +8,7 @@ import '../../../core/api/api_client.dart';
 import '../data/note_category_repository.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
+import '../domain/note_category.dart';
 import 'note_card.dart';
 import 'note_categories_screen.dart';
 import 'note_comments_sheet.dart';
@@ -44,6 +45,12 @@ class NotesScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<NotesScreen> createState() => _NotesScreenState();
+}
+
+class _QuickInsertCategoryPick {
+  final int? categoryId;
+
+  const _QuickInsertCategoryPick(this.categoryId);
 }
 
 class _NotesScreenState extends ConsumerState<NotesScreen> {
@@ -86,11 +93,79 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
       return;
     }
+
+    List<NoteCategory> categories;
+    try {
+      categories = await ref.read(noteCategoriesListProvider.future);
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final pick = await showModalBottomSheet<_QuickInsertCategoryPick>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      'Kategorie für neue Notiz',
+                      style: Theme.of(ctx).textTheme.titleMedium,
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.folder_off_outlined),
+                    title: const Text('Ohne Kategorie'),
+                    onTap: () => Navigator.pop(
+                      ctx,
+                      const _QuickInsertCategoryPick(null),
+                    ),
+                  ),
+                  ...categories.map(
+                    (c) => ListTile(
+                      leading: Text(
+                        c.icon,
+                        style: const TextStyle(fontSize: 22),
+                      ),
+                      title: Text(c.name),
+                      onTap: () => Navigator.pop(
+                        ctx,
+                        _QuickInsertCategoryPick(c.id),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (pick == null || !mounted) return;
+
     final scope = ref.read(notesScopeProvider);
     final isPersonal = scope == NotesScope.personal;
     try {
       await ref.read(noteRepositoryProvider).createNote(
-            buildQuickNotePayload(raw, isPersonal: isPersonal),
+            buildQuickNotePayload(
+              raw,
+              isPersonal: isPersonal,
+              categoryId: pick.categoryId,
+            ),
           );
       ref.invalidate(notesListProvider);
       ref.invalidate(noteCategoriesListProvider);

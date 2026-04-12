@@ -33,6 +33,7 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _descController;
+  late TextEditingController _instructionsController;
   String _difficulty = 'mittel';
   int? _prepTime;
   String? _imageUrl;
@@ -49,6 +50,7 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     final r = widget.recipe;
     _nameController = TextEditingController(text: r?.name ?? '');
     _descController = TextEditingController(text: r?.description ?? '');
+    _instructionsController = TextEditingController(text: r?.instructions ?? '');
     _difficulty = r?.difficulty ?? 'mittel';
     _prepTime = r?.prepTime;
     _imageUrl = r?.imageUrl;
@@ -68,6 +70,7 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
   void dispose() {
     _nameController.dispose();
     _descController.dispose();
+    _instructionsController.dispose();
     for (final i in _ingredients) {
       i.nameController.dispose();
       i.amountController.dispose();
@@ -151,6 +154,9 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
       final data = <String, dynamic>{
         'title': _nameController.text.trim(),
         'notes': _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+        'instructions': _instructionsController.text.trim().isEmpty
+            ? null
+            : _instructionsController.text.trim(),
         'difficulty': diffMap[_difficulty] ?? 'medium',
         'prep_time_active_minutes': _prepTime,
         if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) 'image_url': _imageUrl!.trim(),
@@ -239,7 +245,13 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                     label: 'Beschreibung',
                     controller: _descController,
                     hintText:
-                        'Optional — Tipps zur Zubereitung, Varianten, Portionshinweise …',
+                        'Optional — Kurzinfo, Notizen, Varianten, Portionshinweise …',
+                  ),
+                  const SizedBox(height: 12),
+                  LabeledMultilineTextField(
+                    label: 'Zubereitung',
+                    controller: _instructionsController,
+                    hintText: 'Optional — Schritt für Schritt, aus Import oder manuell',
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(

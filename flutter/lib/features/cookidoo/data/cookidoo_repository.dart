@@ -63,6 +63,25 @@ class CookidooRepository {
     }
   }
 
+  /// Rezepte in Cookidoo „Mein Tag“ legen ([day] = lokales Kalenderdatum, Standard: heute).
+  Future<void> planRecipesOnCookidooDay(
+    List<String> cookidooIds, {
+    DateTime? day,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'cookidoo_ids': cookidooIds,
+      };
+      final d = day ?? DateTime.now();
+      final local = d.toLocal();
+      body['day'] =
+          '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+      await _dio.post(Endpoints.cookidooPlanDay, data: body);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> getCalendar() async {
     try {
       final response = await _dio.get(Endpoints.cookidooCalendar);

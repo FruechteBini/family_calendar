@@ -92,6 +92,7 @@ class RecipeRepository {
       return Recipe(
         id: 0,
         name: d['title'] as String? ?? '',
+        instructions: d['instructions'] as String?,
         difficulty: const {'easy': 'einfach', 'medium': 'mittel', 'hard': 'schwer'}[d['difficulty']] ?? 'mittel',
         prepTime: (activeMin + passiveMin) > 0 ? activeMin + passiveMin : null,
         imageUrl: d['image_url'] as String?,

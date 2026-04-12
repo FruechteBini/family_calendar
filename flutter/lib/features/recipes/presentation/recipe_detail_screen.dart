@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../cookidoo/data/cookidoo_repository.dart';
 import '../../../shared/widgets/difficulty_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
@@ -9,30 +10,65 @@ import '../../../shared/widgets/toast.dart';
 import '../data/recipe_repository.dart';
 import '../domain/recipe.dart';
 import 'recipe_form_dialog.dart';
+import 'recipe_list_screen.dart';
 
 final recipeDetailProvider = FutureProvider.family<Recipe, int>((ref, id) async {
   return ref.watch(recipeRepositoryProvider).getRecipe(id);
 });
 
-class RecipeDetailScreen extends ConsumerWidget {
+class RecipeDetailScreen extends ConsumerStatefulWidget {
   final int recipeId;
 
   const RecipeDetailScreen({super.key, required this.recipeId});
 
-  Future<void> _edit(BuildContext context, WidgetRef ref, Recipe recipe) async {
+  @override
+  ConsumerState<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+}
+
+class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
+  bool _cookidooPlanning = false;
+
+  Future<void> _edit(BuildContext context, Recipe recipe) async {
     final changed = await showDialog<bool>(
       context: context,
       builder: (_) => RecipeFormDialog(recipe: recipe),
     );
     if (changed == true) {
-      ref.invalidate(recipeDetailProvider(recipeId));
-      if (context.mounted) showAppToast(context, message: 'Gespeichert', type: ToastType.success);
+      ref.invalidate(recipeDetailProvider(widget.recipeId));
+      ref.invalidate(recipesProvider);
+      if (context.mounted) {
+        showAppToast(context, message: 'Gespeichert', type: ToastType.success);
+      }
+    }
+  }
+
+  Future<void> _planTodayOnCookidoo(String cookidooId, String recipeName) async {
+    setState(() => _cookidooPlanning = true);
+    try {
+      await ref.read(cookidooRepositoryProvider).planRecipesOnCookidooDay([cookidooId]);
+      if (mounted) {
+        showAppToast(
+          context,
+          message: '„$recipeName“ ist in Cookidoo für heute eingeplant',
+          type: ToastType.success,
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context, message: e.toString(), type: ToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _cookidooPlanning = false);
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recipeAsync = ref.watch(recipeDetailProvider(recipeId));
+  Widget build(BuildContext context) {
+    final recipeAsync = ref.watch(recipeDetailProvider(widget.recipeId));
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -43,8 +79,8 @@ class RecipeDetailScreen extends ConsumerWidget {
           recipeAsync.maybeWhen(
             data: (r) => IconButton(
               tooltip: 'Bearbeiten',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _edit(context, ref, r),
+              icon: const Icon(Icons.edit),
+              onPressed: () => _edit(context, r),
             ),
             orElse: () => const SizedBox.shrink(),
           ),
@@ -58,6 +94,8 @@ class RecipeDetailScreen extends ConsumerWidget {
           subtitle: err is ApiException ? err.message : err.toString(),
         ),
         data: (r) {
+          final cid = r.cookidooId;
+          final canPlanCookidoo = cid != null && cid.trim().isNotEmpty;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -104,8 +142,34 @@ class RecipeDetailScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              if (canPlanCookidoo) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: _cookidooPlanning
+                      ? null
+                      : () => _planTodayOnCookidoo(cid.trim(), r.name),
+                  icon: _cookidooPlanning
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.restaurant_menu),
+                  label: const Text('Heute kochen (Cookidoo)'),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Trägt das Rezept in Cookidoo „Mein Tag“ ein – synchron mit Thermomix, wenn verbunden.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               if (r.description != null && r.description!.trim().isNotEmpty) ...[
                 const SizedBox(height: 16),
+                Text('Beschreibung', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
                 Text(r.description!, style: theme.textTheme.bodyMedium),
               ],
               const SizedBox(height: 16),
@@ -120,6 +184,12 @@ class RecipeDetailScreen extends ConsumerWidget {
                     child: Text('• ${_ingredientText(i)}', style: theme.textTheme.bodyMedium),
                   ),
                 ),
+              if (r.instructions != null && r.instructions!.trim().isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Zubereitung', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(r.instructions!, style: theme.textTheme.bodyMedium),
+              ],
             ],
           );
         },
@@ -165,4 +235,3 @@ class _Chip extends StatelessWidget {
     );
   }
 }
-

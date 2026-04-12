@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -31,7 +32,7 @@ class GoogleAuthService {
       throw Exception(
         'Google Sign-In: Entwickler-Konfiguration (Fehler 10). '
         'In der Google Cloud (gleiches Projekt wie die Web-Client-ID!) unter '
-        '„APIs & Dienste → Anmeldedaten“ einen OAuth-Client vom Typ „Android“ anlegen: '
+        '„APIs & Dienste → Anmeldedaten" einen OAuth-Client vom Typ „Android" anlegen: '
         'Paketname $_androidApplicationId und SHA-1 des Debug-Keystores eintragen '
         '(Skript: flutter/scripts/print_android_debug_sha1.ps1). '
         'Danach App neu installieren/starten.',
@@ -40,19 +41,66 @@ class GoogleAuthService {
     throw Exception(e.message ?? e.code);
   }
 
-  Future<GoogleAuthPayload> signInBasic() async {
-    try {
-    final account = await _signIn.signIn();
-    if (account == null) {
-      throw Exception('Google Sign-In abgebrochen');
+  /// Extract [GoogleAuthPayload] from an account, retrying with disconnect+signIn if
+  /// serverAuthCode is null (common after repeated sign-ins on the same device).
+  Future<GoogleAuthPayload> _extractPayload(GoogleSignInAccount account) async {
+    var auth = await account.authentication;
+    var idToken = auth.idToken;
+    var serverAuthCode = account.serverAuthCode;
+
+    dev.log(
+      'GoogleAuth: idToken=${idToken != null ? "ok(${idToken.length})" : "NULL"}, '
+      'serverAuthCode=${serverAuthCode != null ? "ok(${serverAuthCode.length})" : "NULL"}, '
+      'serverClientId=${_serverClientId.isEmpty ? "EMPTY" : "set(${_serverClientId.length})"}',
+      name: 'GoogleAuthService',
+    );
+
+    if (_serverClientId.isEmpty) {
+      throw Exception(
+        'GOOGLE_SERVER_CLIENT_ID ist nicht gesetzt. '
+        'App mit --dart-define-from-file=dart_defines.json starten '
+        'oder GOOGLE_SERVER_CLIENT_ID in der Run-Config setzen.',
+      );
     }
-    final auth = await account.authentication;
-    final idToken = auth.idToken;
-    final serverAuthCode = account.serverAuthCode;
+
+    if (idToken != null && serverAuthCode != null) {
+      return GoogleAuthPayload(idToken: idToken, serverAuthCode: serverAuthCode);
+    }
+
+    // serverAuthCode is often null on repeated sign-ins. Force a fresh one.
+    dev.log('GoogleAuth: serverAuthCode null — disconnect + re-signIn', name: 'GoogleAuthService');
+    await _signIn.disconnect();
+    final fresh = await _signIn.signIn();
+    if (fresh == null) {
+      throw Exception('Google Sign-In abgebrochen (retry)');
+    }
+    auth = await fresh.authentication;
+    idToken = auth.idToken;
+    serverAuthCode = fresh.serverAuthCode;
+
+    dev.log(
+      'GoogleAuth retry: idToken=${idToken != null ? "ok" : "NULL"}, '
+      'serverAuthCode=${serverAuthCode != null ? "ok" : "NULL"}',
+      name: 'GoogleAuthService',
+    );
+
     if (idToken == null || serverAuthCode == null) {
-      throw Exception('Google Sign-In Token fehlen (idToken/serverAuthCode)');
+      throw Exception(
+        'Google Sign-In: Token fehlen nach Retry '
+        '(idToken=${idToken != null}, serverAuthCode=${serverAuthCode != null}). '
+        'Prüfe GOOGLE_SERVER_CLIENT_ID (Web-Client-ID) in dart_defines.json.',
+      );
     }
     return GoogleAuthPayload(idToken: idToken, serverAuthCode: serverAuthCode);
+  }
+
+  Future<GoogleAuthPayload> signInBasic() async {
+    try {
+      final account = await _signIn.signIn();
+      if (account == null) {
+        throw Exception('Google Sign-In abgebrochen');
+      }
+      return await _extractPayload(account);
     } on PlatformException catch (e) {
       _rethrowGooglePlatform(e);
     }
@@ -63,39 +111,32 @@ class GoogleAuthService {
     required bool tasks,
   }) async {
     try {
-    final scopes = <String>[];
-    if (calendar) {
-      scopes.add('https://www.googleapis.com/auth/calendar');
-    }
-    if (tasks) {
-      scopes.add('https://www.googleapis.com/auth/tasks');
-    }
-    if (scopes.isNotEmpty) {
-      final account = _signIn.currentUser ?? await _signIn.signInSilently();
-      if (account == null) {
-        // Force interactive sign in to allow adding scopes
-        await signInBasic();
+      final scopes = <String>[];
+      if (calendar) {
+        scopes.add('https://www.googleapis.com/auth/calendar');
       }
-      final ok = await _signIn.requestScopes(scopes);
-      if (!ok) {
-        throw Exception('Google Berechtigungen wurden nicht erteilt');
+      if (tasks) {
+        scopes.add('https://www.googleapis.com/auth/tasks');
       }
-      // Play Services liefert den neuen serverAuthCode oft erst kurz nach requestScopes.
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    }
+      if (scopes.isNotEmpty) {
+        var account = _signIn.currentUser ?? await _signIn.signInSilently();
+        if (account == null) {
+          await signInBasic();
+          account = _signIn.currentUser;
+        }
+        final ok = await _signIn.requestScopes(scopes);
+        if (!ok) {
+          throw Exception('Google Berechtigungen wurden nicht erteilt');
+        }
+      }
 
-    // Refresh the auth code after scope changes
-    final account = _signIn.currentUser ?? await _signIn.signInSilently();
-    if (account == null) {
-      throw Exception('Google Sign-In nicht verbunden');
-    }
-    final auth = await account.authentication;
-    final idToken = auth.idToken;
-    final serverAuthCode = account.serverAuthCode;
-    if (idToken == null || serverAuthCode == null) {
-      throw Exception('Google Sign-In Token fehlen (idToken/serverAuthCode)');
-    }
-    return GoogleAuthPayload(idToken: idToken, serverAuthCode: serverAuthCode);
+      // After scope change we need a fresh serverAuthCode — disconnect forces a new one.
+      await _signIn.disconnect();
+      final fresh = await _signIn.signIn();
+      if (fresh == null) {
+        throw Exception('Google Sign-In nach Scope-Änderung abgebrochen');
+      }
+      return await _extractPayload(fresh);
     } on PlatformException catch (e) {
       _rethrowGooglePlatform(e);
     }
@@ -105,4 +146,3 @@ class GoogleAuthService {
 
   Future<void> disconnect() => _signIn.disconnect();
 }
-

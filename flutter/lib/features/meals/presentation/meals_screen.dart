@@ -55,7 +55,7 @@ class MealsScreen extends StatelessWidget {
               Tab(icon: Icon(Icons.calendar_view_week), text: 'Wochenplan'),
               Tab(icon: Icon(Icons.menu_book), text: 'Rezepte'),
               Tab(icon: Icon(Icons.kitchen), text: 'Vorrat'),
-              Tab(icon: Icon(Icons.shopping_cart_outlined), text: 'Einkauf'),
+              Tab(icon: Icon(Icons.shopping_cart_outlined), text: 'Einkaufsliste'),
             ],
           ),
         ),

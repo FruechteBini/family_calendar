@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:familienkalender/app/app_shell.dart';
-import 'package:familienkalender/features/ai/presentation/voice_fab.dart';
+import 'package:familienkalender/core/speech/voice_state.dart';
 import 'package:familienkalender/features/todos/domain/todo.dart';
 
 void main() {

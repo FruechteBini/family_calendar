@@ -33,8 +33,20 @@ class UserResponse(BaseModel):
     google_email: str | None = None
     sync_calendar_enabled: bool = False
     sync_todos_enabled: bool = False
+    require_subtodos_complete: bool = False
+    auto_complete_parent: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class UserPreferencesResponse(BaseModel):
+    require_subtodos_complete: bool
+    auto_complete_parent: bool
+
+
+class UserPreferencesUpdate(BaseModel):
+    require_subtodos_complete: bool | None = None
+    auto_complete_parent: bool | None = None
 
 
 class GoogleAuthRequest(BaseModel):

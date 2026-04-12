@@ -4,6 +4,8 @@ class Recipe {
   final int id;
   final String name;
   final String? description;
+  /// Zubereitungsschritte (API: `instructions`).
+  final String? instructions;
   final String difficulty; // einfach, mittel, schwer
   final int? prepTime;
   final String? imageUrl;
@@ -22,6 +24,7 @@ class Recipe {
     required this.id,
     required this.name,
     this.description,
+    this.instructions,
     this.difficulty = 'mittel',
     this.prepTime,
     this.imageUrl,
@@ -49,6 +52,7 @@ class Recipe {
       id: json['id'] as int,
       name: (json['title'] as String?) ?? (json['name'] as String?) ?? '',
       description: (json['notes'] as String?) ?? (json['description'] as String?),
+      instructions: json['instructions'] as String?,
       difficulty: const {'easy': 'einfach', 'medium': 'mittel', 'hard': 'schwer'}[json['difficulty']] ?? json['difficulty'] as String? ?? 'mittel',
       prepTime: prepTotal > 0 ? prepTotal : (json['prep_time'] as int?),
       imageUrl: json['image_url'] as String?,
@@ -79,6 +83,7 @@ class Recipe {
     return {
       'title': name,
       if (description != null) 'notes': description,
+      if (instructions != null) 'instructions': instructions,
       'difficulty': diffMap[difficulty] ?? difficulty,
       if (prepTime != null) 'prep_time_active_minutes': prepTime,
       if (imageUrl != null) 'image_url': imageUrl,

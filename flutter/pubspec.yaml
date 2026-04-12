@@ -41,6 +41,7 @@ dependencies:
 
   # Speech Recognition
   speech_to_text: ^7.3.0
+  permission_handler: ^11.3.1
 
   # Image Loading
   cached_network_image: ^3.3.1

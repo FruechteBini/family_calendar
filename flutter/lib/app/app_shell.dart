@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,11 +10,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/api/api_client.dart';
 import '../core/family/family_profile.dart';
 import '../core/theme/colors.dart';
-import '../core/theme/theme_context.dart';
 import '../core/sync/sync_service.dart';
+import '../core/speech/speech_service.dart';
+import '../core/speech/voice_state.dart';
 import '../features/ai/data/ai_repository.dart';
 import '../features/ai/domain/ai_models.dart';
-import '../features/ai/presentation/voice_fab.dart';
 import '../features/todos/data/todo_repository.dart';
 import '../features/todos/domain/todo.dart';
 import '../shared/widgets/toast.dart';
@@ -105,9 +106,11 @@ class _FamilienherdAppBar extends StatelessWidget
   Size get preferredSize => const Size.fromHeight(88);
 
   bool _isTopLevelTab(String location) {
+    final todosMain =
+        location == '/todos' || location.startsWith('/todos?');
     return location.startsWith('/today') ||
         location.startsWith('/calendar') ||
-        location.startsWith('/todos') ||
+        todosMain ||
         location.startsWith('/meals') ||
         location.startsWith('/notes');
   }
@@ -142,9 +145,11 @@ class _FamilyAwareTopBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final location = GoRouterState.of(context).matchedLocation;
+    final isTodosList =
+        location == '/todos' || location.startsWith('/todos?');
     final showBack = !location.startsWith('/today') &&
         !location.startsWith('/calendar') &&
-        !location.startsWith('/todos') &&
+        !isTodosList &&
         !location.startsWith('/meals') &&
         !location.startsWith('/notes');
 
@@ -187,6 +192,10 @@ class _FamilyAwareTopBar extends ConsumerWidget {
       }
       if (loc.startsWith('/events/')) {
         context.go(ref.read(lastMainTabLocationProvider));
+        return;
+      }
+      if (loc.startsWith('/todos/')) {
+        context.go('/todos');
         return;
       }
       context.go('/today');
@@ -671,24 +680,184 @@ class _VoiceCommandSheet extends ConsumerStatefulWidget {
 }
 
 class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
-  final _textController = TextEditingController();
   bool _isProcessing = false;
+  bool _isListening = false;
+  /// True until the first mic session has started or failed (avoids a flash before auto-start).
+  bool _voiceUiLoading = true;
+  /// When true, a final STT result after [stopListening] should not trigger auto-send.
+  bool _manualMicStopRequested = false;
+  String _transcript = '';
   VoiceCommandResult? _result;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startSpeechInput();
+    });
+  }
+
+  @override
   void dispose() {
-    _textController.dispose();
+    ref.read(speechServiceProvider).stopListening();
+    if (ref.read(voiceStateProvider) == VoiceState.listening) {
+      ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+    }
     super.dispose();
+  }
+
+  Future<void> _showMicSettingsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mikrofon'),
+        content: const Text(
+          'Ohne Mikrofonzugriff funktioniert die Spracherkennung nicht. '
+          'Bitte erlaube den Zugriff in den App-Einstellungen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await openAppSettings();
+            },
+            child: const Text('Einstellungen öffnen'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _stopListeningManual() async {
+    final speech = ref.read(speechServiceProvider);
+    _manualMicStopRequested = true;
+    await speech.stopListening();
+    if (!mounted) return;
+    setState(() {
+      _isListening = false;
+      _transcript = '';
+      _voiceUiLoading = false;
+    });
+    ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+  }
+
+  Future<void> _startSpeechInput() async {
+    if (_isListening || _isProcessing) return;
+
+    final speech = ref.read(speechServiceProvider);
+    _manualMicStopRequested = false;
+    setState(() {
+      _transcript = '';
+      _voiceUiLoading = true;
+    });
+
+    final perm = await speech.requestMicrophoneIfNeeded();
+    if (!mounted) return;
+
+    if (perm == MicrophonePermissionStatus.permanentlyDenied) {
+      if (mounted) setState(() => _voiceUiLoading = false);
+      await _showMicSettingsDialog();
+      return;
+    }
+    if (perm != MicrophonePermissionStatus.granted) {
+      if (mounted) setState(() => _voiceUiLoading = false);
+      showAppToast(
+        context,
+        message: 'Mikrofonzugriff verweigert.',
+        type: ToastType.error,
+      );
+      return;
+    }
+
+    final ok = await speech.ensureInitialized(
+      onError: (message) {
+        if (!mounted) return;
+        showAppToast(
+          context,
+          message: message,
+          type: ToastType.error,
+        );
+      },
+    );
+    if (!mounted) return;
+
+    if (!ok) {
+      if (mounted) setState(() => _voiceUiLoading = false);
+      showAppToast(
+        context,
+        message: 'Spracherkennung ist auf diesem Gerät nicht verfügbar.',
+        type: ToastType.error,
+      );
+      return;
+    }
+
+    setState(() {
+      _isListening = true;
+      _voiceUiLoading = false;
+    });
+    ref.read(voiceStateProvider.notifier).state = VoiceState.listening;
+
+    try {
+      await speech.startListening(
+        onResult: (text, isFinal) {
+          if (!mounted) return;
+          setState(() => _transcript = text);
+          if (!isFinal) return;
+
+          speech.stopListening();
+
+          if (_manualMicStopRequested) {
+            _manualMicStopRequested = false;
+            setState(() => _isListening = false);
+            ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+            return;
+          }
+
+          final trimmed = text.trim();
+          setState(() => _isListening = false);
+          ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+
+          if (trimmed.isEmpty) {
+            if (mounted) setState(() => _transcript = '');
+            return;
+          }
+
+          if (mounted) setState(() => _transcript = '');
+          _sendCommand(trimmed);
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isListening = false;
+        _voiceUiLoading = false;
+      });
+      ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+      showAppToast(
+        context,
+        message: 'Spracherkennung konnte nicht gestartet werden.',
+        type: ToastType.error,
+      );
+    }
   }
 
   Future<void> _sendCommand(String text) async {
     if (text.trim().isEmpty) return;
 
+    await ref.read(speechServiceProvider).stopListening();
+    if (mounted && _isListening) {
+      setState(() => _isListening = false);
+    }
+    ref.read(voiceStateProvider.notifier).state = VoiceState.processing;
+
     setState(() {
       _isProcessing = true;
       _result = null;
     });
-    ref.read(voiceStateProvider.notifier).state = VoiceState.processing;
 
     try {
       final result = await ref
@@ -766,7 +935,11 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, color: AppColors.onSurface),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () async {
+                  await ref.read(speechServiceProvider).stopListening();
+                  ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+                  if (context.mounted) Navigator.pop(context);
+                },
               ),
             ],
           ),
@@ -851,60 +1024,86 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
                     : null,
               ),
             ),
-          ],
-
-          // Input bar
-          if (!_isProcessing)
+            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    style: const TextStyle(color: AppColors.onSurface),
-                    decoration: InputDecoration(
-                      hintText: 'Befehl eingeben...',
-                      hintStyle: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      filled: true,
-                      fillColor: AppColors.surfaceContainerHigh,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppColors.radiusDefault,
-                        ),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (text) {
-                      _sendCommand(text);
-                      _textController.clear();
+                  child: OutlinedButton(
+                    onPressed: () {
+                      setState(() => _result = null);
+                      _startSpeechInput();
                     },
+                    child: const Text('Neuer Befehl'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: context.accentLinearGradient,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.send,
-                      color: cs.onPrimary,
-                    ),
-                    onPressed: () {
-                      _sendCommand(_textController.text);
-                      _textController.clear();
-                    },
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Fertig'),
                   ),
                 ),
               ],
             ),
+          ],
+
+          // Nur Sprache: Auto-Start beim Öffnen; Transkript + Stopp (kein Textfeld).
+          if (!_isProcessing && _result == null) ...[
+            if (_voiceUiLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_isListening)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.mic,
+                      size: 56,
+                      color: AppColors.error,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _transcript.isEmpty
+                          ? 'Zuhören…'
+                          : '„$_transcript“',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.onSurface,
+                        fontSize: 16,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      onPressed: _stopListeningManual,
+                      icon: const Icon(Icons.stop),
+                      label: const Text('Beenden'),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.mic_none,
+                      size: 48,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _startSpeechInput,
+                      child: const Text('Erneut sprechen'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );

@@ -1,3 +1,23 @@
+class EventLinkedTodo {
+  final int id;
+  final String title;
+  final bool completed;
+
+  const EventLinkedTodo({
+    required this.id,
+    required this.title,
+    required this.completed,
+  });
+
+  factory EventLinkedTodo.fromJson(Map<String, dynamic> json) {
+    return EventLinkedTodo(
+      id: json['id'] as int,
+      title: json['title'] as String,
+      completed: json['completed'] as bool? ?? false,
+    );
+  }
+}
+
 class Event {
   final int id;
   final String title;
@@ -11,6 +31,7 @@ class Event {
   final List<int> memberIds;
   final List<EventMember> members;
   final int? notificationLevelId;
+  final List<EventLinkedTodo> linkedTodos;
 
   const Event({
     required this.id,
@@ -25,6 +46,7 @@ class Event {
     this.memberIds = const [],
     this.members = const [],
     this.notificationLevelId,
+    this.linkedTodos = const [],
   });
 
   factory Event.fromJson(Map<String, dynamic> json) {
@@ -37,6 +59,10 @@ class Event {
             ?.map((e) => e as int)
             .toList() ??
         (members.isNotEmpty ? members.map((m) => m.id).toList() : <int>[]);
+    final linkedTodos = (json['todos'] as List<dynamic>?)
+            ?.map((e) => EventLinkedTodo.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const <EventLinkedTodo>[];
     return Event(
       id: json['id'] as int,
       title: json['title'] as String,
@@ -50,6 +76,7 @@ class Event {
       memberIds: memberIds,
       members: members,
       notificationLevelId: json['notification_level_id'] as int?,
+      linkedTodos: linkedTodos,
     );
   }
 

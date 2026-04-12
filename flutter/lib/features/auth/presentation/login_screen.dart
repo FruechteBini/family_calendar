@@ -153,7 +153,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Server-URL',
                             prefixIcon: Icon(Icons.dns_outlined),
-                            hintText: 'http://10.0.2.2:8000 (Emulator)',
+                            hintText: kDefaultServerUrl,
                           ),
                           keyboardType: TextInputType.url,
                           validator: Validators.serverUrl,

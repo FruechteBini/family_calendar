@@ -62,6 +62,7 @@ class CookidooRecipe {
   final String id;
   final String name;
   final String? description;
+  final String? instructions;
   final String? imageUrl;
   final List<String> ingredients;
   final int? servings;
@@ -74,6 +75,7 @@ class CookidooRecipe {
     required this.id,
     required this.name,
     this.description,
+    this.instructions,
     this.imageUrl,
     this.ingredients = const [],
     this.servings,
@@ -107,10 +109,13 @@ class CookidooRecipe {
       return v.toString();
     }
 
+    final desc = (json['description'] as String?)?.trim();
+    final inst = (json['instructions'] as String?)?.trim();
     return CookidooRecipe(
       id: cookidooId,
       name: (json['name'] as String?) ?? '',
-      description: (json['description'] as String?) ?? (json['instructions'] as String?),
+      description: (desc != null && desc.isNotEmpty) ? desc : null,
+      instructions: (inst != null && inst.isNotEmpty) ? inst : null,
       imageUrl: (json['image_url'] as String?) ??
           (json['thumbnail'] as String?) ??
           (json['image'] as String?),

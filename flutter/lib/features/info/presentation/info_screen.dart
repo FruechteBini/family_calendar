@@ -37,7 +37,7 @@ class InfoScreen extends ConsumerWidget {
         content: LabeledOutlineTextField(
           label: 'Basis-URL des Backends',
           controller: controller,
-          hintText: 'http://192.168.1.100:8000',
+          hintText: kDefaultServerUrl,
           keyboardType: TextInputType.url,
         ),
         actions: [

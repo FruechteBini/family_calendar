@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
@@ -61,18 +62,16 @@ class FirebaseClient:
             self._enabled = False
             self._messaging = None
 
-    def send_to_tokens(
+    def _send_to_tokens_sync(
         self,
         tokens: list[str],
         title: str,
         body: str,
         data: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        self._ensure_init()
-        if not self._enabled or not self._messaging or not tokens:
-            return {"enabled": False, "sent": 0, "failed": 0, "invalid_tokens": []}
-
+        """Blocking Firebase call — must run in a thread (asyncio.to_thread)."""
         messaging = self._messaging
+        assert messaging is not None
         message = messaging.MulticastMessage(
             notification=messaging.Notification(title=title, body=body),
             data={str(k): str(v) for k, v in (data or {}).items()},
@@ -83,7 +82,6 @@ class FirebaseClient:
         for idx, r in enumerate(resp.responses):
             if r.success:
                 continue
-            # remove unregistered/invalid tokens
             exc = getattr(r, "exception", None)
             if exc is None:
                 continue
@@ -96,6 +94,20 @@ class FirebaseClient:
             "failed": resp.failure_count,
             "invalid_tokens": invalid,
         }
+
+    async def send_to_tokens(
+        self,
+        tokens: list[str],
+        title: str,
+        body: str,
+        data: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        self._ensure_init()
+        if not self._enabled or not self._messaging or not tokens:
+            return {"enabled": False, "sent": 0, "failed": 0, "invalid_tokens": []}
+        return await asyncio.to_thread(
+            self._send_to_tokens_sync, tokens, title, body, data
+        )
 
 
 class NotificationService:
@@ -123,7 +135,7 @@ class NotificationService:
         if not tokens:
             return
 
-        result = self.firebase.send_to_tokens(tokens, title=title, body=body, data=data)
+        result = await self.firebase.send_to_tokens(tokens, title=title, body=body, data=data)
         invalid = result.get("invalid_tokens") or []
         if invalid:
             await db.execute(delete(DeviceToken).where(DeviceToken.token.in_(invalid)))

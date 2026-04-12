@@ -376,15 +376,17 @@ Backend nutzt das Paket **knuspr-api** (Modul `knuspr`); Zugangsdaten: `KNUSPR_E
 
 ## 16. KI-Sprachassistent (Voice Command)
 
-Sprachgesteuerter Assistent, der auf jeder Seite per Floating-Button erreichbar ist. Spracheingabe wird per Browser Web Speech API transkribiert und an Claude gesendet, das die passenden Aktionen erkennt und ausfuehrt.
+Sprachgesteuerter Assistent in der **Flutter-App**: Floating-Button oeffnet ein Bottom-Sheet mit Textfeld und Mikrofon. Gesprochener Text wird lokal transkribiert (`speech_to_text`, z. B. Android SpeechRecognizer, `de-DE`) und als Befehl an das Backend (`/api/ai/voice-command`) gesendet, das die passenden Aktionen ausfuehrt.
 
 ### Eingabe
 
 | Funktion | Web | Android | MCP | Details |
 |----------|:---:|:-------:|:---:|---------|
-| Spracheingabe (Mikrofon) | ✅ | – | – | Web Speech API (`de-DE`), 5s Pause-Toleranz |
-| Texteingabe-Fallback | ✅ | – | – | Fuer Browser ohne SpeechRecognition (z.B. Firefox) |
-| Floating-Button auf allen Seiten | ✅ | – | – | FAB unten-rechts, Zustaende: idle / listening / processing |
+| Spracheingabe (Mikrofon) | ✅* | ✅ | – | Flutter: `speech_to_text` (`de-DE`); Web: Browser-Speech wo unterstuetzt |
+| Texteingabe (manuell) | ✅ | ✅ | – | Immer im Sheet moeglich |
+| Floating-Button (Shell) | ✅ | ✅ | – | FAB unten-links, Zustaende: idle / listening / processing; Sheet: Mic startet/stoppt STT |
+
+\* Web: Abhaengig vom Browser; sonst nur Text.
 
 ### Unterstuetzte Aktionen per Sprache
 

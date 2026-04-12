@@ -1,5 +1,12 @@
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
 import '../../categories/data/category_repository.dart';
@@ -20,6 +27,20 @@ import '../../notifications/presentation/widgets/notification_level_picker.dart'
 import '../../notes/data/note_repository.dart';
 import '../../notes/domain/note.dart';
 import '../../notes/domain/note_todo_prefill.dart';
+import '../domain/todo_attachment.dart';
+import 'todo_attachment_helpers.dart';
+
+class _PendingFile {
+  final String filename;
+  final String? filePath;
+  final Uint8List? bytes;
+
+  const _PendingFile({
+    required this.filename,
+    this.filePath,
+    this.bytes,
+  });
+}
 
 final _formCategoriesProvider = FutureProvider<List<cat.Category>>((ref) async {
   return ref.watch(categoryRepositoryProvider).getCategories();
@@ -62,6 +83,9 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
   bool _requiresMultiple = false;
   int? _notificationLevelId;
   bool _saving = false;
+  final List<TodoAttachment> _existingAttachments = [];
+  final Set<int> _removedAttachmentIds = {};
+  final List<_PendingFile> _pendingFiles = [];
 
   bool get _isEditing => widget.todo != null;
 
@@ -81,6 +105,7 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
       _memberIds = t.memberIds.toSet();
       _requiresMultiple = t.requiresMultiple;
       _notificationLevelId = t.notificationLevelId;
+      _existingAttachments.addAll(t.attachments);
     } else if (fromNote != null) {
       final p = noteTodoPrefillFromNote(fromNote);
       _titleController = TextEditingController(text: p.title);
@@ -120,6 +145,254 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
     super.dispose();
   }
 
+  Future<void> _addPhoto(ImageSource source) async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(source: source);
+    if (x == null) return;
+    final preview = await x.readAsBytes();
+    if (kIsWeb) {
+      setState(() {
+        _pendingFiles.add(_PendingFile(filename: x.name, bytes: preview));
+      });
+    } else {
+      setState(() {
+        _pendingFiles.add(
+          _PendingFile(
+            filename: path.basename(x.path),
+            filePath: x.path,
+            bytes: preview,
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _addVideo() async {
+    final picker = ImagePicker();
+    final x = await picker.pickVideo(source: ImageSource.gallery);
+    if (x == null) return;
+    if (kIsWeb) {
+      final b = await x.readAsBytes();
+      setState(() {
+        _pendingFiles.add(_PendingFile(filename: x.name, bytes: b));
+      });
+    } else {
+      setState(() {
+        _pendingFiles.add(
+          _PendingFile(
+            filename: path.basename(x.path),
+            filePath: x.path,
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _addDocuments() async {
+    final r = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: kIsWeb,
+    );
+    if (r == null || r.files.isEmpty) return;
+    setState(() {
+      for (final f in r.files) {
+        final name = f.name;
+        if (name.isEmpty) continue;
+        if (kIsWeb && f.bytes != null) {
+          _pendingFiles.add(_PendingFile(filename: name, bytes: f.bytes));
+        } else if (f.path != null && f.path!.isNotEmpty) {
+          _pendingFiles.add(_PendingFile(filename: name, filePath: f.path));
+        }
+      }
+    });
+  }
+
+  Future<void> _showAttachMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Foto aus Galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _addPhoto(ImageSource.gallery);
+              },
+            ),
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Foto aufnehmen'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addPhoto(ImageSource.camera);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.videocam_outlined),
+              title: const Text('Video aus Galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _addVideo();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file),
+              title: const Text('Datei auswählen'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _addDocuments();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removePending(int index) {
+    setState(() => _pendingFiles.removeAt(index));
+  }
+
+  void _removeExisting(TodoAttachment a) {
+    setState(() => _removedAttachmentIds.add(a.id));
+  }
+
+  Widget _filePlaceholder(ThemeData theme, bool isVideo, String name) {
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isVideo ? Icons.videocam_outlined : Icons.insert_drive_file_outlined,
+            size: 28,
+          ),
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingThumb(_PendingFile p, int index, ThemeData theme) {
+    final isImg = p.filename.toLowerCase().endsWith('.png') ||
+        p.filename.toLowerCase().endsWith('.jpg') ||
+        p.filename.toLowerCase().endsWith('.jpeg') ||
+        p.filename.toLowerCase().endsWith('.gif') ||
+        p.filename.toLowerCase().endsWith('.webp');
+    final isVid = p.filename.toLowerCase().endsWith('.mp4') ||
+        p.filename.toLowerCase().endsWith('.mov') ||
+        p.filename.toLowerCase().endsWith('.webm');
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 88,
+              height: 88 * 9 / 16,
+              child: isImg && p.bytes != null
+                  ? Image.memory(
+                      p.bytes!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _filePlaceholder(theme, isVid, p.filename),
+                    )
+                  : _filePlaceholder(theme, isVid, p.filename),
+            ),
+          ),
+          Positioned(
+            top: -4,
+            right: -4,
+            child: Material(
+              color: theme.colorScheme.errorContainer,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => _removePending(index),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.close,
+                      size: 16, color: theme.colorScheme.onErrorContainer),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExistingThumb(TodoAttachment a, ThemeData theme) {
+    if (_removedAttachmentIds.contains(a.id)) return const SizedBox.shrink();
+    final headers = todoImageRequestHeaders(ref);
+    final url = todoAttachmentFullUrl(ref, a);
+    final isImg = todoAttachmentIsImage(a);
+    final isVid = todoAttachmentIsVideo(a);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 88,
+              height: 88 * 9 / 16,
+              child: isImg
+                  ? CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.cover,
+                      httpHeaders: headers,
+                      placeholder: (_, __) => const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) =>
+                          _filePlaceholder(theme, isVid, a.filename),
+                    )
+                  : _filePlaceholder(theme, isVid, a.filename),
+            ),
+          ),
+          Positioned(
+            top: -4,
+            right: -4,
+            child: Material(
+              color: theme.colorScheme.errorContainer,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => _removeExisting(a),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.close,
+                      size: 16, color: theme.colorScheme.onErrorContainer),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -144,11 +417,16 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
         data['requires_multiple'] = false;
       }
       final repo = ref.read(todoRepositoryProvider);
-      Todo saved;
+      late final int todoId;
       if (_isEditing) {
-        saved = await repo.updateTodo(widget.todo!.id, data);
+        await repo.updateTodo(widget.todo!.id, data);
+        todoId = widget.todo!.id;
+        for (final id in _removedAttachmentIds) {
+          await repo.deleteTodoAttachment(todoId, id);
+        }
       } else {
-        saved = await repo.createTodo(data);
+        final saved = await repo.createTodo(data);
+        todoId = saved.id;
         final src = widget.convertFromNote;
         if (src != null && !src.isArchived && mounted) {
           try {
@@ -165,6 +443,14 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
           }
         }
       }
+      for (final p in _pendingFiles) {
+        await repo.uploadTodoAttachmentData(
+          todoId,
+          filename: p.filename,
+          filePath: p.filePath,
+          bytes: p.bytes,
+        );
+      }
 
       // Optional: send proposal immediately after save.
       if (!_isPersonal &&
@@ -172,7 +458,7 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
           _memberIds.length >= 2 &&
           _proposalDateTime != null) {
         try {
-          await repo.createProposal(saved.id, {
+          await repo.createProposal(todoId, {
             'proposed_date': _proposalDateTime!.toIso8601String(),
             'message': _proposalMessageController.text.trim().isEmpty
                 ? null
@@ -229,6 +515,10 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(_formCategoriesProvider);
     final membersAsync = ref.watch(_formMembersProvider);
+    final theme = Theme.of(context);
+    final visibleExisting = _existingAttachments
+        .where((a) => !_removedAttachmentIds.contains(a.id))
+        .toList();
 
     return Dialog(
       child: ConstrainedBox(
@@ -466,6 +756,37 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                       'Hinweis: Der Vorschlag wird beim Speichern an alle zugewiesenen Personen gesendet.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Text('Anhänge', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  OutlinedButton.icon(
+                    onPressed: _showAttachMenu,
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    label: const Text('Datei, Foto oder Video'),
+                  ),
+                  if (visibleExisting.isNotEmpty || _pendingFiles.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 88 * 9 / 16 + 8,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          ...visibleExisting.map(
+                            (a) => KeyedSubtree(
+                              key: ValueKey('ex-${a.id}'),
+                              child: _buildExistingThumb(a, theme),
+                            ),
+                          ),
+                          ..._pendingFiles.asMap().entries.map((e) {
+                            return KeyedSubtree(
+                              key: ValueKey('pd-${e.key}-${e.value.filename}'),
+                              child: _buildPendingThumb(e.value, e.key, theme),
+                            );
+                          }),
+                        ],
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),

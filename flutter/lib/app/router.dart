@@ -8,6 +8,7 @@ import '../features/today/presentation/today_screen_real.dart';
 import '../features/calendar/presentation/calendar_screen_real.dart';
 import '../features/calendar/presentation/event_detail_screen.dart';
 import '../features/todos/presentation/todo_list_screen.dart';
+import '../features/todos/presentation/todo_detail_screen.dart';
 import '../features/meals/presentation/meals_screen.dart';
 import '../features/members/presentation/members_screen.dart';
 import '../features/categories/presentation/categories_screen.dart';
@@ -96,6 +97,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               final idStr = state.pathParameters['id'] ?? '';
               final id = int.tryParse(idStr) ?? 0;
               return NoTransitionPage(child: EventDetailScreen(eventId: id));
+            },
+          ),
+          GoRoute(
+            path: '/todos/:id',
+            pageBuilder: (context, state) {
+              final idStr = state.pathParameters['id'] ?? '';
+              final id = int.tryParse(idStr) ?? 0;
+              return NoTransitionPage(child: TodoDetailScreen(todoId: id));
             },
           ),
           GoRoute(

@@ -1,4 +1,8 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
+from googleapiclient.errors import HttpError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
@@ -9,6 +13,8 @@ from ..models.user import User
 from ..schemas.auth import UserResponse
 from ..schemas.common import MessageResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger("kalender")
 
 router = APIRouter(prefix="/api/google-sync", tags=["google-sync"])
 
@@ -79,5 +85,19 @@ async def trigger(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HttpError as e:
+        status = e.resp.status if e.resp else 502
+        reason = getattr(e, "reason", None) or str(e)
+        logger.warning("Google Sync API-Fehler: %s %s", status, reason)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Google API-Fehler ({status}): {reason}",
+        )
+    except IntegrityError:
+        logger.exception("Google Sync: Datenbank-Konflikt")
+        raise HTTPException(
+            status_code=409,
+            detail="Sync-Konflikt in der Datenbank. Bitte erneut versuchen oder Support kontaktieren.",
+        )
     return MessageResponse(message="Sync gestartet")
 

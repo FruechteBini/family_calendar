@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
 import '../../categories/data/category_repository.dart';
@@ -8,12 +9,15 @@ import '../../categories/presentation/categories_screen.dart';
 import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
 import '../../../core/auth/auth_provider.dart';
+import '../../../core/preferences/todo_preferences.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../core/api/api_client.dart';
+import 'todo_detail_screen.dart';
 import 'todo_form_dialog.dart';
+import 'todo_list_refresh.dart';
 import 'proposal_sheet.dart';
 
 final _showCompletedProvider = StateProvider<bool>((ref) => false);
@@ -33,6 +37,7 @@ final _membersProvider = FutureProvider<List<FamilyMember>>((ref) async {
 });
 
 final todosProvider = FutureProvider<List<Todo>>((ref) {
+  ref.watch(todoListRefreshTriggerProvider);
   final scope = ref.watch(_scopeProvider);
   final showCompleted = ref.watch(_showCompletedProvider);
   final categoryId = ref.watch(_selectedCategoryIdProvider);
@@ -98,16 +103,42 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
   }
 
   Future<void> _toggleComplete(Todo todo) async {
+    final prefs = ref.read(todoPreferencesProvider).valueOrNull ??
+        const TodoPreferences();
+    if (!todo.completed && todo.parentId == null) {
+      if (prefs.requireSubtodosComplete &&
+          todo.subtodos.any((s) => !s.completed)) {
+        if (mounted) {
+          showAppToast(
+            context,
+            message: 'Bitte zuerst alle Sub-Todos abhaken',
+            type: ToastType.warning,
+          );
+        }
+        return;
+      }
+    }
     try {
-      await ref.read(todoRepositoryProvider).completeTodo(
+      final updated = await ref.read(todoRepositoryProvider).completeTodo(
             todo.id,
             completed: !todo.completed,
           );
       ref.invalidate(todosProvider);
+      if (mounted && updated.parentAutoCompleted) {
+        showAppToast(
+          context,
+          message: 'Haupt-Todo wurde automatisch erledigt',
+          type: ToastType.success,
+        );
+      }
     } on ApiException catch (e) {
       if (mounted)
         showAppToast(context, message: e.message, type: ToastType.error);
     }
+  }
+
+  Future<void> _refreshTodos() async {
+    ref.invalidate(todosProvider);
   }
 
   Future<void> _showForm({Todo? todo}) async {
@@ -419,10 +450,9 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
                         itemCount: todos.length,
                         itemBuilder: (_, i) => _TodoItem(
                           todo: todos[i],
-                          onToggle: () => _toggleComplete(todos[i]),
-                          onTap: () => _showForm(todo: todos[i]),
-                          onSubtodos: todos[i].subtodos,
-                          toggleSubtodo: _toggleComplete,
+                          onToggleComplete: _toggleComplete,
+                          onOpenRoot: () => context.push('/todos/${todos[i].id}'),
+                          onListChanged: _refreshTodos,
                         ),
                       ),
                     ),
@@ -678,30 +708,109 @@ class _TodoAiPrioritizeSheetState
   }
 }
 
-class _TodoItem extends StatelessWidget {
+class _TodoItem extends ConsumerStatefulWidget {
   final Todo todo;
-  final VoidCallback onToggle;
-  final VoidCallback onTap;
-  final List<Todo> onSubtodos;
-  final ValueChanged<Todo> toggleSubtodo;
+  final Future<void> Function(Todo todo) onToggleComplete;
+  final VoidCallback onOpenRoot;
+  final Future<void> Function() onListChanged;
 
   const _TodoItem({
     required this.todo,
-    required this.onToggle,
-    required this.onTap,
-    required this.onSubtodos,
-    required this.toggleSubtodo,
+    required this.onToggleComplete,
+    required this.onOpenRoot,
+    required this.onListChanged,
   });
+
+  @override
+  ConsumerState<_TodoItem> createState() => _TodoItemState();
+}
+
+class _TodoItemState extends ConsumerState<_TodoItem> {
+  bool _showInlineAdd = false;
+  final _inlineController = TextEditingController();
+
+  @override
+  void dispose() {
+    _inlineController.dispose();
+    super.dispose();
+  }
+
+  List<Todo> get _sorted => Todo.sortedSubtodos(widget.todo.subtodos);
+
+  Future<void> _createInlineSubtodo() async {
+    final text = _inlineController.text.trim();
+    if (text.isEmpty) return;
+    final parent = widget.todo;
+    final mid = ref.read(authStateProvider).user?.memberId;
+    final data = <String, dynamic>{
+      'title': text,
+      'parent_id': parent.id,
+      'is_personal': parent.isPersonal,
+      if (!parent.isPersonal)
+        'member_ids': parent.memberIds.isNotEmpty
+            ? parent.memberIds
+            : (mid != null ? [mid] : <int>[]),
+    };
+    try {
+           await ref.read(todoRepositoryProvider).createTodo(data);
+      _inlineController.clear();
+      setState(() => _showInlineAdd = false);
+      ref.invalidate(todoDetailProvider(parent.id));
+      await widget.onListChanged();
+      if (mounted) {
+        showAppToast(
+          context,
+          message: 'Sub-Todo erstellt',
+          type: ToastType.success,
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
+    }
+  }
+
+  Future<void> _completeAllSubs() async {
+    for (final s in _sorted.where((x) => !x.completed)) {
+      try {
+        final r = await ref.read(todoRepositoryProvider).completeTodo(
+              s.id,
+              completed: true,
+            );
+        if (r.parentAutoCompleted && mounted) {
+          showAppToast(
+            context,
+            message: 'Haupt-Todo wurde automatisch erledigt',
+            type: ToastType.success,
+          );
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          showAppToast(context, message: e.message, type: ToastType.error);
+        }
+        await widget.onListChanged();
+        return;
+      }
+    }
+    await widget.onListChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final todo = widget.todo;
+    final subs = _sorted;
+    final completedSubs = subs.where((s) => s.completed).length;
+    final totalSubs = subs.length;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListTile(
           leading: Checkbox(
             value: todo.completed,
-            onChanged: (_) => onToggle(),
+            onChanged: (_) => widget.onToggleComplete(todo),
           ),
           title: Text(
             todo.title,
@@ -741,32 +850,145 @@ class _TodoItem extends StatelessWidget {
                       label: Text('${todo.proposalCount}'),
                       child: const Icon(Icons.schedule, size: 16)),
                 ),
+              if (todo.attachments.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Icon(
+                    Icons.attach_file,
+                    size: 16,
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              if (totalSubs > 0) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '$completedSubs/$totalSubs',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 40,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: completedSubs / totalSubs,
+                      minHeight: 3,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
-          trailing:
-              todo.eventId != null ? const Icon(Icons.link, size: 16) : null,
-          onTap: onTap,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (todo.eventId != null)
+                const Icon(Icons.link, size: 16),
+              IconButton(
+                icon: const Icon(Icons.add, size: 18),
+                tooltip: 'Sub-Todo hinzufügen',
+                onPressed: () =>
+                    setState(() => _showInlineAdd = !_showInlineAdd),
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ),
+          onTap: widget.onOpenRoot,
         ),
-        if (onSubtodos.isNotEmpty)
+        if (subs.any((s) => !s.completed))
           Padding(
             padding: const EdgeInsets.only(left: 40),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _completeAllSubs,
+                icon: const Icon(Icons.done_all, size: 16),
+                label: const Text('Alle abhaken'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: theme.textTheme.bodySmall,
+                ),
+              ),
+            ),
+          ),
+        if (subs.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
             child: Column(
-              children: onSubtodos.map((sub) {
-                return ListTile(
-                  dense: true,
-                  leading: Checkbox(
-                    value: sub.completed,
-                    onChanged: (_) => toggleSubtodo(sub),
-                  ),
-                  title: Text(
-                    sub.title,
-                    style: sub.completed
-                        ? theme.textTheme.bodySmall
-                            ?.copyWith(decoration: TextDecoration.lineThrough)
-                        : theme.textTheme.bodySmall,
+              children: subs.map((sub) {
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(left: 8, right: 8),
+                    leading: Checkbox(
+                      value: sub.completed,
+                      onChanged: (_) => widget.onToggleComplete(sub),
+                    ),
+                    title: Text(
+                      sub.title,
+                      style: sub.completed
+                          ? theme.textTheme.bodySmall?.copyWith(
+                              decoration: TextDecoration.lineThrough)
+                          : theme.textTheme.bodySmall,
+                    ),
+                    subtitle: sub.dueDate != null
+                        ? Text(
+                            AppDateUtils.relativeDate(sub.dueDate!),
+                            style: theme.textTheme.bodySmall,
+                          )
+                        : (sub.priority != 'none'
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: PriorityBadge(
+                                  priority: sub.priority,
+                                  compact: true,
+                                ),
+                              )
+                            : null),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: theme.colorScheme.outline,
+                    ),
+                    onTap: () => context.push('/todos/${sub.id}'),
                   ),
                 );
               }).toList(),
+            ),
+          ),
+        if (_showInlineAdd)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(40, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _inlineController,
+                    decoration: const InputDecoration(
+                      hintText: 'Sub-Todo …',
+                      isDense: true,
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _createInlineSubtodo(),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _createInlineSubtodo,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    _inlineController.clear();
+                    setState(() => _showInlineAdd = false);
+                  },
+                ),
+              ],
             ),
           ),
       ],

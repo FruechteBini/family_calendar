@@ -22,22 +22,26 @@ String? urlForLinkNote(String raw) {
 Map<String, dynamic> buildQuickNotePayload(
   String raw, {
   required bool isPersonal,
+  int? categoryId,
 }) {
   final url = urlForLinkNote(raw);
-  if (url != null) {
-    return {
-      'title': '',
-      'type': 'link',
-      'url': url,
-      'is_personal': isPersonal,
-      'tag_ids': <int>[],
-    };
+  final map = url != null
+      ? <String, dynamic>{
+          'title': '',
+          'type': 'link',
+          'url': url,
+          'is_personal': isPersonal,
+          'tag_ids': <int>[],
+        }
+      : <String, dynamic>{
+          'title': '',
+          'type': 'text',
+          'content': raw,
+          'is_personal': isPersonal,
+          'tag_ids': <int>[],
+        };
+  if (categoryId != null) {
+    map['category_id'] = categoryId;
   }
-  return {
-    'title': '',
-    'type': 'text',
-    'content': raw,
-    'is_personal': isPersonal,
-    'tag_ids': <int>[],
-  };
+  return map;
 }

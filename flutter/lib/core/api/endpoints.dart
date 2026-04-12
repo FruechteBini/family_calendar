@@ -5,6 +5,7 @@ class Endpoints {
   static const authRegister = '/api/auth/register';
   static const authLogin = '/api/auth/login';
   static const authMe = '/api/auth/me';
+  static const authPreferences = '/api/auth/preferences';
   static const authLinkMember = '/api/auth/link-member';
   static const authFamily = '/api/auth/family';
   static const authFamilyJoin = '/api/auth/family/join';
@@ -32,8 +33,15 @@ class Endpoints {
   static const todos = '/api/todos/';
   static String todo(int id) => '/api/todos/$id';
   static String todoComplete(int id) => '/api/todos/$id/complete';
+  static String todoReorderSubtodos(int id) =>
+      '/api/todos/$id/reorder-subtodos';
   static String todoLinkEvent(int id) => '/api/todos/$id/link-event';
   static String todoProposals(int id) => '/api/todos/$id/proposals';
+  static String todoAttachments(int id) => '/api/todos/$id/attachments';
+  static String todoAttachment(int todoId, int attId) =>
+      '/api/todos/$todoId/attachments/$attId';
+  static String todoAttachmentDownload(int todoId, int attId) =>
+      '/api/todos/$todoId/attachments/$attId/download';
 
   // Proposals
   static String proposalRespond(int id) => '/api/proposals/$id/respond';
@@ -86,6 +94,7 @@ class Endpoints {
   static String cookidooRecipe(String id) => '/api/cookidoo/recipes/$id';
   static String cookidooRecipeImport(String id) =>
       '/api/cookidoo/recipes/$id/import';
+  static const cookidooPlanDay = '/api/cookidoo/plan-day';
   static const cookidooCalendar = '/api/cookidoo/calendar';
 
   // Knuspr

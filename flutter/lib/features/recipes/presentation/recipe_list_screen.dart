@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../data/recipe_category_repository.dart';
 import '../data/recipe_repository.dart';
 import '../data/recipe_tag_repository.dart';
@@ -330,7 +331,7 @@ class _RecipeListScreenState extends ConsumerState<RecipeListScreen> {
                   itemCount: list.length,
                   itemBuilder: (_, i) => _RecipeCard(
                     recipe: list[i],
-                    onTap: () => _showForm(recipe: list[i]),
+                    onTap: () => context.push('/recipes/${list[i].id}'),
                   ),
                 ),
               );

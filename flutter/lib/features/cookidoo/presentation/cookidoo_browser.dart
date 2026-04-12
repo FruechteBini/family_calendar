@@ -23,6 +23,7 @@ class _CookidooBrowserState extends ConsumerState<CookidooBrowser> {
   CookidooCollection? _selectedCollection;
   CookidooRecipe? _selectedRecipe;
   bool _loading = false;
+  bool _planTodayBusy = false;
 
   @override
   void initState() {
@@ -74,6 +75,24 @@ class _CookidooBrowserState extends ConsumerState<CookidooBrowser> {
       }
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
+    }
+  }
+
+  Future<void> _planTodayCookidoo(String cookidooId, String recipeName) async {
+    setState(() => _planTodayBusy = true);
+    try {
+      await ref.read(cookidooRepositoryProvider).planRecipesOnCookidooDay([cookidooId]);
+      if (mounted) {
+        showAppToast(
+          context,
+          message: '„$recipeName“ für heute in Cookidoo eingeplant',
+          type: ToastType.success,
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
+    } finally {
+      if (mounted) setState(() => _planTodayBusy = false);
     }
   }
 
@@ -244,9 +263,11 @@ class _CookidooBrowserState extends ConsumerState<CookidooBrowser> {
               ),
             ),
           ],
-          if (recipe.description != null) ...[
+          if (recipe.description != null && recipe.description!.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(recipe.description!),
+            Text('Beschreibung', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(recipe.description!, style: theme.textTheme.bodyMedium),
           ],
           if (recipe.ingredients.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -256,7 +277,30 @@ class _CookidooBrowserState extends ConsumerState<CookidooBrowser> {
                   child: Text('- $i', style: theme.textTheme.bodySmall),
                 )),
           ],
+          if (recipe.instructions != null && recipe.instructions!.trim().isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Zubereitung', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(recipe.instructions!, style: theme.textTheme.bodyMedium),
+          ],
           const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: _planTodayBusy
+                  ? null
+                  : () => _planTodayCookidoo(recipe.id, recipe.name),
+              icon: _planTodayBusy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.restaurant_menu),
+              label: const Text('Heute kochen (Cookidoo)'),
+            ),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(

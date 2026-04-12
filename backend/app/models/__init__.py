@@ -4,6 +4,7 @@ from .family_member import FamilyMember
 from .category import Category
 from .event import Event, event_members
 from .todo import Todo, todo_members
+from .todo_attachment import TodoAttachment
 from .proposal import TodoProposal, ProposalResponse
 from .recipe import Recipe, recipe_tag_assignments
 from .recipe_category import RecipeCategory
@@ -37,6 +38,7 @@ __all__ = [
     "event_members",
     "Todo",
     "todo_members",
+    "TodoAttachment",
     "TodoProposal",
     "ProposalResponse",
     "Recipe",

@@ -121,7 +121,7 @@ Flutter App / Browser → HTTP JSON → FastAPI Router → Pydantic Schema (Vali
 | **Flutter Einkaufsliste** | `features/shopping/presentation/shopping_list_screen.dart`, `features/shopping/data/shopping_repository.dart` |
 | **Flutter Notizen** | `features/notes/presentation/notes_screen.dart`, `features/notes/data/note_repository.dart` |
 | **Flutter Vorratskammer** | `features/pantry/presentation/pantry_screen.dart`, `features/pantry/data/pantry_repository.dart` |
-| **Flutter Sprachbefehle** | `features/ai/presentation/voice_fab.dart`, `features/ai/data/ai_repository.dart` |
+| **Flutter Sprachbefehle** | `app/app_shell.dart` (Voice FAB + Sheet), `core/speech/speech_service.dart`, `core/speech/voice_state.dart`, `features/ai/data/ai_repository.dart` |
 | **Flutter Navigation** | `app/router.dart`, `app/app_shell.dart` |
 | **Flutter Theme/Styling** | `core/theme/app_theme.dart`, `core/theme/colors.dart` |
 | **Flutter Offline-Sync** | `core/sync/sync_service.dart`, `core/database/tables/tables.dart`, `core/database/app_database.dart` |

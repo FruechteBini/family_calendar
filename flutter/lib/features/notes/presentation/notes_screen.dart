@@ -4,16 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
-import '../../../core/api/api_client.dart';
 import '../data/note_category_repository.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
-import '../domain/note_category.dart';
 import 'note_card.dart';
 import 'note_categories_screen.dart';
 import 'note_comments_sheet.dart';
 import 'note_form_dialog.dart';
-import '../logic/note_quick_capture.dart';
+import 'note_quick_capture_sheet.dart';
 
 enum NotesScope { all, personal, family }
 
@@ -47,14 +45,20 @@ class NotesScreen extends ConsumerStatefulWidget {
   ConsumerState<NotesScreen> createState() => _NotesScreenState();
 }
 
-class _QuickInsertCategoryPick {
-  final int? categoryId;
-
-  const _QuickInsertCategoryPick(this.categoryId);
-}
-
 class _NotesScreenState extends ConsumerState<NotesScreen> {
   final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final pending = ref.read(pendingSharedNoteTextProvider);
+      if (pending == null || pending.isEmpty) return;
+      ref.read(pendingSharedNoteTextProvider.notifier).state = null;
+      runQuickNoteCapture(ref, context, pending, askScope: true);
+    });
+  }
 
   @override
   void dispose() {
@@ -93,95 +97,22 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
       return;
     }
-
-    List<NoteCategory> categories;
-    try {
-      categories = await ref.read(noteCategoriesListProvider.future);
-    } on ApiException catch (e) {
-      if (mounted) {
-        showAppToast(context, message: e.message, type: ToastType.error);
-      }
-      return;
-    }
-
     if (!mounted) return;
-    final pick = await showModalBottomSheet<_QuickInsertCategoryPick>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) {
-        final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxH),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Text(
-                      'Kategorie für neue Notiz',
-                      style: Theme.of(ctx).textTheme.titleMedium,
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.folder_off_outlined),
-                    title: const Text('Ohne Kategorie'),
-                    onTap: () => Navigator.pop(
-                      ctx,
-                      const _QuickInsertCategoryPick(null),
-                    ),
-                  ),
-                  ...categories.map(
-                    (c) => ListTile(
-                      leading: Text(
-                        c.icon,
-                        style: const TextStyle(fontSize: 22),
-                      ),
-                      title: Text(c.name),
-                      onTap: () => Navigator.pop(
-                        ctx,
-                        _QuickInsertCategoryPick(c.id),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    if (pick == null || !mounted) return;
-
-    final scope = ref.read(notesScopeProvider);
-    final isPersonal = scope == NotesScope.personal;
-    try {
-      await ref.read(noteRepositoryProvider).createNote(
-            buildQuickNotePayload(
-              raw,
-              isPersonal: isPersonal,
-              categoryId: pick.categoryId,
-            ),
-          );
-      ref.invalidate(notesListProvider);
-      ref.invalidate(noteCategoriesListProvider);
-      if (mounted) {
-        showAppToast(context,
-            message: 'Notiz angelegt', type: ToastType.success);
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        showAppToast(context, message: e.message, type: ToastType.error);
-      }
-    }
+    await runQuickNoteCapture(ref, context, raw, askScope: false);
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(pendingSharedNoteTextProvider, (previous, next) {
+      if (next == null || next.isEmpty) return;
+      final captured = next;
+      ref.read(pendingSharedNoteTextProvider.notifier).state = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await runQuickNoteCapture(ref, context, captured, askScope: true);
+      });
+    });
+
     final theme = Theme.of(context);
     final notesAsync = ref.watch(notesListProvider);
     final scope = ref.watch(notesScopeProvider);

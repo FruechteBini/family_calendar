@@ -6,12 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../app/router.dart';
-import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_provider.dart';
-import '../../../shared/widgets/toast.dart';
-import '../data/note_repository.dart';
-import '../logic/note_quick_capture.dart';
-import 'notes_screen.dart';
+import 'note_quick_capture_sheet.dart';
 
 String? extractTextFromSharedMedia(List<SharedMediaFile> files) {
   for (final f in files) {
@@ -34,7 +30,7 @@ bool get _canReceiveShare =>
     (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS);
 
-/// Listens for Android/iOS share intents (text / URL) and creates a family note.
+/// Listens for Android/iOS share intents (text / URL) and opens note quick capture.
 class NoteShareIntentListener extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -95,21 +91,8 @@ class _NoteShareIntentListenerState extends ConsumerState<NoteShareIntentListene
     final auth = ref.read(authStateProvider);
     if (!auth.isAuthenticated || !auth.hasFamilyId) return;
 
-    ref.read(notesScopeProvider.notifier).state = NotesScope.family;
+    ref.read(pendingSharedNoteTextProvider.notifier).state = trimmed;
     ref.read(routerProvider).go('/notes');
-
-    final repo = ref.read(noteRepositoryProvider);
-    final payload = buildQuickNotePayload(raw, isPersonal: false);
-    try {
-      await repo.createNote(payload);
-      ref.invalidate(notesListProvider);
-      showAppToastGlobal(
-        message: 'In Familien-Notizen gespeichert',
-        type: ToastType.success,
-      );
-    } on ApiException catch (e) {
-      showAppToastGlobal(message: e.message, type: ToastType.error);
-    }
   }
 
   @override

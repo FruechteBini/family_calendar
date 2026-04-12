@@ -313,9 +313,7 @@ def _add_missing_columns(conn):
     if inspector.has_table("google_calendar_sync"):
         cal_ix = {i["name"] for i in inspector.get_indexes("google_calendar_sync") if i.get("name")}
         cal_uc = {u["name"] for u in inspector.get_unique_constraints("google_calendar_sync")}
-        if "ux_google_calendar_sync_family_event" in cal_ix:
-            conn.execute(text("DROP INDEX IF EXISTS ux_google_calendar_sync_family_event"))
-            logger.info("Index ux_google_calendar_sync_family_event entfernt (ersetzt durch family+user+event)")
+        # Constraint zuerst: Postgres legt den Unique-Index über die Constraint an — DROP INDEX allein schlägt fehl.
         if "ux_google_calendar_sync_family_event" in cal_uc:
             conn.execute(
                 text(
@@ -323,6 +321,9 @@ def _add_missing_columns(conn):
                 )
             )
             logger.info("Constraint ux_google_calendar_sync_family_event entfernt")
+        elif "ux_google_calendar_sync_family_event" in cal_ix:
+            conn.execute(text("DROP INDEX IF EXISTS ux_google_calendar_sync_family_event"))
+            logger.info("Index ux_google_calendar_sync_family_event entfernt (ersetzt durch family+user+event)")
         if "ux_google_calendar_sync_family_user_event" not in cal_ix and "ux_google_calendar_sync_family_user_event" not in cal_uc:
             conn.execute(
                 text(
@@ -335,9 +336,6 @@ def _add_missing_columns(conn):
     if inspector.has_table("google_tasks_sync"):
         todo_ix = {i["name"] for i in inspector.get_indexes("google_tasks_sync") if i.get("name")}
         todo_uc = {u["name"] for u in inspector.get_unique_constraints("google_tasks_sync")}
-        if "ux_google_tasks_sync_family_todo" in todo_ix:
-            conn.execute(text("DROP INDEX IF EXISTS ux_google_tasks_sync_family_todo"))
-            logger.info("Index ux_google_tasks_sync_family_todo entfernt (ersetzt durch family+user+todo)")
         if "ux_google_tasks_sync_family_todo" in todo_uc:
             conn.execute(
                 text(
@@ -345,6 +343,9 @@ def _add_missing_columns(conn):
                 )
             )
             logger.info("Constraint ux_google_tasks_sync_family_todo entfernt")
+        elif "ux_google_tasks_sync_family_todo" in todo_ix:
+            conn.execute(text("DROP INDEX IF EXISTS ux_google_tasks_sync_family_todo"))
+            logger.info("Index ux_google_tasks_sync_family_todo entfernt (ersetzt durch family+user+todo)")
         if "ux_google_tasks_sync_family_user_todo" not in todo_ix and "ux_google_tasks_sync_family_user_todo" not in todo_uc:
             conn.execute(
                 text(

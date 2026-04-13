@@ -184,7 +184,7 @@ class TodayScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(AppColors.spacing6, 0, AppColors.spacing6, 120),
-                  child: _DinnerCard(
+                  child: _TodayMealsSection(
                     weekPlanAsync: weekPlanAsync,
                     todayKey: todayKey,
                     onOpenMeals: () => context.go('/meals'),
@@ -250,12 +250,12 @@ class _CompactEmptyHint extends StatelessWidget {
   }
 }
 
-class _DinnerCard extends ConsumerWidget {
-  final AsyncValue weekPlanAsync;
+class _TodayMealsSection extends ConsumerWidget {
+  final AsyncValue<MealPlan> weekPlanAsync;
   final String todayKey;
   final VoidCallback onOpenMeals;
 
-  const _DinnerCard({
+  const _TodayMealsSection({
     required this.weekPlanAsync,
     required this.todayKey,
     required this.onOpenMeals,
@@ -268,44 +268,73 @@ class _DinnerCard extends ConsumerWidget {
         height: 88,
         child: Center(child: CircularProgressIndicator()),
       ),
-      error: (_, __) => _card(
-        context,
-        title: 'Abendessen',
-        subtitle: 'Wochenplan konnte nicht geladen werden',
-        cta: 'Wochenplan öffnen',
-        showCta: true,
+      error: (_, __) => _PlannedMealCard(
+        title: 'Wochenplan',
+        slot: null,
+        loadError: true,
+        onOpenMeals: onOpenMeals,
       ),
       data: (plan) {
-        final dinner = plan.days[todayKey]?.dinner;
-        final hasDinner = dinner?.recipeId != null;
-        final subtitle = hasDinner
-            ? 'Tippe für Aktionen.'
-            : 'Tippe, um ein Gericht einzutragen.';
-        return _card(
-          context,
-          title: 'Abendessen',
-          dinner: dinner,
-          subtitle: subtitle,
-          cta: 'Zum Wochenplan',
-          showCta: !hasDinner,
+        final day = plan.days[todayKey];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _PlannedMealCard(
+              title: 'Mittagessen',
+              slot: day?.lunch,
+              loadError: false,
+              onOpenMeals: onOpenMeals,
+            ),
+            const SizedBox(height: AppColors.spacing4),
+            _PlannedMealCard(
+              title: 'Abendessen',
+              slot: day?.dinner,
+              loadError: false,
+              onOpenMeals: onOpenMeals,
+            ),
+          ],
         );
       },
     );
   }
+}
 
-  Widget _card(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required String cta,
-    required bool showCta,
-    MealSlot? dinner,
-  }) {
+class _PlannedMealCard extends StatelessWidget {
+  final String title;
+  final MealSlot? slot;
+  final bool loadError;
+  final VoidCallback onOpenMeals;
+
+  const _PlannedMealCard({
+    required this.title,
+    required this.slot,
+    required this.loadError,
+    required this.onOpenMeals,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loadError) {
+      return Card(
+        color: AppColors.surfaceContainerHigh,
+        child: ListTile(
+          title: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          subtitle: const Text('Wochenplan konnte nicht geladen werden'),
+          trailing: PrimaryButton(label: 'Wochenplan öffnen', onPressed: onOpenMeals),
+        ),
+      );
+    }
+
+    final hasRecipe = slot?.recipeId != null;
+    final subtitle = hasRecipe
+        ? 'Tippen für Rezeptdetails.'
+        : 'Tippen, um ein Gericht einzutragen.';
+
     return Card(
       color: AppColors.surfaceContainerHigh,
       child: ListTile(
         title: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-        subtitle: dinner?.recipeId != null
+        subtitle: hasRecipe
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -313,14 +342,14 @@ class _DinnerCard extends ConsumerWidget {
                   Row(
                     children: [
                       RecipeThumbnail(
-                        imageUrl: dinner?.imageUrl,
+                        imageUrl: slot?.imageUrl,
                         size: 44,
                         borderRadius: 12,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          dinner?.recipeName ?? 'Unbekannt',
+                          slot?.recipeName ?? 'Unbekannt',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -336,7 +365,15 @@ class _DinnerCard extends ConsumerWidget {
                 ],
               )
             : Text('Noch nichts geplant\n$subtitle'),
-        trailing: showCta ? PrimaryButton(label: cta, onPressed: onOpenMeals) : null,
+        trailing: hasRecipe ? null : PrimaryButton(label: 'Zum Wochenplan', onPressed: onOpenMeals),
+        onTap: () {
+          final id = slot?.recipeId;
+          if (id != null) {
+            context.push('/recipes/$id');
+          } else {
+            onOpenMeals();
+          }
+        },
       ),
     );
   }

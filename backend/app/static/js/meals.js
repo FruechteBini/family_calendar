@@ -708,8 +708,8 @@ const Meals = (() => {
     toast.className = 'pantry-deduction-toast';
     toast.innerHTML = `<strong>Vorrat aktualisiert</strong><br>${lines.map(l => esc(l)).join('<br>')}`;
     document.body.appendChild(toast);
-    setTimeout(() => { toast.classList.add('fade-out'); }, 4000);
-    setTimeout(() => { toast.remove(); }, 5000);
+    setTimeout(() => { toast.classList.add('fade-out'); }, 1500);
+    setTimeout(() => { toast.remove(); }, 2000);
   }
 
   return { init, loadWeek, assignSlot, editSlot: assignSlot, clearSlot, markCooked, undoAiPlan, dismissUndo };

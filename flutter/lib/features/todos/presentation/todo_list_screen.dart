@@ -802,6 +802,7 @@ class _TodoItem extends ConsumerStatefulWidget {
 
 class _TodoItemState extends ConsumerState<_TodoItem> {
   bool _showInlineAdd = false;
+  bool _subsExpanded = false;
   final _inlineController = TextEditingController();
 
   @override
@@ -964,8 +965,10 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
               IconButton(
                 icon: const Icon(Icons.add, size: 18),
                 tooltip: 'Sub-Todo hinzufügen',
-                onPressed: () =>
-                    setState(() => _showInlineAdd = !_showInlineAdd),
+                onPressed: () => setState(() {
+                  _showInlineAdd = !_showInlineAdd;
+                  if (_showInlineAdd) _subsExpanded = true;
+                }),
                 padding: EdgeInsets.zero,
                 constraints:
                     const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -974,7 +977,42 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
           ),
           onTap: widget.onOpenRoot,
         ),
-        if (subs.any((s) => !s.completed))
+        if (totalSubs > 0)
+          InkWell(
+            onTap: () => setState(() {
+              _subsExpanded = !_subsExpanded;
+              if (!_subsExpanded) {
+                _showInlineAdd = false;
+                _inlineController.clear();
+              }
+            }),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(48, 0, 12, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    _subsExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 22,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _subsExpanded
+                          ? 'Sub-Todos ausblenden'
+                          : '$totalSubs Sub-Todo${totalSubs == 1 ? '' : 's'}'
+                              '${completedSubs < totalSubs ? ' · ${totalSubs - completedSubs} offen' : ''}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (_subsExpanded && subs.any((s) => !s.completed))
           Padding(
             padding: const EdgeInsets.only(left: 40),
             child: Align(
@@ -990,7 +1028,7 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
               ),
             ),
           ),
-        if (subs.isNotEmpty)
+        if (_subsExpanded && subs.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(left: 12),
             child: Column(

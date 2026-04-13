@@ -1,9 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_client.dart';
@@ -180,9 +185,63 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
   Future<void> _openAttachmentUrl(TodoAttachment a) async {
     final url = todoAttachmentFullUrl(ref, a);
     if (url.isEmpty) return;
-    final u = Uri.parse(url);
-    if (await canLaunchUrl(u)) {
-      await launchUrl(u, mode: LaunchMode.externalApplication);
+
+    // Browser / external app requests have no JWT; download with Dio then open locally.
+    if (kIsWeb) {
+      final u = Uri.tryParse(url);
+      if (u != null && await canLaunchUrl(u)) {
+        await launchUrl(
+          u,
+          mode: LaunchMode.externalApplication,
+          webOnlyWindowName: '_blank',
+        );
+      } else if (mounted) {
+        showAppToast(
+          context,
+          message: 'Anhang konnte nicht geöffnet werden',
+          type: ToastType.error,
+        );
+      }
+      return;
+    }
+
+    try {
+      final dio = ref.read(dioProvider);
+      final tempDir = await getTemporaryDirectory();
+      var safeName = p
+          .basename(a.filename.isNotEmpty ? a.filename : 'file')
+          .replaceAll(RegExp(r'[^\w.\-]'), '_');
+      if (safeName.isEmpty) safeName = 'file_${a.id}';
+      final localPath = p.join(
+        tempDir.path,
+        'todo_att_${widget.todoId}_${a.id}_$safeName',
+      );
+      await dio.download(url, localPath);
+      final result = await OpenFile.open(localPath);
+      if (result.type != ResultType.done && mounted) {
+        showAppToast(
+          context,
+          message: result.message.isNotEmpty
+              ? result.message
+              : 'Anhang konnte nicht geöffnet werden',
+          type: ToastType.error,
+        );
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: ApiException.fromDioError(e).message,
+        type: ToastType.error,
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppToast(
+          context,
+          message: e.toString(),
+          type: ToastType.error,
+        );
+      }
     }
   }
 

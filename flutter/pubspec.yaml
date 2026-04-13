@@ -60,6 +60,7 @@ dependencies:
   uuid: ^4.4.0
   flutter_markdown: ^0.7.4+1
   url_launcher: ^6.2.5
+  open_file: ^3.5.11
 
   # Drag and Drop
   flutter_reorderable_grid_view: ^2.0.0

@@ -220,6 +220,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(eventRepositoryProvider).deleteEvent(widget.event!.id);
+      ref.read(syncTickProvider.notifier).state++;
       if (mounted) Navigator.of(context).pop(EventFormDialogOutcome.deleted);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);

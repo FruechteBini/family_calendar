@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user, require_family_id, require_member_id
+from ..models.user import User
 from ..config import settings
 from ..database import get_db, utcnow
 from ..models.note import Note
@@ -89,7 +90,7 @@ def _can_edit_note(note: Note, current_member_id: int) -> bool:
     return True
 
 
-def _note_to_response(note: Note) -> NoteResponse:
+def _note_to_response(note: Note, *, for_user_id: int) -> NoteResponse:
     checklist: list[ChecklistItem] | None = None
     if note.checklist_json:
         try:
@@ -136,7 +137,11 @@ def _note_to_response(note: Note) -> NoteResponse:
         is_pinned=note.is_pinned,
         is_archived=note.is_archived,
         color=note.color,
-        category=NoteCategoryResponse.model_validate(note.category) if note.category else None,
+        category=(
+            NoteCategoryResponse.model_validate(note.category)
+            if note.category and note.category.user_id == for_user_id
+            else None
+        ),
         tags=[NoteTagResponse.model_validate(t) for t in note.tags],
         comments=comments,
         attachments=attachments,
@@ -195,6 +200,7 @@ async def list_notes(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     stmt = select(Note).options(*_note_load).where(Note.family_id == family_id)
 
@@ -237,7 +243,7 @@ async def list_notes(
     )
     result = await db.execute(stmt)
     notes = result.scalars().unique().all()
-    return [_note_to_response(n) for n in notes]
+    return [_note_to_response(n, for_user_id=current_user.id) for n in notes]
 
 
 @router.post("/preview-link", response_model=PreviewLinkResponse)
@@ -299,6 +305,7 @@ async def create_note(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     if data.category_id is not None:
         from ..models.note_category import NoteCategory
@@ -307,6 +314,7 @@ async def create_note(
             select(NoteCategory).where(
                 NoteCategory.id == data.category_id,
                 NoteCategory.family_id == family_id,
+                NoteCategory.user_id == current_user.id,
             )
         )
         if not r.scalar_one_or_none():
@@ -370,7 +378,7 @@ async def create_note(
     db.add(note)
     await db.flush()
     note = await _reload_note(db, note.id)
-    return _note_to_response(note)
+    return _note_to_response(note, for_user_id=current_user.id)
 
 
 @router.get("/{note_id}", response_model=NoteResponse)
@@ -379,9 +387,10 @@ async def get_note(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     note = await _get_note_or_404(db, note_id, family_id, current_member_id)
-    return _note_to_response(note)
+    return _note_to_response(note, for_user_id=current_user.id)
 
 
 @router.put("/{note_id}", response_model=NoteResponse)
@@ -391,6 +400,7 @@ async def update_note(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     note = await _get_note_or_404(db, note_id, family_id, current_member_id)
     if not _can_edit_note(note, current_member_id):
@@ -419,6 +429,7 @@ async def update_note(
             select(NoteCategory).where(
                 NoteCategory.id == update_data["category_id"],
                 NoteCategory.family_id == family_id,
+                NoteCategory.user_id == current_user.id,
             )
         )
         if not r.scalar_one_or_none():
@@ -441,7 +452,7 @@ async def update_note(
     note.updated_at = utcnow()
     await db.flush()
     note = await _reload_note(db, note.id)
-    return _note_to_response(note)
+    return _note_to_response(note, for_user_id=current_user.id)
 
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -470,6 +481,7 @@ async def toggle_pin(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     note = await _get_note_or_404(db, note_id, family_id, current_member_id)
     if not _can_edit_note(note, current_member_id):
@@ -478,7 +490,7 @@ async def toggle_pin(
     note.updated_at = utcnow()
     await db.flush()
     note = await _reload_note(db, note.id)
-    return _note_to_response(note)
+    return _note_to_response(note, for_user_id=current_user.id)
 
 
 @router.patch("/{note_id}/archive", response_model=NoteResponse)
@@ -487,6 +499,7 @@ async def toggle_archive(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     note = await _get_note_or_404(db, note_id, family_id, current_member_id)
     if not _can_edit_note(note, current_member_id):
@@ -495,7 +508,7 @@ async def toggle_archive(
     note.updated_at = utcnow()
     await db.flush()
     note = await _reload_note(db, note.id)
-    return _note_to_response(note)
+    return _note_to_response(note, for_user_id=current_user.id)
 
 
 @router.patch("/{note_id}/color", response_model=NoteResponse)
@@ -505,6 +518,7 @@ async def set_color(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
     current_member_id: int = Depends(require_member_id),
+    current_user: User = Depends(get_current_user),
 ):
     note = await _get_note_or_404(db, note_id, family_id, current_member_id)
     if not _can_edit_note(note, current_member_id):
@@ -515,7 +529,7 @@ async def set_color(
     note.updated_at = utcnow()
     await db.flush()
     note = await _reload_note(db, note.id)
-    return _note_to_response(note)
+    return _note_to_response(note, for_user_id=current_user.id)
 
 
 @router.post("/{note_id}/convert-to-todo", response_model=TodoResponse)

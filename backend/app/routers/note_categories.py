@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user, require_family_id
 from ..database import get_db
 from ..models.note_category import NoteCategory
+from ..models.user import User
 from ..schemas.note_category import NoteCategoryCreate, NoteCategoryResponse, NoteCategoryUpdate
 
 router = APIRouter(
@@ -23,10 +24,14 @@ class NoteCategoryReorderRequest(BaseModel):
 async def list_note_categories(
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(NoteCategory)
-        .where(NoteCategory.family_id == family_id)
+        .where(
+            NoteCategory.family_id == family_id,
+            NoteCategory.user_id == current_user.id,
+        )
         .order_by(NoteCategory.position.asc(), NoteCategory.name.asc())
     )
     return result.scalars().all()
@@ -37,22 +42,24 @@ async def create_note_category(
     data: NoteCategoryCreate,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_user: User = Depends(get_current_user),
 ):
     existing = await db.execute(
         select(NoteCategory).where(
             NoteCategory.name == data.name,
-            NoteCategory.family_id == family_id,
+            NoteCategory.user_id == current_user.id,
         )
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Notiz-Kategorie existiert bereits")
     max_pos = await db.scalar(
         select(func.coalesce(func.max(NoteCategory.position), 0)).where(
-            NoteCategory.family_id == family_id
+            NoteCategory.user_id == current_user.id,
         )
     )
     category = NoteCategory(
         family_id=family_id,
+        user_id=current_user.id,
         position=int(max_pos or 0) + 1,
         **data.model_dump(),
     )
@@ -67,12 +74,14 @@ async def reorder_note_categories(
     data: NoteCategoryReorderRequest,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_user: User = Depends(get_current_user),
 ):
     if not data.ids:
         return
     result = await db.execute(
         select(NoteCategory).where(
             NoteCategory.family_id == family_id,
+            NoteCategory.user_id == current_user.id,
             NoteCategory.id.in_(data.ids),
         )
     )
@@ -91,11 +100,13 @@ async def update_note_category(
     data: NoteCategoryUpdate,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(NoteCategory).where(
             NoteCategory.id == category_id,
             NoteCategory.family_id == family_id,
+            NoteCategory.user_id == current_user.id,
         )
     )
     category = result.scalar_one_or_none()
@@ -113,11 +124,13 @@ async def delete_note_category(
     category_id: int,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(NoteCategory).where(
             NoteCategory.id == category_id,
             NoteCategory.family_id == family_id,
+            NoteCategory.user_id == current_user.id,
         )
     )
     category = result.scalar_one_or_none()

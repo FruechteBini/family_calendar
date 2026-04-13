@@ -355,6 +355,60 @@ def _add_missing_columns(conn):
             )
             logger.info("Index ux_google_tasks_sync_family_user_todo angelegt")
 
+    # Notiz-Kategorien: pro Benutzer statt pro Familie (Migration bestehender DBs)
+    if inspector.has_table("note_categories"):
+        nc_columns = {c["name"] for c in inspector.get_columns("note_categories")}
+        if "user_id" not in nc_columns:
+            nc_uc = {
+                u["name"] for u in inspector.get_unique_constraints("note_categories")
+            }
+            if "uq_note_category_family_name" in nc_uc:
+                conn.execute(
+                    text(
+                        "ALTER TABLE note_categories DROP CONSTRAINT IF EXISTS uq_note_category_family_name"
+                    )
+                )
+                logger.info("Constraint uq_note_category_family_name entfernt (Notiz-Kategorien pro User)")
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE note_categories
+                    ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE note_categories AS nc
+                    SET user_id = u.id
+                    FROM (
+                        SELECT family_id, MIN(id) AS id
+                        FROM users
+                        WHERE family_id IS NOT NULL
+                        GROUP BY family_id
+                    ) AS u
+                    WHERE nc.family_id = u.family_id
+                    """
+                )
+            )
+            conn.execute(text("DELETE FROM note_categories WHERE user_id IS NULL"))
+            conn.execute(
+                text("ALTER TABLE note_categories ALTER COLUMN user_id SET NOT NULL")
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_note_categories_user_id ON note_categories (user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_note_category_user_name "
+                    "ON note_categories (user_id, name)"
+                )
+            )
+            logger.info("Spalte user_id zu note_categories hinzugefügt (persönliche Kategorien)")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

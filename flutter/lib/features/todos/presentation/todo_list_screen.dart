@@ -17,7 +17,6 @@ import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../core/api/api_client.dart';
-import 'todo_detail_screen.dart';
 import 'todo_form_dialog.dart';
 import 'todo_list_refresh.dart';
 import 'proposal_sheet.dart';
@@ -192,11 +191,6 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
     ref.invalidate(todosProvider);
   }
 
-  Future<void> _refreshTodos(TodoScope listScope) async {
-    ref.invalidate(todosForScopeProvider(listScope));
-    ref.invalidate(todosProvider);
-  }
-
   Future<void> _showForm({Todo? todo}) async {
     final result = await showDialog<bool>(
       context: context,
@@ -233,7 +227,6 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                   todo: todos[i],
                   onToggleComplete: (t) => _toggleComplete(t, listScope),
                   onOpenRoot: () => context.push('/todos/${todos[i].id}'),
-                  onListChanged: () => _refreshTodos(listScope),
                 ),
               ),
             ),
@@ -779,328 +772,100 @@ class _TodoAiPrioritizeSheetState
   }
 }
 
-class _TodoItem extends ConsumerStatefulWidget {
+class _TodoItem extends StatelessWidget {
   final Todo todo;
   final Future<void> Function(Todo todo) onToggleComplete;
   final VoidCallback onOpenRoot;
-  final Future<void> Function() onListChanged;
 
   const _TodoItem({
     required this.todo,
     required this.onToggleComplete,
     required this.onOpenRoot,
-    required this.onListChanged,
   });
-
-  @override
-  ConsumerState<_TodoItem> createState() => _TodoItemState();
-}
-
-class _TodoItemState extends ConsumerState<_TodoItem> {
-  bool _showInlineAdd = false;
-  bool _subsExpanded = false;
-  final _inlineController = TextEditingController();
-
-  @override
-  void dispose() {
-    _inlineController.dispose();
-    super.dispose();
-  }
-
-  List<Todo> get _sorted => Todo.sortedSubtodos(widget.todo.subtodos);
-
-  Future<void> _createInlineSubtodo() async {
-    final text = _inlineController.text.trim();
-    if (text.isEmpty) return;
-    final parent = widget.todo;
-    final mid = ref.read(authStateProvider).user?.memberId;
-    final data = <String, dynamic>{
-      'title': text,
-      'parent_id': parent.id,
-      'is_personal': parent.isPersonal,
-      if (!parent.isPersonal)
-        'member_ids': parent.memberIds.isNotEmpty
-            ? parent.memberIds
-            : (mid != null ? [mid] : <int>[]),
-    };
-    try {
-           await ref.read(todoRepositoryProvider).createTodo(data);
-      _inlineController.clear();
-      setState(() => _showInlineAdd = false);
-      ref.invalidate(todoDetailProvider(parent.id));
-      await widget.onListChanged();
-      if (mounted) {
-        showAppToast(
-          context,
-          message: 'Sub-Todo erstellt',
-          type: ToastType.success,
-        );
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        showAppToast(context, message: e.message, type: ToastType.error);
-      }
-    }
-  }
-
-  Future<void> _completeAllSubs() async {
-    for (final s in _sorted.where((x) => !x.completed)) {
-      try {
-        final r = await ref.read(todoRepositoryProvider).completeTodo(
-              s.id,
-              completed: true,
-            );
-        if (r.parentAutoCompleted && mounted) {
-          showAppToast(
-            context,
-            message: 'Haupt-Todo wurde automatisch erledigt',
-            type: ToastType.success,
-          );
-        }
-      } on ApiException catch (e) {
-        if (mounted) {
-          showAppToast(context, message: e.message, type: ToastType.error);
-        }
-        await widget.onListChanged();
-        return;
-      }
-    }
-    await widget.onListChanged();
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final todo = widget.todo;
-    final subs = _sorted;
+    final subs = Todo.sortedSubtodos(todo.subtodos);
     final completedSubs = subs.where((s) => s.completed).length;
     final totalSubs = subs.length;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ListTile(
-          leading: Checkbox(
-            value: todo.completed,
-            onChanged: (_) => widget.onToggleComplete(todo),
-          ),
-          title: Text(
-            todo.title,
-            style: todo.completed
-                ? theme.textTheme.bodyLarge?.copyWith(
-                    decoration: TextDecoration.lineThrough,
-                    color: theme.colorScheme.outline)
-                : theme.textTheme.bodyLarge,
-          ),
-          subtitle: Row(
-            children: [
-              if (todo.priority != 'none') ...[
-                PriorityBadge(priority: todo.priority, compact: true),
-                const SizedBox(width: 8),
-              ],
-              if (todo.dueDate != null)
-                Text(
-                  AppDateUtils.relativeDate(todo.dueDate!),
-                  style: theme.textTheme.bodySmall,
-                ),
-              if (todo.members.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: todo.members
-                        .take(2)
-                        .map((m) => Text(m.emoji ?? m.name[0],
-                            style: const TextStyle(fontSize: 12)))
-                        .toList(),
-                  ),
-                ),
-              if (todo.proposalCount > 0)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Badge(
-                      label: Text('${todo.proposalCount}'),
-                      child: const Icon(Icons.schedule, size: 16)),
-                ),
-              if (todo.attachments.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Icon(
-                    Icons.attach_file,
-                    size: 16,
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-              if (totalSubs > 0) ...[
-                const SizedBox(width: 8),
-                Text(
-                  '$completedSubs/$totalSubs',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                SizedBox(
-                  width: 40,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: completedSubs / totalSubs,
-                      minHeight: 3,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (todo.eventId != null)
-                const Icon(Icons.link, size: 16),
-              IconButton(
-                icon: const Icon(Icons.add, size: 18),
-                tooltip: 'Sub-Todo hinzufügen',
-                onPressed: () => setState(() {
-                  _showInlineAdd = !_showInlineAdd;
-                  if (_showInlineAdd) _subsExpanded = true;
-                }),
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
-            ],
-          ),
-          onTap: widget.onOpenRoot,
-        ),
-        if (totalSubs > 0)
-          InkWell(
-            onTap: () => setState(() {
-              _subsExpanded = !_subsExpanded;
-              if (!_subsExpanded) {
-                _showInlineAdd = false;
-                _inlineController.clear();
-              }
-            }),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(48, 0, 12, 4),
+    return ListTile(
+      leading: Checkbox(
+        value: todo.completed,
+        onChanged: (_) => onToggleComplete(todo),
+      ),
+      title: Text(
+        todo.title,
+        style: todo.completed
+            ? theme.textTheme.bodyLarge?.copyWith(
+                decoration: TextDecoration.lineThrough,
+                color: theme.colorScheme.outline)
+            : theme.textTheme.bodyLarge,
+      ),
+      subtitle: Row(
+        children: [
+          if (todo.priority != 'none') ...[
+            PriorityBadge(priority: todo.priority, compact: true),
+            const SizedBox(width: 8),
+          ],
+          if (todo.dueDate != null)
+            Text(
+              AppDateUtils.relativeDate(todo.dueDate!),
+              style: theme.textTheme.bodySmall,
+            ),
+          if (todo.members.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
               child: Row(
-                children: [
-                  Icon(
-                    _subsExpanded ? Icons.expand_less : Icons.expand_more,
-                    size: 22,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      _subsExpanded
-                          ? 'Sub-Todos ausblenden'
-                          : '$totalSubs Sub-Todo${totalSubs == 1 ? '' : 's'}'
-                              '${completedSubs < totalSubs ? ' · ${totalSubs - completedSubs} offen' : ''}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
+                mainAxisSize: MainAxisSize.min,
+                children: todo.members
+                    .take(2)
+                    .map((m) => Text(m.emoji ?? m.name[0],
+                        style: const TextStyle(fontSize: 12)))
+                    .toList(),
               ),
             ),
-          ),
-        if (_subsExpanded && subs.any((s) => !s.completed))
-          Padding(
-            padding: const EdgeInsets.only(left: 40),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _completeAllSubs,
-                icon: const Icon(Icons.done_all, size: 16),
-                label: const Text('Alle abhaken'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  textStyle: theme.textTheme.bodySmall,
+          if (todo.proposalCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Badge(
+                  label: Text('${todo.proposalCount}'),
+                  child: const Icon(Icons.schedule, size: 16)),
+            ),
+          if (todo.attachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Icon(
+                Icons.attach_file,
+                size: 16,
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          if (totalSubs > 0) ...[
+            const SizedBox(width: 8),
+            Text(
+              '$completedSubs/$totalSubs',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 40,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: completedSubs / totalSubs,
+                  minHeight: 3,
                 ),
               ),
             ),
-          ),
-        if (_subsExpanded && subs.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Column(
-              children: subs.map((sub) {
-                return Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.only(left: 8, right: 8),
-                    leading: Checkbox(
-                      value: sub.completed,
-                      onChanged: (_) => widget.onToggleComplete(sub),
-                    ),
-                    title: Text(
-                      sub.title,
-                      style: sub.completed
-                          ? theme.textTheme.bodySmall?.copyWith(
-                              decoration: TextDecoration.lineThrough)
-                          : theme.textTheme.bodySmall,
-                    ),
-                    subtitle: sub.dueDate != null
-                        ? Text(
-                            AppDateUtils.relativeDate(sub.dueDate!),
-                            style: theme.textTheme.bodySmall,
-                          )
-                        : (sub.priority != 'none'
-                            ? Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: PriorityBadge(
-                                  priority: sub.priority,
-                                  compact: true,
-                                ),
-                              )
-                            : null),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      size: 20,
-                      color: theme.colorScheme.outline,
-                    ),
-                    onTap: () => context.push('/todos/${sub.id}'),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        if (_showInlineAdd)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(40, 0, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _inlineController,
-                    decoration: const InputDecoration(
-                      hintText: 'Sub-Todo …',
-                      isDense: true,
-                    ),
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _createInlineSubtodo(),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: _createInlineSubtodo,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    _inlineController.clear();
-                    setState(() => _showInlineAdd = false);
-                  },
-                ),
-              ],
-            ),
-          ),
-      ],
+          ],
+        ],
+      ),
+      trailing: todo.eventId != null ? const Icon(Icons.link, size: 16) : null,
+      onTap: onOpenRoot,
     );
   }
 }

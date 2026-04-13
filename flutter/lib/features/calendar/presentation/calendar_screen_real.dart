@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../app/main_tab_swipe_scope.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -76,14 +77,15 @@ class CalendarScreen extends ConsumerWidget {
         child: const Icon(Icons.add),
       ),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(monthEventsProvider(month));
-            await ref.read(monthEventsProvider(month).future);
-          },
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
+        child: MainTabSwipeScope(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(monthEventsProvider(month));
+              await ref.read(monthEventsProvider(month).future);
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(AppColors.spacing4),
@@ -154,7 +156,8 @@ class CalendarScreen extends ConsumerWidget {
                   );
                 },
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

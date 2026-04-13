@@ -44,6 +44,11 @@ class NoteCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Bearbeiten'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            ListTile(
               leading: Icon(note.isPinned ? Icons.push_pin_outlined : Icons.push_pin),
               title: Text(note.isPinned ? 'Loslösen' : 'Anpinnen'),
               onTap: () => Navigator.pop(ctx, 'pin'),
@@ -75,6 +80,9 @@ class NoteCard extends ConsumerWidget {
     if (!context.mounted || choice == null) return;
     try {
       switch (choice) {
+        case 'edit':
+          onEdit();
+          return;
         case 'pin':
           await repo.togglePin(note.id);
           break;
@@ -168,10 +176,31 @@ class NoteCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _openUrl(String url) async {
-    final u = Uri.tryParse(url);
-    if (u != null && await canLaunchUrl(u)) {
-      await launchUrl(u, mode: LaunchMode.externalApplication);
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final u = Uri.tryParse(url.trim());
+    if (u == null || !await canLaunchUrl(u)) {
+      if (context.mounted) {
+        showAppToast(
+          context,
+          message: 'Link konnte nicht geöffnet werden',
+          type: ToastType.error,
+        );
+      }
+      return;
+    }
+    await launchUrl(u, mode: LaunchMode.externalApplication);
+  }
+
+  bool _linkOpensExternally(Note note) {
+    final u = note.url?.trim();
+    return note.type == NoteType.link && u != null && u.isNotEmpty;
+  }
+
+  void _onCardTap(BuildContext context) {
+    if (_linkOpensExternally(note)) {
+      _openUrl(context, note.url!);
+    } else {
+      onEdit();
     }
   }
 
@@ -298,7 +327,6 @@ class NoteCard extends ConsumerWidget {
                 ),
               ),
             ListTile(
-              onTap: note.url != null ? () => _openUrl(note.url!) : null,
               title: Text(
                 note.linkTitle ?? note.displayTitle,
                 style: theme.textTheme.titleMedium,
@@ -420,7 +448,7 @@ class NoteCard extends ConsumerWidget {
       shape: RoundedRectangleBorder(borderRadius: borderRadius),
       child: InkWell(
         borderRadius: borderRadius,
-        onTap: onEdit,
+        onTap: () => _onCardTap(context),
         onLongPress: () => _menu(context, ref),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

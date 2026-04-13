@@ -182,6 +182,35 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
     await _refreshAfterChange();
   }
 
+  void _openImageAttachmentViewer(
+    TodoAttachment a,
+    Map<String, String>? headers,
+  ) {
+    final url = todoAttachmentFullUrl(ref, a);
+    if (url.isEmpty) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (ctx) => _TodoImageViewerScreen(
+          imageUrl: url,
+          httpHeaders: headers,
+          title: a.filename,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onAttachmentTap(
+    TodoAttachment a,
+    Map<String, String>? headers,
+  ) async {
+    if (todoAttachmentIsImage(a)) {
+      _openImageAttachmentViewer(a, headers);
+      return;
+    }
+    await _openAttachmentUrl(a);
+  }
+
   Future<void> _openAttachmentUrl(TodoAttachment a) async {
     final url = todoAttachmentFullUrl(ref, a);
     if (url.isEmpty) return;
@@ -473,7 +502,7 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
                           final isImg = todoAttachmentIsImage(a);
                           final isVid = todoAttachmentIsVideo(a);
                           return InkWell(
-                            onTap: () => _openAttachmentUrl(a),
+                            onTap: () => _onAttachmentTap(a, headers),
                             borderRadius: BorderRadius.circular(8),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
@@ -625,6 +654,68 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _TodoImageViewerScreen extends StatelessWidget {
+  final String imageUrl;
+  final Map<String, String>? httpHeaders;
+  final String title;
+
+  const _TodoImageViewerScreen({
+    required this.imageUrl,
+    required this.httpHeaders,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4,
+        child: Center(
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            httpHeaders: httpHeaders,
+            fit: BoxFit.contain,
+            placeholder: (_, __) => const Center(
+              child: CircularProgressIndicator(color: Colors.white54),
+            ),
+            errorWidget: (_, __, ___) => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white54,
+                    size: 48,
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'Bild konnte nicht geladen werden',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -186,7 +186,7 @@ class _FamilyAwareTopBar extends ConsumerWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 6, 24, 8),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
           child: SizedBox(
             height: _kCompactFamilyBarContentHeight,
             child: Row(
@@ -327,10 +327,10 @@ class _GlassmorphismNavBar extends StatelessWidget {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.only(
-                top: 12,
-                bottom: 24,
-                left: 16,
-                right: 16,
+                top: 6,
+                bottom: 12,
+                left: 12,
+                right: 12,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -449,7 +449,7 @@ class _NavItemState extends State<_NavItem> {
                         color: color,
                         size: 24,
                       ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 SizedBox(
                   width: double.infinity,
                   child: FittedBox(
@@ -462,7 +462,7 @@ class _NavItemState extends State<_NavItem> {
                       softWrap: false,
                       style: GoogleFonts.getFont(
                         'Plus Jakarta Sans',
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.05,
                         color: color,

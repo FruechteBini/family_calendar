@@ -7,6 +7,7 @@ import '../../../app/main_tab_swipe_scope.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/screen_header.dart';
 import '../../../core/sync/sync_service.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
@@ -76,8 +77,7 @@ class CalendarScreen extends ConsumerWidget {
         },
         child: const Icon(Icons.add),
       ),
-      body: SafeArea(
-        child: MainTabSwipeScope(
+      body: MainTabSwipeScope(
           child: RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(monthEventsProvider(month));
@@ -88,7 +88,7 @@ class CalendarScreen extends ConsumerWidget {
               slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(AppColors.spacing4),
+                  padding: ScreenHeader.padding(bottom: AppColors.spacing2),
                   child: _MonthHeader(month: month),
                 ),
               ),
@@ -104,7 +104,7 @@ class CalendarScreen extends ConsumerWidget {
                     subtitle: err is ApiException ? err.message : err.toString(),
                   ),
                   data: (events) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing4),
+                    padding: const EdgeInsets.symmetric(horizontal: ScreenHeader.horizontalPadding),
                     child: _MonthGrid(
                       month: month,
                       selected: selected,
@@ -114,13 +114,13 @@ class CalendarScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing4)),
+              const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing2)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing4),
+                  padding: const EdgeInsets.symmetric(horizontal: ScreenHeader.horizontalPadding),
                   child: Text(
                     _formatSelectedTitle(selected),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -142,7 +142,7 @@ class CalendarScreen extends ConsumerWidget {
                     );
                   }
                   return SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(AppColors.spacing4, AppColors.spacing3, AppColors.spacing4, 120),
+                    padding: const EdgeInsets.fromLTRB(ScreenHeader.horizontalPadding, AppColors.spacing2, ScreenHeader.horizontalPadding, 120),
                     sliver: SliverList.separated(
                       itemCount: dayEvents.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -160,7 +160,6 @@ class CalendarScreen extends ConsumerWidget {
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -189,7 +188,8 @@ class _MonthHeader extends ConsumerWidget {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.chevron_left),
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.chevron_left, size: 22),
           onPressed: () {
             final prev = DateTime(month.year, month.month - 1, 1);
             ref.read(calendarMonthProvider.notifier).state = prev;
@@ -204,11 +204,11 @@ class _MonthHeader extends ConsumerWidget {
                 onTap: () => _showCalendarMonthYearPicker(context: context, ref: ref, month: month),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
                   child: Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -216,7 +216,8 @@ class _MonthHeader extends ConsumerWidget {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.chevron_right),
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.chevron_right, size: 22),
           onPressed: () {
             final next = DateTime(month.year, month.month + 1, 1);
             ref.read(calendarMonthProvider.notifier).state = next;

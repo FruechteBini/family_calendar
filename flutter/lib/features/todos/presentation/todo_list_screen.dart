@@ -261,6 +261,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
+        titleSpacing: 0,
         title: const Text('Todos'),
         actions: [
           IconButton(
@@ -296,7 +297,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               child: TabBar(
                 controller: _tabController,
                 onTap: (i) {

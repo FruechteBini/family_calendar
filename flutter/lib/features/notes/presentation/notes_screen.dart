@@ -281,6 +281,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
+        titleSpacing: 0,
         title: const Text('Notizen'),
         actions: [
           IconButton(
@@ -303,7 +304,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               child: TabBar(
                 controller: _tabController,
                 onTap: (i) {

@@ -7,6 +7,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/primary_button.dart';
+import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
 import '../../../core/sync/sync_service.dart';
@@ -61,8 +62,7 @@ class TodayScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: MainTabSwipeScope(
+      body: MainTabSwipeScope(
           child: RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(weekPlanProvider);
@@ -76,31 +76,31 @@ class TodayScreen extends ConsumerWidget {
               slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(AppColors.spacing6),
+                  padding: ScreenHeader.padding(bottom: AppColors.spacing2),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Heute',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.onSurface,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              height: 1.15,
-                            ),
+                        style: ScreenHeader.titleStyle(context),
                       ),
-                      const SizedBox(height: AppColors.spacing2),
+                      const SizedBox(height: 6),
                       membersAsync.when(
-                        loading: () => const SizedBox(height: 40),
+                        loading: () => const SizedBox(height: 28),
                         error: (_, __) => const SizedBox.shrink(),
                         data: (members) => SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: members.take(10).map((m) {
                               return Padding(
-                                padding: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.only(right: 6),
                                 child: Chip(
-                                  label: Text('${m.emoji ?? '👤'} ${m.name}'),
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  label: Text(
+                                    '${m.emoji ?? '👤'} ${m.name}',
+                                    style: Theme.of(context).textTheme.labelSmall,
+                                  ),
                                 ),
                               );
                             }).toList(),
@@ -113,7 +113,7 @@ class TodayScreen extends ConsumerWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
+                  padding: const EdgeInsets.symmetric(horizontal: ScreenHeader.horizontalPadding),
                   child: _SectionHeader(
                     title: 'Termine',
                     actionLabel: 'Alle sehen',
@@ -123,7 +123,7 @@ class TodayScreen extends ConsumerWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(AppColors.spacing6, AppColors.spacing3, AppColors.spacing6, 0),
+                  padding: const EdgeInsets.fromLTRB(ScreenHeader.horizontalPadding, AppColors.spacing2, ScreenHeader.horizontalPadding, 0),
                   child: eventsAsync.when(
                     loading: () => const SizedBox(
                       height: 36,
@@ -148,7 +148,7 @@ class TodayScreen extends ConsumerWidget {
               const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing6)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
+                  padding: const EdgeInsets.symmetric(horizontal: ScreenHeader.horizontalPadding),
                   child: _SectionHeader(
                     title: 'Aufgaben',
                     actionLabel: 'Alle sehen',
@@ -158,7 +158,7 @@ class TodayScreen extends ConsumerWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(AppColors.spacing6, AppColors.spacing3, AppColors.spacing6, 0),
+                  padding: const EdgeInsets.fromLTRB(ScreenHeader.horizontalPadding, AppColors.spacing2, ScreenHeader.horizontalPadding, 0),
                   child: todosAsync.when(
                     loading: () => const SizedBox(
                       height: 36,
@@ -183,7 +183,7 @@ class TodayScreen extends ConsumerWidget {
               const SliverToBoxAdapter(child: SizedBox(height: AppColors.spacing6)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(AppColors.spacing6, 0, AppColors.spacing6, 120),
+                  padding: const EdgeInsets.fromLTRB(ScreenHeader.horizontalPadding, 0, ScreenHeader.horizontalPadding, 120),
                   child: _DinnerCard(
                     weekPlanAsync: weekPlanAsync,
                     todayKey: todayKey,
@@ -195,7 +195,6 @@ class TodayScreen extends ConsumerWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -217,12 +216,20 @@ class _SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
           ),
         ),
-        TextButton(onPressed: onAction, child: Text(actionLabel)),
+        TextButton(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: onAction,
+          child: Text(actionLabel, style: Theme.of(context).textTheme.labelLarge),
+        ),
       ],
     );
   }

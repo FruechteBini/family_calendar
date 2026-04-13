@@ -247,10 +247,11 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        toolbarHeight: 28,
+        toolbarHeight: 32,
+        titleSpacing: 12,
         titleTextStyle: GoogleFonts.getFont(
           _plusJakarta,
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: FontWeight.w700,
           letterSpacing: _lsHeadline,
           color: cs.primary,

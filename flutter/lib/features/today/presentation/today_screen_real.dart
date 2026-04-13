@@ -284,10 +284,11 @@ class _DinnerCard extends ConsumerWidget {
       ),
       data: (plan) {
         final dinner = plan.days[todayKey]?.dinner;
-        final hasDinner = dinner?.recipeId != null;
+        final dinnerRecipeId = dinner?.recipeId;
+        final hasDinner = dinnerRecipeId != null && dinnerRecipeId > 0;
         final subtitle = hasDinner
-            ? 'Tippe für Aktionen.'
-            : 'Tippe, um ein Gericht einzutragen.';
+            ? 'Tippen, um das Rezept zu öffnen.'
+            : 'Tippen, um ein Gericht einzutragen.';
         return _card(
           context,
           title: 'Abendessen',
@@ -308,11 +309,21 @@ class _DinnerCard extends ConsumerWidget {
     required bool showCta,
     MealSlot? dinner,
   }) {
+    final recipeId = dinner?.recipeId;
+    final hasRecipe = recipeId != null && recipeId > 0;
+
     return Card(
       color: AppColors.surfaceContainerHigh,
       child: ListTile(
+        onTap: () {
+          if (hasRecipe) {
+            context.push('/recipes/$recipeId');
+          } else {
+            onOpenMeals();
+          }
+        },
         title: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-        subtitle: dinner?.recipeId != null
+        subtitle: hasRecipe
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -343,7 +354,11 @@ class _DinnerCard extends ConsumerWidget {
                 ],
               )
             : Text('Noch nichts geplant\n$subtitle'),
-        trailing: showCta ? PrimaryButton(label: cta, onPressed: onOpenMeals) : null,
+        trailing: showCta
+            ? PrimaryButton(label: cta, onPressed: onOpenMeals)
+            : hasRecipe
+                ? const Icon(Icons.chevron_right)
+                : null,
       ),
     );
   }

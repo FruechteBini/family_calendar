@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/api/api_client.dart';
 import '../../../core/api/endpoints.dart';
+import '../../../core/auth/auth_provider.dart';
 import '../domain/note_category.dart';
 
 class NoteCategoryRepository {
@@ -61,7 +63,9 @@ final noteCategoryRepositoryProvider =
 });
 
 /// Single cache for note categories (tabs, note form, category screen).
+/// Scoped per logged-in user — categories are not shared within the family.
 final noteCategoriesListProvider =
     FutureProvider<List<NoteCategory>>((ref) {
+  ref.watch(authStateProvider.select((a) => a.user?.id));
   return ref.watch(noteCategoryRepositoryProvider).getCategories();
 });

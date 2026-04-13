@@ -6,11 +6,14 @@ from ..database import Base
 
 class NoteCategory(Base):
     __tablename__ = "note_categories"
-    __table_args__ = (UniqueConstraint("family_id", "name", name="uq_note_category_family_name"),)
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_note_category_user_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     family_id: Mapped[int] = mapped_column(
         ForeignKey("families.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     position: Mapped[int] = mapped_column(default=0, index=True)
     name: Mapped[str] = mapped_column(String(50))

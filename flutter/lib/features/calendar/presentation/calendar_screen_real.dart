@@ -70,7 +70,8 @@ class CalendarScreen extends ConsumerWidget {
             context: context,
             builder: (_) => EventFormDialog(initialDate: selected),
           );
-          if (outcome == EventFormDialogOutcome.saved) {
+          if (outcome == EventFormDialogOutcome.saved ||
+              outcome == EventFormDialogOutcome.deleted) {
             ref.invalidate(monthEventsProvider(month));
           }
         },

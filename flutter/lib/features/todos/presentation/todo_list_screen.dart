@@ -261,11 +261,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: Text(
-          'Todos',
-          style: theme.textTheme.titleLarge
-              ?.copyWith(color: theme.colorScheme.primary),
-        ),
+        title: const Text('Todos'),
         actions: [
           IconButton(
             icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary),

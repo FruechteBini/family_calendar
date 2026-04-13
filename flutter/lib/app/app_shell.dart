@@ -98,43 +98,23 @@ class AppShell extends ConsumerWidget {
 
 // ── 8.2 Top App Bar ─────────────────────────────────────────────────────
 
-class _FamilienherdAppBar extends StatelessWidget
-    implements PreferredSizeWidget {
+/// Height of the family row below [SafeArea] top inset (avatar + name + settings).
+const double _kCompactFamilyBarContentHeight = 28;
+
+class _FamilienherdAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const _FamilienherdAppBar();
 
   @override
-  Size get preferredSize => const Size.fromHeight(88);
-
-  bool _isTopLevelTab(String location) {
-    final todosMain =
-        location == '/todos' || location.startsWith('/todos?');
-    return location.startsWith('/today') ||
-        location.startsWith('/calendar') ||
-        todosMain ||
-        location.startsWith('/meals') ||
-        location.startsWith('/notes');
-  }
-
-  void _goBackToMenu(BuildContext context) {
-    // Close any open bottom sheets/dialogs first.
-    Navigator.of(context, rootNavigator: true).popUntil((r) => r is! PopupRoute);
-
-    final router = GoRouter.of(context);
-    if (router.canPop()) {
-      router.pop();
-      return;
-    }
-
-    // If there is no navigation stack (e.g. direct deep link), go to the main menu.
-    context.go('/today');
-  }
+  Size get preferredSize => const Size.fromHeight(0);
 
   @override
-  Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
-    final showBack = !_isTopLevelTab(location);
-
-    return const _FamilyAwareTopBar();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final top = MediaQuery.paddingOf(context).top;
+    // Top padding 6 + row 28 + bottom padding 8 — ~50% vs. previous 12+56+16.
+    return SizedBox(
+      height: top + 6 + _kCompactFamilyBarContentHeight + 8,
+      child: const _FamilyAwareTopBar(),
+    );
   }
 }
 
@@ -206,9 +186,9 @@ class _FamilyAwareTopBar extends ConsumerWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+          padding: const EdgeInsets.fromLTRB(24, 6, 24, 8),
           child: SizedBox(
-            height: 56,
+            height: _kCompactFamilyBarContentHeight,
             child: Row(
               children: [
                 if (showBack)
@@ -221,24 +201,24 @@ class _FamilyAwareTopBar extends ConsumerWidget {
                       hoverColor: AppColors.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(AppColors.radiusFull),
                       child: const Padding(
-                        padding: EdgeInsets.all(8),
+                        padding: EdgeInsets.all(4),
                         child: Icon(
                           Icons.arrow_back,
                           color: AppColors.onSurface,
-                          size: 24,
+                          size: 20,
                         ),
                       ),
                     ),
                   )
                 else
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 28,
+                    height: 28,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: cs.primaryContainer,
-                        width: 2,
+                        width: 1.5,
                       ),
                       color: AppColors.surfaceContainerHigh,
                       image: avatarFile != null
@@ -249,11 +229,11 @@ class _FamilyAwareTopBar extends ConsumerWidget {
                         ? const Icon(
                             Icons.family_restroom,
                             color: AppColors.onSurface,
-                            size: 20,
+                            size: 16,
                           )
                         : null,
                   ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     familyName,
@@ -261,13 +241,13 @@ class _FamilyAwareTopBar extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.getFont(
                       'Plus Jakarta Sans',
-                      fontSize: 20,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: cs.primary,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 Material(
                   color: Colors.transparent,
                   shape: const CircleBorder(),
@@ -281,11 +261,11 @@ class _FamilyAwareTopBar extends ConsumerWidget {
                     hoverColor: AppColors.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(AppColors.radiusFull),
                     child: Padding(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(4),
                       child: Icon(
                         Icons.settings,
                         color: cs.primary,
-                        size: 24,
+                        size: 20,
                       ),
                     ),
                   ),

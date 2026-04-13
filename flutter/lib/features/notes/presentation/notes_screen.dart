@@ -281,12 +281,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
-        title: Text(
-          'Notizen',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: theme.colorScheme.primary,
-          ),
-        ),
+        title: const Text('Notizen'),
         actions: [
           IconButton(
             tooltip: 'Aus Zwischenablage',

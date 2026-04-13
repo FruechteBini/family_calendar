@@ -12,6 +12,7 @@ import '../../notifications/data/notification_repository.dart';
 import '../../notifications/domain/notification_level.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
+import 'calendar_screen_real.dart';
 import 'event_form_dialog.dart';
 
 final eventDetailProvider = FutureProvider.family<Event, int>((ref, id) async {
@@ -33,6 +34,8 @@ class EventDetailScreen extends ConsumerWidget {
       builder: (_) => EventFormDialog(event: event, initialDate: event.startTime),
     );
     if (outcome == EventFormDialogOutcome.deleted) {
+      ref.invalidate(monthEventsProvider);
+      ref.invalidate(todayEventsProvider);
       ref.read(syncTickProvider.notifier).state++;
       if (context.mounted) context.pop();
       return;
@@ -54,6 +57,32 @@ class EventDetailScreen extends ConsumerWidget {
     return null;
   }
 
+  Future<void> _deleteFromDetail(BuildContext context, WidgetRef ref, Event e) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Termin löschen?'),
+        content: Text('Soll „${e.title}“ wirklich gelöscht werden?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    try {
+      await ref.read(eventRepositoryProvider).deleteEvent(e.id);
+      ref.invalidate(monthEventsProvider);
+      ref.invalidate(todayEventsProvider);
+      ref.read(syncTickProvider.notifier).state++;
+      if (context.mounted) context.pop();
+    } on ApiException catch (err) {
+      if (context.mounted) {
+        showAppToast(context, message: err.message, type: ToastType.error);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final eventAsync = ref.watch(eventDetailProvider(eventId));
@@ -66,10 +95,20 @@ class EventDetailScreen extends ConsumerWidget {
         title: const Text('Termin'),
         actions: [
           eventAsync.maybeWhen(
-            data: (e) => IconButton(
-              tooltip: 'Bearbeiten',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _edit(context, ref, e),
+            data: (e) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Löschen',
+                  icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+                  onPressed: () => _deleteFromDetail(context, ref, e),
+                ),
+                IconButton(
+                  tooltip: 'Bearbeiten',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _edit(context, ref, e),
+                ),
+              ],
             ),
             orElse: () => const SizedBox.shrink(),
           ),

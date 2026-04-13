@@ -6,6 +6,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/app_input_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../pantry/data/pantry_repository.dart';
 import '../../pantry/domain/pantry_item.dart';
@@ -97,8 +98,7 @@ class _ShoppingListScreenState extends ConsumerState<ShoppingListScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: listAsync.when(
+      body: listAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => EmptyState(
             icon: Icons.shopping_cart_outlined,
@@ -115,7 +115,6 @@ class _ShoppingListScreenState extends ConsumerState<ShoppingListScreen> {
                 list == null ? null : () => _loadKnusprPrices(list),
           ),
         ),
-      ),
     );
   }
 }
@@ -145,10 +144,10 @@ class _ShoppingListBody extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppColors.spacing4,
-            AppColors.spacing3,
-            AppColors.spacing4,
+          padding: EdgeInsets.fromLTRB(
+            ScreenHeader.horizontalPadding,
+            ScreenHeader.topPadding,
+            ScreenHeader.horizontalPadding,
             AppColors.spacing2,
           ),
           child: Column(
@@ -254,11 +253,7 @@ class _Header extends StatelessWidget {
             Expanded(
               child: Text(
                 'Einkaufsliste',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.3,
-                ),
+                style: ScreenHeader.titleStyle(context),
               ),
             ),
             Text(

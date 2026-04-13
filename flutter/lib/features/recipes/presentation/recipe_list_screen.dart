@@ -12,6 +12,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
+import '../../../shared/widgets/screen_header.dart';
 import '../../../core/api/api_client.dart';
 import 'ai_categorize_sheet.dart';
 import 'recipe_categories_screen.dart';
@@ -79,7 +80,7 @@ class _RecipeListScreenState extends ConsumerState<RecipeListScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          padding: const EdgeInsets.fromLTRB(ScreenHeader.horizontalPadding, 4, ScreenHeader.horizontalPadding, 4),
           child: Row(
             children: [
               Expanded(

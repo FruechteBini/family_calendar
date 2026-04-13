@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
 import '../../../core/sync/sync_service.dart';
@@ -49,8 +50,7 @@ class WeekPlanScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: RefreshIndicator(
+      body: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(weekPlanProvider);
             ref.invalidate(recipeSuggestionsProvider);
@@ -61,30 +61,21 @@ class WeekPlanScreen extends ConsumerWidget {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppColors.spacing6,
-                    AppColors.spacing6,
-                    AppColors.spacing6,
-                    AppColors.spacing4,
-                  ),
+                  padding: ScreenHeader.padding(bottom: AppColors.spacing2),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Wochenplan Essen',
-                        style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                              color: AppColors.onSurface,
-                            ),
+                        'Wochenplan',
+                        style: ScreenHeader.titleStyle(context),
                       ),
-                      const SizedBox(height: AppColors.spacing2),
+                      const SizedBox(height: 2),
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               'KW $kw · ${_formatDateShort(weekStart)} – ${_formatDateShort(weekEnd)}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.onSurfaceVariant,
-                                  ),
+                              style: ScreenHeader.subtitleStyle(context),
                             ),
                           ),
                           _AiChip(
@@ -127,7 +118,7 @@ class WeekPlanScreen extends ConsumerWidget {
                 data: (plan) {
                   final days = _daysInWeek(plan, weekStart);
                   return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing6),
+                    padding: const EdgeInsets.symmetric(horizontal: ScreenHeader.horizontalPadding),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
@@ -152,7 +143,6 @@ class WeekPlanScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -800,7 +790,7 @@ class _AiChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppColors.spacing4, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(AppColors.radiusFull),
@@ -808,13 +798,13 @@ class _AiChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 16, color: Theme.of(context).colorScheme.onPrimaryContainer),
-            const SizedBox(width: 6),
+            Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.onPrimaryContainer),
+            const SizedBox(width: 4),
             Text(
               'KI Vorschlag',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                   ),
             ),
           ],

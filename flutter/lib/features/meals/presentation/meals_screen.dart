@@ -30,31 +30,55 @@ class MealsScreen extends StatelessWidget {
             backgroundColor: cs.surface,
             elevation: 0,
             scrolledUnderElevation: 0,
+            toolbarHeight: 36,
+            titleSpacing: 0,
             title: Text(
               'Essen',
-              style: theme.appBarTheme.titleTextStyle,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: cs.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            bottom: TabBar(
-              isScrollable: true,
-              labelColor: cs.primary,
-              unselectedLabelColor: cs.onSurfaceVariant,
-              indicatorColor: cs.primary,
-              indicatorSize: TabBarIndicatorSize.label,
-              indicatorWeight: 3,
-              labelStyle: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.05 * 12,
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(38),
+              child: TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                padding: const EdgeInsets.only(left: 4, right: 4),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+                labelColor: cs.primary,
+                unselectedLabelColor: cs.onSurfaceVariant,
+                indicatorColor: cs.primary,
+                indicatorSize: TabBarIndicatorSize.label,
+                indicatorWeight: 2,
+                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: theme.textTheme.labelSmall,
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(
+                    height: 36,
+                    icon: Icon(Icons.calendar_view_week, size: 17),
+                    text: 'Wochenplan',
+                  ),
+                  Tab(
+                    height: 36,
+                    icon: Icon(Icons.menu_book, size: 17),
+                    text: 'Rezepte',
+                  ),
+                  Tab(
+                    height: 36,
+                    icon: Icon(Icons.kitchen, size: 17),
+                    text: 'Vorrat',
+                  ),
+                  Tab(
+                    height: 36,
+                    icon: Icon(Icons.shopping_cart_outlined, size: 17),
+                    text: 'Einkauf',
+                  ),
+                ],
               ),
-              unselectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
-                letterSpacing: 0.05 * 12,
-              ),
-              dividerColor: Colors.transparent,
-              tabs: const [
-                Tab(icon: Icon(Icons.calendar_view_week), text: 'Wochenplan'),
-                Tab(icon: Icon(Icons.menu_book), text: 'Rezepte'),
-                Tab(icon: Icon(Icons.kitchen), text: 'Vorrat'),
-                Tab(icon: Icon(Icons.shopping_cart_outlined), text: 'Einkaufsliste'),
-              ],
             ),
           ),
           body: const MainTabSwipePageEdges(

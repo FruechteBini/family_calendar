@@ -5,6 +5,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/app_input_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
@@ -38,8 +39,7 @@ class PantryScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: RefreshIndicator(
+      body: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(pantryItemsProvider);
             ref.invalidate(pantryAlertsProvider);
@@ -50,12 +50,7 @@ class PantryScreen extends ConsumerWidget {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppColors.spacing4,
-                    AppColors.spacing4,
-                    AppColors.spacing4,
-                    AppColors.spacing2,
-                  ),
+                  padding: ScreenHeader.padding(bottom: AppColors.spacing2),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -64,20 +59,18 @@ class PantryScreen extends ConsumerWidget {
                           Expanded(
                             child: Text(
                               'Vorrat',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    color: AppColors.onSurface,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              style: ScreenHeader.titleStyle(context),
                             ),
                           ),
                           IconButton(
+                            visualDensity: VisualDensity.compact,
                             tooltip: 'Artikel hinzufügen',
-                            icon: const Icon(Icons.add_circle_outline),
+                            icon: const Icon(Icons.add_circle_outline, size: 22),
                             onPressed: () => _openAddDialog(context, ref),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppColors.spacing2),
+                      const SizedBox(height: 6),
                       AppInputField(
                         hintText: 'Suchen…',
                         prefixIcon: Icons.search,
@@ -116,9 +109,9 @@ class PantryScreen extends ConsumerWidget {
                   }
                   return SliverPadding(
                     padding: const EdgeInsets.fromLTRB(
-                      AppColors.spacing4,
+                      ScreenHeader.horizontalPadding,
                       AppColors.spacing2,
-                      AppColors.spacing4,
+                      ScreenHeader.horizontalPadding,
                       100,
                     ),
                     sliver: SliverList.separated(
@@ -132,7 +125,6 @@ class PantryScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 

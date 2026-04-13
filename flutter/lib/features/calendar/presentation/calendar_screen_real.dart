@@ -150,7 +150,7 @@ class CalendarScreen extends ConsumerWidget {
                       itemBuilder: (context, i) => _EventTile(
                         event: dayEvents[i],
                         onTap: () {
-                          context.push('/events/${dayEvents[i].id}');
+                          context.push(dayEvents[i].detailLocation);
                         },
                       ),
                     ),

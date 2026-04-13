@@ -1,3 +1,5 @@
+import 'event_recurrence.dart';
+
 class EventLinkedTodo {
   final int id;
   final String title;
@@ -32,6 +34,10 @@ class Event {
   final List<EventMember> members;
   final int? notificationLevelId;
   final List<EventLinkedTodo> linkedTodos;
+  final List<EventRecurrenceRule> recurrenceRules;
+  final DateTime? occurrenceStart;
+  final DateTime? recurrenceAnchorStart;
+  final DateTime? recurrenceAnchorEnd;
 
   const Event({
     required this.id,
@@ -47,7 +53,23 @@ class Event {
     this.members = const [],
     this.notificationLevelId,
     this.linkedTodos = const [],
+    this.recurrenceRules = const [],
+    this.occurrenceStart,
+    this.recurrenceAnchorStart,
+    this.recurrenceAnchorEnd,
   });
+
+  bool get isRecurringSeries => recurrenceRules.isNotEmpty;
+  bool get isRecurringOccurrence => occurrenceStart != null;
+
+  /// GoRouter path including `occurrence` query for recurring instances.
+  String get detailLocation {
+    if (isRecurringOccurrence && occurrenceStart != null) {
+      final q = Uri.encodeComponent(occurrenceStart!.toUtc().toIso8601String());
+      return '/events/$id?occurrence=$q';
+    }
+    return '/events/$id';
+  }
 
   factory Event.fromJson(Map<String, dynamic> json) {
     final cat = json['category'] as Map<String, dynamic>?;
@@ -63,6 +85,20 @@ class Event {
             ?.map((e) => EventLinkedTodo.fromJson(e as Map<String, dynamic>))
             .toList() ??
         const <EventLinkedTodo>[];
+    final rulesJson = json['recurrence_rules'] as List<dynamic>?;
+    final rules = rulesJson
+            ?.map((e) => EventRecurrenceRule.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const <EventRecurrenceRule>[];
+    final occStart = json['occurrence_start'] != null
+        ? DateTime.tryParse(json['occurrence_start'] as String)
+        : null;
+    final anchorStart = json['recurrence_anchor_start'] != null
+        ? DateTime.tryParse(json['recurrence_anchor_start'] as String)
+        : null;
+    final anchorEnd = json['recurrence_anchor_end'] != null
+        ? DateTime.tryParse(json['recurrence_anchor_end'] as String)
+        : null;
     return Event(
       id: json['id'] as int,
       title: json['title'] as String,
@@ -77,6 +113,10 @@ class Event {
       members: members,
       notificationLevelId: json['notification_level_id'] as int?,
       linkedTodos: linkedTodos,
+      recurrenceRules: rules,
+      occurrenceStart: occStart,
+      recurrenceAnchorStart: anchorStart,
+      recurrenceAnchorEnd: anchorEnd,
     );
   }
 
@@ -91,7 +131,17 @@ class Event {
       'member_ids': memberIds,
       if (notificationLevelId != null)
         'notification_level_id': notificationLevelId,
+      if (recurrenceRules.isNotEmpty)
+        'recurrence_rules': recurrenceRules.map((r) => r.toJson()).toList(),
     };
+  }
+
+  Map<String, dynamic> toUpdateJson() {
+    final m = toJson();
+    if (isRecurringOccurrence && recurrenceAnchorStart != null) {
+      m['recurrence_anchor_start'] = recurrenceAnchorStart!.toIso8601String();
+    }
+    return m;
   }
 }
 

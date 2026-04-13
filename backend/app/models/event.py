@@ -31,6 +31,7 @@ class Event(Base):
     notification_level_id: Mapped[int | None] = mapped_column(
         ForeignKey("notification_levels.id", ondelete="SET NULL"), default=None
     )
+    recurrence_rules: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 

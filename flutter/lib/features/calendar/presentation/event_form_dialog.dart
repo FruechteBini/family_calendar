@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
+import '../domain/event_recurrence.dart';
 import '../../categories/data/category_repository.dart';
 import '../../categories/domain/category.dart';
 import '../../members/data/member_repository.dart';
@@ -62,6 +63,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
   final List<String> _pendingNewTodoTitles = [];
   final Set<int> _unlinkTodoIds = {};
   final Set<int> _selectedExistingTodoIds = {};
+  List<EventRecurrenceRule> _recurrenceRules = [];
 
   bool get _isEditing => widget.event != null;
 
@@ -84,6 +86,9 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     _categoryId = e?.categoryId;
     _memberIds = (e?.memberIds ?? []).toSet();
     _notificationLevelId = (e?.notificationLevelId);
+    if (e != null && e.recurrenceRules.isNotEmpty) {
+      _recurrenceRules = List.of(e.recurrenceRules);
+    }
     if (e == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -178,6 +183,18 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
         'member_ids': _memberIds.toList(),
         'notification_level_id': _notificationLevelId,
       };
+      if (_recurrenceRules.isNotEmpty) {
+        data['recurrence_rules'] =
+            _recurrenceRules.map((r) => r.toJson()).toList();
+      } else if (_isEditing && (widget.event!.recurrenceRules.isNotEmpty)) {
+        data['recurrence_rules'] = <Map<String, dynamic>>[];
+      }
+      if (_isEditing &&
+          widget.event!.isRecurringOccurrence &&
+          widget.event!.recurrenceAnchorStart != null) {
+        data['recurrence_anchor_start'] =
+            widget.event!.recurrenceAnchorStart!.toUtc().toIso8601String();
+      }
       final repo = ref.read(eventRepositoryProvider);
       final Event saved;
       if (_isEditing) {
@@ -206,11 +223,16 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
   }
 
   Future<void> _delete() async {
+    final isSeries = widget.event!.recurrenceRules.isNotEmpty;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Termin löschen?'),
-        content: Text('Soll "${widget.event!.title}" wirklich gelöscht werden?'),
+        content: Text(
+          isSeries
+              ? 'Die gesamte Serie „${widget.event!.title}“ wird gelöscht (alle Wiederholungen).'
+              : 'Soll „${widget.event!.title}“ wirklich gelöscht werden?',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen')),
@@ -299,6 +321,8 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                   _buildDateTimeRow('Beginn', _startDate, _startTime, (d) => setState(() => _startDate = d), (t) => setState(() => _startTime = t)),
                   const SizedBox(height: 8),
                   _buildDateTimeRow('Ende', _endDate, _endTime, (d) => setState(() => _endDate = d), (t) => setState(() => _endTime = t)),
+                  const SizedBox(height: 12),
+                  _buildRecurrenceSection(context),
                   const SizedBox(height: 12),
                   CategoryPicker(
                     categories: categories,
@@ -519,6 +543,265 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
           ),
         ],
       ],
+    );
+  }
+
+  static const _weekdayShort = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+  static String _intervalUnitLabel(String frequency) {
+    return switch (frequency) {
+      'daily' => 'Tage',
+      'weekly' => 'Wochen',
+      'monthly' => 'Monate',
+      'yearly' => 'Jahre',
+      _ => '',
+    };
+  }
+
+  Widget _buildRecurrenceSection(BuildContext context) {
+    final theme = Theme.of(context);
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      title: Row(
+        children: [
+          Icon(Icons.repeat, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Text('Wiederholung', style: theme.textTheme.titleSmall),
+        ],
+      ),
+      subtitle: Text(
+        _recurrenceRules.isEmpty
+            ? 'Keine Wiederholung'
+            : '${_recurrenceRules.length} Regel(n)',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Mehrere Regeln werden kombiniert (z. B. Di und Do).',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...List.generate(_recurrenceRules.length, (i) {
+          return _buildRecurrenceRuleCard(context, i);
+        }),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _recurrenceRules.add(
+                  EventRecurrenceRule(
+                    frequency: 'weekly',
+                    interval: 1,
+                    byWeekday: [_startDate.weekday],
+                  ),
+                );
+              });
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Regel hinzufügen'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecurrenceRuleCard(BuildContext context, int index) {
+    final theme = Theme.of(context);
+    final r = _recurrenceRules[index];
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: r.frequency,
+                    decoration: const InputDecoration(labelText: 'Rhythmus'),
+                    items: const [
+                      DropdownMenuItem(value: 'daily', child: Text('Täglich')),
+                      DropdownMenuItem(value: 'weekly', child: Text('Wöchentlich')),
+                      DropdownMenuItem(value: 'monthly', child: Text('Monatlich')),
+                      DropdownMenuItem(value: 'yearly', child: Text('Jährlich')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() {
+                        _recurrenceRules[index] = r.copyWith(
+                          frequency: v,
+                          clearByWeekday: v != 'weekly',
+                        );
+                      });
+                    },
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Regel entfernen',
+                  onPressed: () {
+                    setState(() => _recurrenceRules.removeAt(index));
+                  },
+                  icon: Icon(Icons.close, color: theme.colorScheme.error),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('Intervall', style: theme.textTheme.labelLarge),
+                const Spacer(),
+                IconButton(
+                  onPressed: r.interval <= 1
+                      ? null
+                      : () => setState(() {
+                            _recurrenceRules[index] =
+                                r.copyWith(interval: r.interval - 1);
+                          }),
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+                Text('${r.interval}', style: theme.textTheme.titleMedium),
+                IconButton(
+                  onPressed: () => setState(() {
+                    _recurrenceRules[index] =
+                        r.copyWith(interval: r.interval + 1);
+                  }),
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+            Text(
+              'Alle ${r.interval} ${_intervalUnitLabel(r.frequency)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (r.frequency == 'weekly') ...[
+              const SizedBox(height: 8),
+              Text('Wochentage', style: theme.textTheme.labelMedium),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: List.generate(7, (di) {
+                  final wd = di + 1;
+                  final sel = r.byWeekday?.contains(wd) ?? false;
+                  return FilterChip(
+                    label: Text(_weekdayShort[di]),
+                    selected: sel,
+                    onSelected: (on) {
+                      setState(() {
+                        final cur = {...?r.byWeekday};
+                        if (on) {
+                          cur.add(wd);
+                        } else {
+                          cur.remove(wd);
+                        }
+                        final list = cur.toList()..sort();
+                        _recurrenceRules[index] = r.copyWith(
+                          byWeekday: list.isEmpty ? [_startDate.weekday] : list,
+                        );
+                      });
+                    },
+                  );
+                }),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: r.until ?? _startDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                        locale: const Locale('de'),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _recurrenceRules[index] =
+                              r.copyWith(until: picked, clearCount: true);
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.event, size: 18),
+                    label: Text(
+                      r.until != null
+                          ? 'Bis ${AppDateUtils.formatDate(r.until!)}'
+                          : 'Ende (optional)',
+                    ),
+                  ),
+                ),
+                if (r.until != null)
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _recurrenceRules[index] = r.copyWith(clearUntil: true);
+                      });
+                    },
+                    icon: const Icon(Icons.clear),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Max. Anzahl (optional)',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                ),
+                if (r.count != null) ...[
+                  IconButton(
+                    onPressed: r.count! <= 1
+                        ? null
+                        : () => setState(() {
+                              _recurrenceRules[index] =
+                                  r.copyWith(count: r.count! - 1);
+                            }),
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                  Text('${r.count}', style: theme.textTheme.titleMedium),
+                  IconButton(
+                    onPressed: () => setState(() {
+                      _recurrenceRules[index] =
+                          r.copyWith(count: (r.count ?? 0) + 1);
+                    }),
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                  IconButton(
+                    tooltip: 'Limit entfernen',
+                    onPressed: () => setState(() {
+                      _recurrenceRules[index] = r.copyWith(clearCount: true);
+                    }),
+                    icon: const Icon(Icons.clear),
+                  ),
+                ] else
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _recurrenceRules[index] = r.copyWith(count: 10);
+                    }),
+                    child: const Text('Limit setzen'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

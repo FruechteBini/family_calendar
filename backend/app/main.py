@@ -145,6 +145,17 @@ def _add_missing_columns(conn):
         )
         logger.info("Spalte 'notification_level_id' zu events hinzugefügt")
 
+    if "recurrence_rules" not in event_columns:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE events
+                ADD COLUMN recurrence_rules TEXT
+                """
+            )
+        )
+        logger.info("Spalte 'recurrence_rules' zu events hinzugefügt")
+
     category_columns = {c["name"] for c in inspector.get_columns("categories")}
     if "position" not in category_columns:
         conn.execute(

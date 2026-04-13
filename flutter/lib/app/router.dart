@@ -97,7 +97,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) {
               final idStr = state.pathParameters['id'] ?? '';
               final id = int.tryParse(idStr) ?? 0;
-              return NoTransitionPage(child: EventDetailScreen(eventId: id));
+              final occQ = state.uri.queryParameters['occurrence'];
+              final occurrence =
+                  occQ != null ? DateTime.tryParse(occQ) : null;
+              return NoTransitionPage(
+                child: EventDetailScreen(
+                  eventId: id,
+                  occurrenceStart: occurrence,
+                ),
+              );
             },
           ),
           GoRoute(

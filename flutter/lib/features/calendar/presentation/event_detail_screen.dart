@@ -12,11 +12,18 @@ import '../../notifications/data/notification_repository.dart';
 import '../../notifications/domain/notification_level.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
+import '../domain/event_recurrence.dart';
 import 'calendar_screen_real.dart';
 import 'event_form_dialog.dart';
 
-final eventDetailProvider = FutureProvider.family<Event, int>((ref, id) async {
-  return ref.watch(eventRepositoryProvider).getEvent(id);
+typedef EventDetailKey = ({int id, DateTime? occurrenceStart});
+
+final eventDetailProvider =
+    FutureProvider.family<Event, EventDetailKey>((ref, key) async {
+  return ref.watch(eventRepositoryProvider).getEvent(
+        key.id,
+        occurrenceStart: key.occurrenceStart,
+      );
 });
 
 final _notificationLevelsProvider = FutureProvider<List<NotificationLevel>>((ref) {
@@ -25,8 +32,13 @@ final _notificationLevelsProvider = FutureProvider<List<NotificationLevel>>((ref
 
 class EventDetailScreen extends ConsumerWidget {
   final int eventId;
+  final DateTime? occurrenceStart;
 
-  const EventDetailScreen({super.key, required this.eventId});
+  const EventDetailScreen({
+    super.key,
+    required this.eventId,
+    this.occurrenceStart,
+  });
 
   Future<void> _edit(BuildContext context, WidgetRef ref, Event event) async {
     final outcome = await showDialog<EventFormDialogOutcome?>(
@@ -41,7 +53,13 @@ class EventDetailScreen extends ConsumerWidget {
       return;
     }
     if (outcome == EventFormDialogOutcome.saved) {
-      ref.invalidate(eventDetailProvider(eventId));
+      ref.invalidate(
+        eventDetailProvider(
+          (id: eventId, occurrenceStart: occurrenceStart),
+        ),
+      );
+      ref.invalidate(monthEventsProvider);
+      ref.invalidate(todayEventsProvider);
       ref.read(syncTickProvider.notifier).state++;
       if (context.mounted) {
         showAppToast(context, message: 'Gespeichert', type: ToastType.success);
@@ -85,7 +103,8 @@ class EventDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final eventAsync = ref.watch(eventDetailProvider(eventId));
+    final detailKey = (id: eventId, occurrenceStart: occurrenceStart);
+    final eventAsync = ref.watch(eventDetailProvider(detailKey));
     final levelsAsync = ref.watch(_notificationLevelsProvider);
     final theme = Theme.of(context);
 
@@ -192,6 +211,17 @@ class EventDetailScreen extends ConsumerWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
               ),
+              if (e.recurrenceRules.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _DetailSection(
+                  icon: Icons.repeat,
+                  label: 'Wiederholung',
+                  child: Text(
+                    _formatRecurrenceSummary(e.recurrenceRules),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
               if (e.members.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _DetailSection(
@@ -223,6 +253,37 @@ class EventDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _formatRecurrenceSummary(List<EventRecurrenceRule> rules) {
+  if (rules.isEmpty) return '';
+  const freq = {
+    'daily': 'Täglich',
+    'weekly': 'Wöchentlich',
+    'monthly': 'Monatlich',
+    'yearly': 'Jährlich',
+  };
+  const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  final parts = <String>[];
+  for (final r in rules) {
+    final f = freq[r.frequency] ?? r.frequency;
+    final every = r.interval > 1 ? 'alle ${r.interval} ' : '';
+    var line = '$every$f';
+    if (r.frequency == 'weekly' && r.byWeekday != null && r.byWeekday!.isNotEmpty) {
+      final names = r.byWeekday!
+          .map((d) => (d >= 1 && d <= 7) ? dayNames[d - 1] : '$d')
+          .join(', ');
+      line += ' ($names)';
+    }
+    if (r.until != null) {
+      line += ' bis ${AppDateUtils.formatDate(r.until!)}';
+    }
+    if (r.count != null) {
+      line += ', ${r.count}×';
+    }
+    parts.add(line);
+  }
+  return parts.join(' · ');
 }
 
 class _DetailSection extends StatelessWidget {

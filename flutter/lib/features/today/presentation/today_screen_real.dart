@@ -80,12 +80,14 @@ class TodayScreen extends ConsumerWidget {
                     children: [
                       Text(
                         'Heute',
-                        style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               color: AppColors.onSurface,
                               fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              height: 1.15,
                             ),
                       ),
-                      const SizedBox(height: AppColors.spacing3),
+                      const SizedBox(height: AppColors.spacing2),
                       membersAsync.when(
                         loading: () => const SizedBox(height: 40),
                         error: (_, __) => const SizedBox.shrink(),

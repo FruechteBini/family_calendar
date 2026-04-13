@@ -240,13 +240,33 @@ class AppTheme {
         space: 0,
       ),
 
-      // ── AppBar ─────────────────────────────────────────────────
-      appBarTheme: const AppBarTheme(
+      // ── AppBar (compact: ~half default toolbar for more content space) ──
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        toolbarHeight: 28,
+        titleTextStyle: GoogleFonts.getFont(
+          _plusJakarta,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          letterSpacing: _lsHeadline,
+          color: cs.primary,
+        ),
+        iconTheme: IconThemeData(size: 20, color: cs.primary),
+        actionsIconTheme: IconThemeData(size: 20, color: cs.primary),
+      ),
+
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(32, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.all(4),
+          visualDensity: VisualDensity.compact,
+          iconSize: 20,
+        ),
       ),
 
       // ── Cards ──────────────────────────────────────────────────

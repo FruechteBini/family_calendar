@@ -30,11 +30,7 @@ class MealsScreen extends StatelessWidget {
           scrolledUnderElevation: 0,
           title: Text(
             'Essen',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: cs.primary,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.02 * 14,
-            ),
+            style: theme.appBarTheme.titleTextStyle,
           ),
           bottom: TabBar(
             isScrollable: true,

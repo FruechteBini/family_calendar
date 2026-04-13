@@ -82,6 +82,14 @@ def _dt(v: datetime | date | None) -> str | None:
 
 
 def _event_dict(e: Event) -> dict:
+    rules = []
+    if e.recurrence_rules and e.recurrence_rules.strip():
+        try:
+            raw = json.loads(e.recurrence_rules)
+            if isinstance(raw, list):
+                rules = raw
+        except json.JSONDecodeError:
+            pass
     return {
         "id": e.id,
         "title": e.title,
@@ -91,6 +99,7 @@ def _event_dict(e: Event) -> dict:
         "all_day": e.all_day,
         "category": e.category.name if e.category else None,
         "members": [m.name for m in e.members] if e.members else [],
+        "recurrence_rules": rules,
     }
 
 

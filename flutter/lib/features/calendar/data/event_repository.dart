@@ -9,9 +9,16 @@ class EventRepository {
 
   EventRepository(this._dio);
 
-  Future<Event> getEvent(int id) async {
+  Future<Event> getEvent(int id, {DateTime? occurrenceStart}) async {
     try {
-      final response = await _dio.get(Endpoints.event(id));
+      final qp = <String, dynamic>{};
+      if (occurrenceStart != null) {
+        qp['occurrence_start'] = occurrenceStart.toUtc().toIso8601String();
+      }
+      final response = await _dio.get(
+        Endpoints.event(id),
+        queryParameters: qp.isEmpty ? null : qp,
+      );
       return Event.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);

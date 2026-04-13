@@ -75,7 +75,7 @@ Future<void> runQuickNoteCapture(
             categoryId: result.categoryId,
           ),
         );
-    ref.invalidate(notesListProvider);
+    invalidateAllNotesScopes(ref);
     ref.invalidate(noteCategoriesListProvider);
     if (askScope) {
       ref.read(notesScopeProvider.notifier).state = result.isPersonal

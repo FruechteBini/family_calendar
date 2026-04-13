@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../app/main_tab_swipe_scope.dart';
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
 import '../../categories/data/category_repository.dart';
@@ -36,9 +38,10 @@ final _membersProvider = FutureProvider<List<FamilyMember>>((ref) async {
   return ref.watch(memberRepositoryProvider).getMembers();
 });
 
-final todosProvider = FutureProvider<List<Todo>>((ref) {
+/// Per-tab todo list (for [TabBarView]); keeps correct data on each page while swiping.
+final todosForScopeProvider =
+    FutureProvider.family<List<Todo>, TodoScope>((ref, scope) {
   ref.watch(todoListRefreshTriggerProvider);
-  final scope = ref.watch(_scopeProvider);
   final showCompleted = ref.watch(_showCompletedProvider);
   final categoryId = ref.watch(_selectedCategoryIdProvider);
   final viewMemberId = ref.watch(_familyViewMemberIdProvider);
@@ -57,6 +60,11 @@ final todosProvider = FutureProvider<List<Todo>>((ref) {
       );
 });
 
+final todosProvider = FutureProvider<List<Todo>>((ref) async {
+  final scope = ref.watch(_scopeProvider);
+  return ref.watch(todosForScopeProvider(scope).future);
+});
+
 class TodoListScreen extends ConsumerStatefulWidget {
   const TodoListScreen({super.key});
 
@@ -64,11 +72,49 @@ class TodoListScreen extends ConsumerStatefulWidget {
   ConsumerState<TodoListScreen> createState() => _TodoListScreenState();
 }
 
-class _TodoListScreenState extends ConsumerState<TodoListScreen> {
+class _TodoListScreenState extends ConsumerState<TodoListScreen>
+    with SingleTickerProviderStateMixin {
   final _quickAddController = TextEditingController();
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    final scope = ref.read(_scopeProvider);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: switch (scope) {
+        TodoScope.all => 0,
+        TodoScope.personal => 1,
+        TodoScope.family => 2,
+      },
+    );
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    final i = _tabController.index;
+    final next = switch (i) {
+      0 => TodoScope.all,
+      1 => TodoScope.personal,
+      _ => TodoScope.family,
+    };
+    if (ref.read(_scopeProvider) != next) {
+      ref.read(_scopeProvider.notifier).state = next;
+      if (next != TodoScope.family) {
+        ref.read(_familyViewMemberIdProvider.notifier).state = null;
+      }
+      ref.invalidate(todosForScopeProvider(next));
+      ref.invalidate(todosProvider);
+    }
+  }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
     _quickAddController.dispose();
     super.dispose();
   }
@@ -92,6 +138,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
 
       await ref.read(todoRepositoryProvider).createTodo(data);
       _quickAddController.clear();
+      ref.invalidate(todosForScopeProvider(scope));
       ref.invalidate(todosProvider);
       if (mounted)
         showAppToast(context,
@@ -102,7 +149,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     }
   }
 
-  Future<void> _toggleComplete(Todo todo) async {
+  Future<void> _toggleComplete(Todo todo, TodoScope listScope) async {
     final prefs = ref.read(todoPreferencesProvider).valueOrNull ??
         const TodoPreferences();
     if (!todo.completed && todo.parentId == null) {
@@ -123,6 +170,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
             todo.id,
             completed: !todo.completed,
           );
+      ref.invalidate(todosForScopeProvider(listScope));
       ref.invalidate(todosProvider);
       if (mounted && updated.parentAutoCompleted) {
         showAppToast(
@@ -137,7 +185,15 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     }
   }
 
-  Future<void> _refreshTodos() async {
+  void _invalidateAllTodoScopes() {
+    ref.invalidate(todosForScopeProvider(TodoScope.all));
+    ref.invalidate(todosForScopeProvider(TodoScope.personal));
+    ref.invalidate(todosForScopeProvider(TodoScope.family));
+    ref.invalidate(todosProvider);
+  }
+
+  Future<void> _refreshTodos(TodoScope listScope) async {
+    ref.invalidate(todosForScopeProvider(listScope));
     ref.invalidate(todosProvider);
   }
 
@@ -146,7 +202,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
       context: context,
       builder: (_) => TodoFormDialog(todo: todo),
     );
-    if (result == true) ref.invalidate(todosProvider);
+    if (result == true) _invalidateAllTodoScopes();
   }
 
   void _showProposals() {
@@ -157,10 +213,42 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     );
   }
 
+  Widget _todoListBodyForScope(TodoScope listScope) {
+    final todosAsync = ref.watch(todosForScopeProvider(listScope));
+    return todosAsync.when(
+      data: (todos) => todos.isEmpty
+          ? const EmptyState(
+              icon: Icons.task_alt,
+              title: 'Keine Todos',
+              subtitle: 'Erstelle ein neues Todo',
+            )
+          : RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(todosForScopeProvider(listScope));
+                ref.invalidate(todosProvider);
+              },
+              child: ListView.builder(
+                itemCount: todos.length,
+                itemBuilder: (_, i) => _TodoItem(
+                  todo: todos[i],
+                  onToggleComplete: (t) => _toggleComplete(t, listScope),
+                  onOpenRoot: () => context.push('/todos/${todos[i].id}'),
+                  onListChanged: () => _refreshTodos(listScope),
+                ),
+              ),
+            ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => EmptyState(
+        icon: Icons.error_outline,
+        title: 'Fehler',
+        subtitle: e.toString(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final todosAsync = ref.watch(todosProvider);
     final showCompleted = ref.watch(_showCompletedProvider);
     final scope = ref.watch(_scopeProvider);
     final categoriesAsync = ref.watch(_categoriesProvider);
@@ -199,51 +287,43 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
               showCompleted ? Icons.visibility : Icons.visibility_off,
               color: theme.colorScheme.primary,
             ),
-            onPressed: () => ref.read(_showCompletedProvider.notifier).state =
-                !showCompleted,
+            onPressed: () {
+              ref.read(_showCompletedProvider.notifier).state = !showCompleted;
+              _invalidateAllTodoScopes();
+            },
             tooltip:
                 showCompleted ? 'Erledigte ausblenden' : 'Erledigte anzeigen',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: DefaultTabController(
-              length: 3,
-              initialIndex: switch (scope) {
-                TodoScope.all => 0,
-                TodoScope.personal => 1,
-                TodoScope.family => 2,
-              },
-              child: Builder(
-                builder: (context) {
-                  return TabBar(
-                    onTap: (i) {
-                      final next = switch (i) {
-                        0 => TodoScope.all,
-                        1 => TodoScope.personal,
-                        _ => TodoScope.family,
-                      };
-                      ref.read(_scopeProvider.notifier).state = next;
-                      // reset family view filter when leaving family tab
-                      if (next != TodoScope.family) {
-                        ref.read(_familyViewMemberIdProvider.notifier).state =
-                            null;
-                      }
-                      ref.invalidate(todosProvider);
-                    },
-                    tabs: const [
-                      Tab(text: 'Alle'),
-                      Tab(text: 'Meine'),
-                      Tab(text: 'Familie'),
-                    ],
-                  );
+      body: MainTabSwipeScope(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: TabBar(
+                controller: _tabController,
+                onTap: (i) {
+                  final next = switch (i) {
+                    0 => TodoScope.all,
+                    1 => TodoScope.personal,
+                    _ => TodoScope.family,
+                  };
+                  ref.read(_scopeProvider.notifier).state = next;
+                  if (next != TodoScope.family) {
+                    ref.read(_familyViewMemberIdProvider.notifier).state =
+                        null;
+                  }
+                  ref.invalidate(todosForScopeProvider(next));
+                  ref.invalidate(todosProvider);
                 },
+                tabs: const [
+                  Tab(text: 'Alle'),
+                  Tab(text: 'Meine'),
+                  Tab(text: 'Familie'),
+                ],
               ),
             ),
-          ),
           categoriesAsync.when(
             data: (cats) {
               Future<void> openReorderSheet() async {
@@ -352,7 +432,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
                         onCategorySelected: (id) {
                           ref.read(_selectedCategoryIdProvider.notifier).state =
                               id;
-                          ref.invalidate(todosProvider);
+                          _invalidateAllTodoScopes();
                         },
                       ),
                     ),
@@ -387,6 +467,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
                         onSelected: (_) {
                           ref.read(_familyViewMemberIdProvider.notifier).state =
                               null;
+                          ref.invalidate(todosForScopeProvider(TodoScope.family));
                           ref.invalidate(todosProvider);
                         },
                       ),
@@ -402,6 +483,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
                               ref
                                   .read(_familyViewMemberIdProvider.notifier)
                                   .state = selected ? null : m.id;
+                              ref.invalidate(todosForScopeProvider(TodoScope.family));
                               ref.invalidate(todosProvider);
                             },
                           ),
@@ -438,32 +520,19 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
           ),
           const Divider(),
           Expanded(
-            child: todosAsync.when(
-              data: (todos) => todos.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.task_alt,
-                      title: 'Keine Todos',
-                      subtitle: 'Erstelle ein neues Todo')
-                  : RefreshIndicator(
-                      onRefresh: () async => ref.invalidate(todosProvider),
-                      child: ListView.builder(
-                        itemCount: todos.length,
-                        itemBuilder: (_, i) => _TodoItem(
-                          todo: todos[i],
-                          onToggleComplete: _toggleComplete,
-                          onOpenRoot: () => context.push('/todos/${todos[i].id}'),
-                          onListChanged: _refreshTodos,
-                        ),
-                      ),
-                    ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => EmptyState(
-                  icon: Icons.error_outline,
-                  title: 'Fehler',
-                  subtitle: e.toString()),
+            child: MainTabSwipePageEdges(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _todoListBodyForScope(TodoScope.all),
+                  _todoListBodyForScope(TodoScope.personal),
+                  _todoListBodyForScope(TodoScope.family),
+                ],
+              ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'addTodo',
@@ -670,6 +739,12 @@ class _TodoAiPrioritizeSheetState
                                               '$updated Todos aktualisiert',
                                           type: ToastType.success,
                                         );
+                                        ref.invalidate(
+                                            todosForScopeProvider(TodoScope.all));
+                                        ref.invalidate(todosForScopeProvider(
+                                            TodoScope.personal));
+                                        ref.invalidate(todosForScopeProvider(
+                                            TodoScope.family));
                                         ref.invalidate(todosProvider);
                                         ref.invalidate(_categoriesProvider);
                                         Navigator.pop(context);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/main_tab_swipe_scope.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -61,17 +62,18 @@ class TodayScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(weekPlanProvider);
-            ref.invalidate(todayEventsProvider);
-            ref.invalidate(todayTodosProvider);
-            ref.invalidate(todayMembersProvider);
-            await ref.read(todayEventsProvider.future);
-          },
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
+        child: MainTabSwipeScope(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(weekPlanProvider);
+              ref.invalidate(todayEventsProvider);
+              ref.invalidate(todayTodosProvider);
+              ref.invalidate(todayMembersProvider);
+              await ref.read(todayEventsProvider.future);
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(AppColors.spacing6),
@@ -187,7 +189,8 @@ class TodayScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

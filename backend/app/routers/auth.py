@@ -33,7 +33,7 @@ from ..schemas.auth import (
     UserPreferencesUpdate,
     UserResponse,
 )
-from ..schemas.family import FamilyCreate, FamilyJoin, FamilyResponse
+from ..schemas.family import FamilyCreate, FamilyJoin, FamilyResponse, FamilySettingsUpdate
 
 logger = logging.getLogger("kalender")
 
@@ -98,6 +98,7 @@ async def get_preferences(user: User = Depends(get_current_user)):
     return UserPreferencesResponse(
         require_subtodos_complete=user.require_subtodos_complete,
         auto_complete_parent=user.auto_complete_parent,
+        personal_calendar_category_id=user.personal_calendar_category_id,
     )
 
 
@@ -107,15 +108,34 @@ async def update_preferences(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if data.require_subtodos_complete is not None:
-        user.require_subtodos_complete = data.require_subtodos_complete
-    if data.auto_complete_parent is not None:
-        user.auto_complete_parent = data.auto_complete_parent
+    updates = data.model_dump(exclude_unset=True)
+    if "require_subtodos_complete" in updates:
+        user.require_subtodos_complete = bool(updates["require_subtodos_complete"])
+    if "auto_complete_parent" in updates:
+        user.auto_complete_parent = bool(updates["auto_complete_parent"])
+    if "personal_calendar_category_id" in updates:
+        cid = updates["personal_calendar_category_id"]
+        if cid is not None:
+            if user.family_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Kalender-Farbe ist erst nach Familienbeitritt möglich.",
+                )
+            cat = await db.get(Category, cid)
+            if not cat or cat.family_id != user.family_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Ungültige Kategorie für diese Familie.",
+                )
+            user.personal_calendar_category_id = cid
+        else:
+            user.personal_calendar_category_id = None
     await db.flush()
     await db.refresh(user)
     return UserPreferencesResponse(
         require_subtodos_complete=user.require_subtodos_complete,
         auto_complete_parent=user.auto_complete_parent,
+        personal_calendar_category_id=user.personal_calendar_category_id,
     )
 
 
@@ -185,6 +205,35 @@ async def get_family(
     family = await db.get(Family, user.family_id)
     if not family:
         raise HTTPException(status_code=404, detail="Familie nicht gefunden")
+    return family
+
+
+@router.patch("/family", response_model=FamilyResponse)
+async def update_family_settings(
+    data: FamilySettingsUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not user.family_id:
+        raise HTTPException(status_code=404, detail="Keiner Familie zugeordnet")
+    family = await db.get(Family, user.family_id)
+    if not family:
+        raise HTTPException(status_code=404, detail="Familie nicht gefunden")
+    updates = data.model_dump(exclude_unset=True)
+    if "default_family_calendar_category_id" not in updates:
+        await db.refresh(family)
+        return family
+    cid = updates["default_family_calendar_category_id"]
+    if cid is not None:
+        cat = await db.get(Category, cid)
+        if not cat or cat.family_id != family.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ungültige Kategorie für diese Familie.",
+            )
+    family.default_family_calendar_category_id = cid
+    await db.flush()
+    await db.refresh(family)
     return family
 
 

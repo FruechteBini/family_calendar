@@ -6,6 +6,7 @@ class User {
   final String? googleEmail;
   final bool syncCalendarEnabled;
   final bool syncTodosEnabled;
+  final int? personalCalendarCategoryId;
 
   const User({
     required this.id,
@@ -15,6 +16,7 @@ class User {
     this.googleEmail,
     this.syncCalendarEnabled = false,
     this.syncTodosEnabled = false,
+    this.personalCalendarCategoryId,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,8 @@ class User {
       googleEmail: json['google_email'] as String?,
       syncCalendarEnabled: (json['sync_calendar_enabled'] as bool?) ?? false,
       syncTodosEnabled: (json['sync_todos_enabled'] as bool?) ?? false,
+      personalCalendarCategoryId:
+          json['personal_calendar_category_id'] as int?,
     );
   }
 
@@ -35,6 +39,7 @@ class User {
     String? googleEmail,
     bool? syncCalendarEnabled,
     bool? syncTodosEnabled,
+    int? personalCalendarCategoryId,
   }) {
     return User(
       id: id,
@@ -44,6 +49,8 @@ class User {
       googleEmail: googleEmail ?? this.googleEmail,
       syncCalendarEnabled: syncCalendarEnabled ?? this.syncCalendarEnabled,
       syncTodosEnabled: syncTodosEnabled ?? this.syncTodosEnabled,
+      personalCalendarCategoryId:
+          personalCalendarCategoryId ?? this.personalCalendarCategoryId,
     );
   }
 }
@@ -52,11 +59,13 @@ class Family {
   final int id;
   final String name;
   final String inviteCode;
+  final int? defaultFamilyCalendarCategoryId;
 
   const Family({
     required this.id,
     required this.name,
     required this.inviteCode,
+    this.defaultFamilyCalendarCategoryId,
   });
 
   factory Family.fromJson(Map<String, dynamic> json) {
@@ -64,6 +73,8 @@ class Family {
       id: json['id'] as int,
       name: json['name'] as String,
       inviteCode: json['invite_code'] as String,
+      defaultFamilyCalendarCategoryId:
+          json['default_family_calendar_category_id'] as int?,
     );
   }
 }

@@ -28,6 +28,11 @@ class User(Base):
     require_subtodos_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     auto_complete_parent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Default calendar category (todo categories) for personal vs family events — stored as category id.
+    personal_calendar_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL"), default=None, nullable=True
+    )
+
     # The default Google calendar/task list can be customized later.
     google_calendar_id: Mapped[str] = mapped_column(String(255), nullable=False, default="primary")
     google_tasklist_id: Mapped[str] = mapped_column(String(255), nullable=False, default="@@default@@")

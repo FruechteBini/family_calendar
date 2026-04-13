@@ -35,6 +35,7 @@ class UserResponse(BaseModel):
     sync_todos_enabled: bool = False
     require_subtodos_complete: bool = False
     auto_complete_parent: bool = False
+    personal_calendar_category_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -42,11 +43,13 @@ class UserResponse(BaseModel):
 class UserPreferencesResponse(BaseModel):
     require_subtodos_complete: bool
     auto_complete_parent: bool
+    personal_calendar_category_id: int | None = None
 
 
 class UserPreferencesUpdate(BaseModel):
     require_subtodos_complete: bool | None = None
     auto_complete_parent: bool | None = None
+    personal_calendar_category_id: int | None = None
 
 
 class GoogleAuthRequest(BaseModel):

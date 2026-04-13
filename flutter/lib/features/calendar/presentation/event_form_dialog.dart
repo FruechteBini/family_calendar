@@ -16,6 +16,8 @@ import '../../../shared/utils/date_utils.dart';
 import '../../../shared/utils/app_time_picker.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/auth/auth_provider.dart';
+import '../../../core/preferences/calendar_defaults.dart';
 import '../../notifications/presentation/widgets/notification_level_picker.dart';
 
 /// Returned from [EventFormDialog] when the user saves or deletes (not on cancel).
@@ -82,6 +84,44 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     _categoryId = e?.categoryId;
     _memberIds = (e?.memberIds ?? []).toSet();
     _notificationLevelId = (e?.notificationLevelId);
+    if (e == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(_applyDefaultCategoryIfEmpty);
+      });
+    }
+  }
+
+  bool _categoryIdExistsInList(int? id, List<Category> cats) {
+    if (id == null) return false;
+    return cats.any((c) => c.id == id);
+  }
+
+  /// Sets [_categoryId] when still null (new event). Uses settings + single-category fallback.
+  void _applyDefaultCategoryIfEmpty() {
+    if (_isEditing || _categoryId != null) return;
+    final myId = ref.read(authStateProvider).user?.memberId;
+    final defs = ref.read(calendarDefaultsProvider).valueOrNull;
+    final cats = ref.read(_categoriesProvider).valueOrNull ?? [];
+    int? pickFamily() {
+      final f = defs?.familyDefaultCalendarCategoryId;
+      if (_categoryIdExistsInList(f, cats)) return f;
+      if (cats.length == 1) return cats.first.id;
+      return null;
+    }
+
+    int? pickPersonal() {
+      final p = defs?.personalCalendarCategoryId;
+      if (_categoryIdExistsInList(p, cats)) return p;
+      return pickFamily();
+    }
+
+    if (myId == null) {
+      _categoryId = pickFamily();
+      return;
+    }
+    final personalOnly = _memberIds.length == 1 && _memberIds.contains(myId);
+    _categoryId = personalOnly ? pickPersonal() : pickFamily();
   }
 
   @override
@@ -188,6 +228,22 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Category>>>(_categoriesProvider, (_, next) {
+      if (next.hasValue && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(_applyDefaultCategoryIfEmpty);
+        });
+      }
+    });
+    ref.listen<AsyncValue<CalendarDefaultsPreferences>>(
+        calendarDefaultsProvider, (_, next) {
+      if (next.hasValue && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(_applyDefaultCategoryIfEmpty);
+        });
+      }
+    });
+
     final categories = ref.watch(_categoriesProvider).valueOrNull ?? [];
     final members = ref.watch(_membersProvider).valueOrNull ?? [];
 
@@ -265,6 +321,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                       } else {
                         _memberIds.add(id);
                       }
+                      _applyDefaultCategoryIfEmpty();
                     }),
                   ),
                   const SizedBox(height: 12),

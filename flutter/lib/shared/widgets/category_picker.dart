@@ -6,12 +6,16 @@ class CategoryPicker extends StatelessWidget {
   final List<Category> categories;
   final int? selectedId;
   final ValueChanged<int?> onChanged;
+  final String labelText;
+  final String? hintText;
 
   const CategoryPicker({
     super.key,
     required this.categories,
     this.selectedId,
     required this.onChanged,
+    this.labelText = 'Kategorie',
+    this.hintText,
   });
 
   Color _parseColor(String? hex) {
@@ -31,7 +35,8 @@ class CategoryPicker extends StatelessWidget {
       isExpanded: true,
       decoration: appFormInputDecoration(
         context,
-        labelText: 'Kategorie',
+        labelText: labelText,
+        hintText: hintText,
         prefixIcon: const Icon(Icons.label_outline),
       ),
       items: [

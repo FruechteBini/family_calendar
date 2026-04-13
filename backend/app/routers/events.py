@@ -10,7 +10,9 @@ from ..config import settings
 from ..database import get_db
 from ..database import async_session
 from ..google_sync_service import GoogleSyncService
+from ..models.category import Category
 from ..models.event import Event
+from ..models.family import Family
 from ..models.family_member import FamilyMember
 from ..models.todo import Todo
 from ..models.user import User
@@ -138,6 +140,23 @@ async def create_event(
     user: User = Depends(get_current_user),
 ):
     members = await resolve_members(db, data.member_ids, family_id)
+    member_ids = [m.id for m in members]
+    category_id = data.category_id
+    if category_id is None:
+        family = await db.get(Family, family_id)
+        if (
+            user.member_id is not None
+            and len(member_ids) == 1
+            and member_ids[0] == user.member_id
+            and user.personal_calendar_category_id is not None
+        ):
+            cat = await db.get(Category, user.personal_calendar_category_id)
+            if cat and cat.family_id == family_id:
+                category_id = cat.id
+        elif len(member_ids) != 1 and family and family.default_family_calendar_category_id is not None:
+            cat = await db.get(Category, family.default_family_calendar_category_id)
+            if cat and cat.family_id == family_id:
+                category_id = cat.id
     event = Event(
         family_id=family_id,
         title=data.title,
@@ -145,7 +164,7 @@ async def create_event(
         start=data.start,
         end=data.end,
         all_day=data.all_day,
-        category_id=data.category_id,
+        category_id=category_id,
         notification_level_id=data.notification_level_id,
         members=members,
     )
@@ -160,7 +179,6 @@ async def create_event(
     ):
         background_tasks.add_task(_google_push_event, user.id, event.id)
     # Immediate push: assigned members (excluding actor where possible)
-    member_ids = [m.id for m in members]
     if member_ids:
         res_users = await db.execute(
             select(User.id)

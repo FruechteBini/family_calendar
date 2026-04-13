@@ -84,6 +84,13 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/family'),
           ),
+          ListTile(
+            leading: const Icon(Icons.event_note_outlined),
+            title: const Text('Kalenderfarben'),
+            subtitle: const Text('Vorgabe für persönliche und Familien-Termine'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/calendar-colors'),
+          ),
 
           const Divider(),
           ListTile(

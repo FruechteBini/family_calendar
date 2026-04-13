@@ -13,6 +13,7 @@ import '../features/meals/presentation/meals_screen.dart';
 import '../features/members/presentation/members_screen.dart';
 import '../features/categories/presentation/categories_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/settings/presentation/settings_calendar_defaults_screen.dart';
 import '../features/settings/presentation/settings_submenu_screens.dart';
 import '../features/settings/presentation/google_sync_settings_screen.dart';
 import '../features/notifications/presentation/notification_settings_screen.dart';
@@ -199,6 +200,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/settings/family',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: SettingsFamilyMenuScreen()),
+          ),
+          GoRoute(
+            path: '/settings/calendar-colors',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SettingsCalendarDefaultsScreen()),
           ),
           GoRoute(
             path: '/google-sync',

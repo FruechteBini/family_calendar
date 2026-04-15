@@ -142,8 +142,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/note-categories',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: NoteCategoriesScreen()),
+            pageBuilder: (context, state) {
+              final tab = state.uri.queryParameters['tab'];
+              return NoTransitionPage(
+                child: NoteCategoriesScreen(
+                  initialTab: tab == 'family' ? 1 : 0,
+                ),
+              );
+            },
           ),
           GoRoute(
             path: '/note-tags',

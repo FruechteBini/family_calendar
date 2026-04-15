@@ -42,14 +42,12 @@ class MealsScreen extends StatelessWidget {
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(38),
               child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                padding: const EdgeInsets.only(left: 4, right: 4),
-                labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: EdgeInsets.zero,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                 labelColor: cs.primary,
                 unselectedLabelColor: cs.onSurfaceVariant,
                 indicatorColor: cs.primary,
-                indicatorSize: TabBarIndicatorSize.label,
+                indicatorSize: TabBarIndicatorSize.tab,
                 indicatorWeight: 2,
                 labelStyle: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w600,

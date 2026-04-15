@@ -30,6 +30,8 @@ class Event {
   final int? categoryId;
   final String? categoryName;
   final String? categoryColor;
+  /// Eigene Terminfarbe (#RRGGBB). Wenn gesetzt, überschreibt sie die Kategoriefarbe in der Ansicht.
+  final String? color;
   final List<int> memberIds;
   final List<EventMember> members;
   final int? notificationLevelId;
@@ -49,6 +51,7 @@ class Event {
     this.categoryId,
     this.categoryName,
     this.categoryColor,
+    this.color,
     this.memberIds = const [],
     this.members = const [],
     this.notificationLevelId,
@@ -61,6 +64,9 @@ class Event {
 
   bool get isRecurringSeries => recurrenceRules.isNotEmpty;
   bool get isRecurringOccurrence => occurrenceStart != null;
+
+  /// Farbe für Kalender & Listen: Terminfarbe oder Kategoriefarbe.
+  String? get displayColorHex => color ?? categoryColor;
 
   /// GoRouter path including `occurrence` query for recurring instances.
   String get detailLocation {
@@ -109,6 +115,7 @@ class Event {
       categoryId: json['category_id'] as int? ?? cat?['id'] as int?,
       categoryName: json['category_name'] as String? ?? cat?['name'] as String?,
       categoryColor: json['category_color'] as String? ?? cat?['color'] as String?,
+      color: json['color'] as String?,
       memberIds: memberIds,
       members: members,
       notificationLevelId: json['notification_level_id'] as int?,
@@ -128,6 +135,7 @@ class Event {
       'end': endTime.toIso8601String(),
       'all_day': allDay,
       if (categoryId != null) 'category_id': categoryId,
+      if (color != null) 'color': color,
       'member_ids': memberIds,
       if (notificationLevelId != null)
         'notification_level_id': notificationLevelId,

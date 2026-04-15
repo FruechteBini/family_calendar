@@ -87,7 +87,7 @@ class _EventTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _parseColor(event.categoryColor);
+    final color = _parseColor(event.displayColorHex);
 
     return ListTile(
       dense: true,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 /// Preset palette for new categories (notes / quick-create flows).
 const List<String> kCategoryPresetHexColors = [
@@ -27,6 +28,165 @@ Color parseCategoryHexColor(String? hex, ThemeData theme, {Color? fallback}) {
     }
   } catch (_) {}
   return fallback ?? theme.colorScheme.outline;
+}
+
+/// `#RRGGBB` uppercase for API / storage (no alpha).
+String categoryColorToHex(Color c) {
+  final argb = c.toARGB32();
+  return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+}
+
+/// Preset swatches plus hue/sat picker; returns `#RRGGBB` or `null` if dismissed.
+Future<String?> showCategoryHexColorPicker(
+  BuildContext context, {
+  required String initialHex,
+}) async {
+  final theme = Theme.of(context);
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      var current = parseCategoryHexColor(
+        initialHex,
+        theme,
+        fallback: const Color(0xFF1565C0),
+      );
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          final hexStr = categoryColorToHex(current);
+          return AlertDialog(
+            title: const Text('Farbe wählen'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    hexStr,
+                    style: theme.textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  CategoryPresetColorRow(
+                    selectedHex: hexStr,
+                    onSelect: (h) {
+                      setDialogState(() {
+                        current = parseCategoryHexColor(h, theme);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  ColorPicker(
+                    pickerColor: current,
+                    onColorChanged: (c) => setDialogState(() => current = c),
+                    enableAlpha: false,
+                    labelTypes: const [],
+                    pickerAreaHeightPercent: 0.72,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(
+                  dialogContext,
+                  categoryColorToHex(current),
+                ),
+                child: const Text('Übernehmen'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+/// Tappable row: preview circle, label, hex; opens [showCategoryHexColorPicker].
+class CategoryColorPickerTile extends StatelessWidget {
+  const CategoryColorPickerTile({
+    super.key,
+    required this.hex,
+    required this.onHexChanged,
+    this.label = 'Farbe',
+  });
+
+  final String hex;
+  final ValueChanged<String> onHexChanged;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final c = parseCategoryHexColor(
+      hex,
+      theme,
+      fallback: const Color(0xFF1565C0),
+    );
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () async {
+          final next = await showCategoryHexColorPicker(
+            context,
+            initialHex: hex,
+          );
+          if (next != null) onHexChanged(next);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: c,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      hex.toUpperCase(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.palette_outlined,
+                color: theme.colorScheme.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Horizontal row of tappable category chips with a soft tinted background.

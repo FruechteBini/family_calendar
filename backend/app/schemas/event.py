@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from typing import Any, Literal
 
@@ -6,6 +7,21 @@ from pydantic import BaseModel, Field, field_validator
 
 from .category import CategoryResponse
 from .family_member import FamilyMemberResponse
+
+_EVENT_HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def _optional_event_color(v: object) -> str | None:
+    if v is None or v == "":
+        return None
+    if not isinstance(v, str):
+        raise ValueError("Farbe muss ein Text sein")
+    s = v.strip()
+    if not s:
+        return None
+    if not _EVENT_HEX_COLOR.match(s):
+        raise ValueError("Farbe muss #RRGGBB sein")
+    return s
 
 
 def _parse_recurrence_rules_from_db(raw: str | list | None) -> list[dict[str, Any]]:
@@ -44,9 +60,15 @@ class EventCreate(BaseModel):
     end: datetime
     all_day: bool = False
     category_id: int | None = None
+    color: str | None = None
     member_ids: list[int] = []
     notification_level_id: int | None = None
     recurrence_rules: list[RecurrenceRule] | None = None
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _validate_create_color(cls, v: object) -> str | None:
+        return _optional_event_color(v)
 
 
 class EventUpdate(BaseModel):
@@ -56,6 +78,7 @@ class EventUpdate(BaseModel):
     end: datetime | None = None
     all_day: bool | None = None
     category_id: int | None = None
+    color: str | None = None
     member_ids: list[int] | None = None
     notification_level_id: int | None = None
     recurrence_rules: list[RecurrenceRule] | None = None
@@ -63,6 +86,11 @@ class EventUpdate(BaseModel):
         default=None,
         description="Bei Serien: bisheriger Start dieser Instanz (von der API), wenn start/end verschoben werden",
     )
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _validate_update_color(cls, v: object) -> str | None:
+        return _optional_event_color(v)
 
 
 class EventTodoResponse(BaseModel):
@@ -81,6 +109,7 @@ class EventResponse(BaseModel):
     start: datetime
     end: datetime
     all_day: bool
+    color: str | None = None
     category: CategoryResponse | None
     members: list[FamilyMemberResponse]
     todos: list[EventTodoResponse] = []

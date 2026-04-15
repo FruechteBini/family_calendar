@@ -235,6 +235,18 @@ def _add_missing_columns(conn):
         )
         logger.info("Spalte 'auto_complete_parent' zu users hinzugefügt")
 
+    if "personal_calendar_category_id" not in user_columns:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE users
+                ADD COLUMN personal_calendar_category_id INTEGER
+                REFERENCES categories(id) ON DELETE SET NULL
+                """
+            )
+        )
+        logger.info("Spalte 'personal_calendar_category_id' zu users hinzugefügt")
+
     if "google_calendar_id" not in user_columns:
         conn.execute(text("ALTER TABLE users ADD COLUMN google_calendar_id VARCHAR(255) NOT NULL DEFAULT 'primary'"))
         logger.info("Spalte 'google_calendar_id' zu users hinzugefügt")
@@ -248,6 +260,19 @@ def _add_missing_columns(conn):
     if hp_col is not None and hp_col.get("nullable") is False:
         conn.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL"))
         logger.info("Spalte 'hashed_password' erlaubt NULL (Google-Login)")
+
+    family_columns = {c["name"] for c in inspector.get_columns("families")}
+    if "default_family_calendar_category_id" not in family_columns:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE families
+                ADD COLUMN default_family_calendar_category_id INTEGER
+                REFERENCES categories(id) ON DELETE SET NULL
+                """
+            )
+        )
+        logger.info("Spalte 'default_family_calendar_category_id' zu families hinzugefügt")
 
     # Google sync mapping tables (create if missing)
     if not inspector.has_table("google_calendar_sync"):
@@ -419,6 +444,99 @@ def _add_missing_columns(conn):
                 )
             )
             logger.info("Spalte user_id zu note_categories hinzugefügt (persönliche Kategorien)")
+
+        # Notiz-Kategorien: getrennt persönlich (pro Benutzer) vs. Familie (geteilt)
+        nc_columns2 = {c["name"] for c in inspector.get_columns("note_categories")}
+        if "is_personal" not in nc_columns2:
+            conn.execute(
+                text(
+                    "ALTER TABLE note_categories "
+                    "ADD COLUMN is_personal BOOLEAN NOT NULL DEFAULT TRUE"
+                )
+            )
+            conn.execute(
+                text("ALTER TABLE note_categories ALTER COLUMN user_id DROP NOT NULL")
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE note_categories
+                    SET is_personal = false, user_id = NULL
+                    WHERE id IN (
+                        SELECT nc.id FROM note_categories nc
+                        WHERE EXISTS (
+                            SELECT 1 FROM notes
+                            WHERE category_id = nc.id AND is_personal = false
+                        )
+                        AND NOT EXISTS (
+                            SELECT 1 FROM notes
+                            WHERE category_id = nc.id AND is_personal = true
+                        )
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE notes SET category_id = NULL
+                    WHERE is_personal = false
+                    AND category_id IN (
+                        SELECT id FROM note_categories WHERE is_personal = true
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE notes SET category_id = NULL
+                    WHERE is_personal = true
+                    AND category_id IN (
+                        SELECT id FROM note_categories WHERE is_personal = false
+                    )
+                    """
+                )
+            )
+            logger.info(
+                "Spalte is_personal zu note_categories (persönlich vs. Familie)"
+            )
+
+        inspector = sa_inspect(conn)
+        nc_ix = {
+            i["name"] for i in inspector.get_indexes("note_categories") if i.get("name")
+        }
+        if "uq_note_category_personal_user_name" not in nc_ix:
+            conn.execute(text("DROP INDEX IF EXISTS uq_note_category_user_name"))
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_note_category_personal_user_name "
+                    "ON note_categories (user_id, name) WHERE is_personal = true"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_note_category_family_name "
+                    "ON note_categories (family_id, name) WHERE is_personal = false"
+                )
+            )
+            logger.info("Eindeutige Notiz-Kategorien: getrennt nach Persönlich/Familie")
+
+        inspector = sa_inspect(conn)
+        nc_chk = {
+            c["name"] for c in inspector.get_check_constraints("note_categories")
+        }
+        if "ck_note_category_scope_user" not in nc_chk:
+            conn.execute(
+                text(
+                    "ALTER TABLE note_categories ADD CONSTRAINT ck_note_category_scope_user "
+                    "CHECK ("
+                    "(is_personal = true AND user_id IS NOT NULL) "
+                    "OR (is_personal = false AND user_id IS NULL)"
+                    ")"
+                )
+            )
+            logger.info("CHECK ck_note_category_scope_user für note_categories")
 
 
 @asynccontextmanager

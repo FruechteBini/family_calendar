@@ -9,10 +9,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
+import '../../categories/categories_providers.dart';
 import '../../categories/data/category_repository.dart';
-import '../../categories/domain/category.dart' as cat;
 import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/category_picker.dart';
 import '../../../shared/widgets/member_chip.dart';
 import '../../../shared/widgets/priority_badge.dart';
@@ -41,10 +42,6 @@ class _PendingFile {
     this.bytes,
   });
 }
-
-final _formCategoriesProvider = FutureProvider<List<cat.Category>>((ref) async {
-  return ref.watch(categoryRepositoryProvider).getCategories();
-});
 
 final _formMembersProvider = FutureProvider<List<FamilyMember>>((ref) async {
   return ref.watch(memberRepositoryProvider).getMembers();
@@ -511,9 +508,88 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
     }
   }
 
+  Future<void> _openCreateTodoCategoryDialog() async {
+    final name = TextEditingController();
+    var selectedHex = kCategoryPresetHexColors.first;
+    final icon = TextEditingController(text: '\u{1F4C1}');
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setModal) => AlertDialog(
+            title: const Text('Neue Kategorie'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: appFormInputDecoration(
+                      ctx,
+                      labelText: 'Name',
+                      prefixIcon: const Icon(Icons.label_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  CategoryColorPickerTile(
+                    hex: selectedHex,
+                    onHexChanged: (h) => setModal(() => selectedHex = h),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: icon,
+                    decoration: appFormInputDecoration(
+                      ctx,
+                      labelText: 'Icon (Emoji)',
+                      prefixIcon: const Icon(Icons.emoji_emotions_outlined),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Anlegen'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok != true || !mounted) return;
+      final trimmed = name.text.trim();
+      if (trimmed.isEmpty) {
+        showAppToast(context,
+            message: 'Name erforderlich', type: ToastType.error);
+        return;
+      }
+      final created =
+          await ref.read(categoryRepositoryProvider).createCategory({
+        'name': trimmed,
+        'color': selectedHex.trim(),
+        'icon': icon.text.trim().isEmpty ? '\u{1F4C1}' : icon.text.trim(),
+      });
+      ref.invalidate(categoriesListProvider);
+      setState(() => _categoryId = created.id);
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppToast(context, message: e.message, type: ToastType.error);
+      }
+    } finally {
+      name.dispose();
+      icon.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(_formCategoriesProvider);
+    final categoriesAsync = ref.watch(categoriesListProvider);
     final membersAsync = ref.watch(_formMembersProvider);
     final theme = Theme.of(context);
     final visibleExisting = _existingAttachments
@@ -627,43 +703,57 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  categoriesAsync.when(
-                    data: (categories) => CategoryPicker(
-                      categories: categories,
-                      selectedId: _categoryId,
-                      onChanged: (v) => setState(() => _categoryId = v),
-                    ),
-                    loading: () => DropdownButtonFormField<int?>(
-                      isExpanded: true,
-                      items: [
-                        DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text('Kategorien werden geladen…'),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      categoriesAsync.when(
+                        data: (categories) => CategoryPicker(
+                          categories: categories,
+                          selectedId: _categoryId,
+                          onChanged: (v) => setState(() => _categoryId = v),
                         ),
-                      ],
-                      onChanged: null,
-                      decoration: appFormInputDecoration(
-                        context,
-                        labelText: 'Kategorie',
-                        prefixIcon: const Icon(Icons.label_outline),
-                      ),
-                    ),
-                    error: (_, __) => DropdownButtonFormField<int?>(
-                      isExpanded: true,
-                      items: const [
-                        DropdownMenuItem<int?>(
-                          value: null,
-                          child:
-                              Text('Kategorien konnten nicht geladen werden'),
+                        loading: () => DropdownButtonFormField<int?>(
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('Kategorien werden geladen…'),
+                            ),
+                          ],
+                          onChanged: null,
+                          decoration: appFormInputDecoration(
+                            context,
+                            labelText: 'Kategorie',
+                            prefixIcon: const Icon(Icons.label_outline),
+                          ),
                         ),
-                      ],
-                      onChanged: null,
-                      decoration: appFormInputDecoration(
-                        context,
-                        labelText: 'Kategorie',
-                        prefixIcon: const Icon(Icons.label_outline),
+                        error: (_, __) => DropdownButtonFormField<int?>(
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text(
+                                  'Kategorien konnten nicht geladen werden'),
+                            ),
+                          ],
+                          onChanged: null,
+                          decoration: appFormInputDecoration(
+                            context,
+                            labelText: 'Kategorie',
+                            prefixIcon: const Icon(Icons.label_outline),
+                          ),
+                        ),
                       ),
-                    ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed:
+                              _saving ? null : _openCreateTodoCategoryDialog,
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          label: const Text('Neue Kategorie'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   NotificationLevelPicker(

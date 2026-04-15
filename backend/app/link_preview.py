@@ -10,10 +10,15 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger("kalender.notes")
 
-_DEFAULT_UA = (
-    "Mozilla/5.0 (compatible; FamilienkalenderBot/1.0; +https://example.com) "
-    "AppleWebKit/537.36 (KHTML, like Gecko)"
-)
+# Browser-like UA: many sites (Reddit, etc.) omit og:title for generic/bot clients.
+_DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+}
 _TIMEOUT = httpx.Timeout(12.0, connect=5.0)
 
 
@@ -62,7 +67,7 @@ async def fetch_link_preview(url: str) -> dict:
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=_TIMEOUT,
-            headers={"User-Agent": _DEFAULT_UA},
+            headers=_DEFAULT_HEADERS,
         ) as client:
             resp = await client.get(raw)
             resp.raise_for_status()

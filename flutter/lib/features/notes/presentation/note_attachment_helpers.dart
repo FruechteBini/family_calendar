@@ -4,29 +4,9 @@ import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../domain/note_attachment.dart';
 
-bool noteAttachmentIsImage(NoteAttachment a) {
-  final ct = a.contentType.toLowerCase();
-  if (ct.startsWith('image/')) return true;
-  final n = a.filename.toLowerCase();
-  return n.endsWith('.png') ||
-      n.endsWith('.jpg') ||
-      n.endsWith('.jpeg') ||
-      n.endsWith('.gif') ||
-      n.endsWith('.webp') ||
-      n.endsWith('.heic') ||
-      n.endsWith('.bmp');
-}
+bool noteAttachmentIsImage(NoteAttachment a) => a.isImage;
 
-bool noteAttachmentIsVideo(NoteAttachment a) {
-  final ct = a.contentType.toLowerCase();
-  if (ct.startsWith('video/')) return true;
-  final n = a.filename.toLowerCase();
-  return n.endsWith('.mp4') ||
-      n.endsWith('.mov') ||
-      n.endsWith('.webm') ||
-      n.endsWith('.mkv') ||
-      n.endsWith('.m4v');
-}
+bool noteAttachmentIsVideo(NoteAttachment a) => a.isVideo;
 
 String noteAttachmentFullUrl(WidgetRef ref, NoteAttachment a) {
   final u = a.downloadUrl;

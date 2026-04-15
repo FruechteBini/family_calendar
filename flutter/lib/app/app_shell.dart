@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -69,9 +69,19 @@ class AppShell extends ConsumerWidget {
     final index = _currentIndex(context);
     final pendingProposals = ref.watch(pendingProposalsProvider);
     final proposalCount = pendingProposals.valueOrNull?.length ?? 0;
+    final topInset = MediaQuery.paddingOf(context).top;
+    final appBarHeight =
+        topInset + 6 + _kCompactFamilyBarContentHeight + 8;
 
     return Scaffold(
-      appBar: const _FamilienherdAppBar(),
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(appBarHeight),
+        child: SizedBox(
+          height: appBarHeight,
+          width: double.infinity,
+          child: const _FamilyAwareTopBar(),
+        ),
+      ),
       body: child,
       bottomNavigationBar: _GlassmorphismNavBar(
         selectedIndex: index,
@@ -101,23 +111,6 @@ class AppShell extends ConsumerWidget {
 /// Height of the family row below [SafeArea] top inset (avatar + name + settings).
 const double _kCompactFamilyBarContentHeight = 28;
 
-class _FamilienherdAppBar extends ConsumerWidget implements PreferredSizeWidget {
-  const _FamilienherdAppBar();
-
-  @override
-  Size get preferredSize => const Size.fromHeight(0);
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final top = MediaQuery.paddingOf(context).top;
-    // Top padding 6 + row 28 + bottom padding 8 — ~50% vs. previous 12+56+16.
-    return SizedBox(
-      height: top + 6 + _kCompactFamilyBarContentHeight + 8,
-      child: const _FamilyAwareTopBar(),
-    );
-  }
-}
-
 class _FamilyAwareTopBar extends ConsumerWidget {
   const _FamilyAwareTopBar();
 
@@ -135,12 +128,6 @@ class _FamilyAwareTopBar extends ConsumerWidget {
 
     final familyInfo = ref.watch(familyInfoProvider);
     final familyName = familyInfo.valueOrNull?.name ?? 'Familienherd';
-
-    final avatarPathAsync = ref.watch(familyAvatarPathProvider);
-    final avatarPath = avatarPathAsync.valueOrNull;
-    final avatarFile = (avatarPath != null && avatarPath.isNotEmpty)
-        ? FileImage(File(avatarPath))
-        : null;
 
     void goBackToMenu() {
       Navigator.of(context, rootNavigator: true).popUntil((r) => r is! PopupRoute);
@@ -191,7 +178,7 @@ class _FamilyAwareTopBar extends ConsumerWidget {
             height: _kCompactFamilyBarContentHeight,
             child: Row(
               children: [
-                if (showBack)
+                if (showBack) ...[
                   Material(
                     color: Colors.transparent,
                     shape: const CircleBorder(),
@@ -209,44 +196,23 @@ class _FamilyAwareTopBar extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  )
-                else
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: cs.primaryContainer,
-                        width: 1.5,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      familyName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.getFont(
+                        'Plus Jakarta Sans',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary,
                       ),
-                      color: AppColors.surfaceContainerHigh,
-                      image: avatarFile != null
-                          ? DecorationImage(image: avatarFile, fit: BoxFit.cover)
-                          : null,
-                    ),
-                    child: avatarFile == null
-                        ? const Icon(
-                            Icons.family_restroom,
-                            color: AppColors.onSurface,
-                            size: 16,
-                          )
-                        : null,
-                  ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    familyName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.getFont(
-                      'Plus Jakarta Sans',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: cs.primary,
                     ),
                   ),
-                ),
+                ] else
+                  const Spacer(),
                 const SizedBox(width: 4),
                 Material(
                   color: Colors.transparent,
@@ -660,14 +626,64 @@ class _VoiceCommandSheet extends ConsumerStatefulWidget {
 }
 
 class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
+  static const Duration _kSilenceBeforeSend = Duration(seconds: 5);
+
   bool _isProcessing = false;
   bool _isListening = false;
   /// True until the first mic session has started or failed (avoids a flash before auto-start).
   bool _voiceUiLoading = true;
   /// When true, a final STT result after [stopListening] should not trigger auto-send.
   bool _manualMicStopRequested = false;
+  /// Ignores spurious STT callbacks while we end the session after silence.
+  bool _committingFromSilence = false;
+  Timer? _silenceCommitTimer;
   String _transcript = '';
   VoiceCommandResult? _result;
+
+  void _cancelSilenceCommitTimer() {
+    _silenceCommitTimer?.cancel();
+    _silenceCommitTimer = null;
+  }
+
+  Future<void> _commitTranscriptAfterSilence() async {
+    if (!mounted) return;
+
+    _cancelSilenceCommitTimer();
+    _committingFromSilence = true;
+
+    final speech = ref.read(speechServiceProvider);
+    final textToSend = _transcript.trim();
+
+    await speech.stopListening();
+
+    if (!mounted) {
+      _committingFromSilence = false;
+      return;
+    }
+
+    _committingFromSilence = false;
+
+    if (_manualMicStopRequested) {
+      _manualMicStopRequested = false;
+      setState(() {
+        _isListening = false;
+        _transcript = '';
+        _voiceUiLoading = false;
+      });
+      ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+      return;
+    }
+
+    setState(() {
+      _isListening = false;
+      _transcript = '';
+      _voiceUiLoading = false;
+    });
+    ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
+
+    if (textToSend.isEmpty) return;
+    _sendCommand(textToSend);
+  }
 
   @override
   void initState() {
@@ -679,6 +695,7 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
 
   @override
   void dispose() {
+    _cancelSilenceCommitTimer();
     ref.read(speechServiceProvider).stopListening();
     if (ref.read(voiceStateProvider) == VoiceState.listening) {
       ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
@@ -713,6 +730,7 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
   }
 
   Future<void> _stopListeningManual() async {
+    _cancelSilenceCommitTimer();
     final speech = ref.read(speechServiceProvider);
     _manualMicStopRequested = true;
     await speech.stopListening();
@@ -729,6 +747,7 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
     if (_isListening || _isProcessing) return;
 
     final speech = ref.read(speechServiceProvider);
+    _cancelSilenceCommitTimer();
     _manualMicStopRequested = false;
     setState(() {
       _transcript = '';
@@ -783,31 +802,20 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
 
     try {
       await speech.startListening(
-        onResult: (text, isFinal) {
-          if (!mounted) return;
+        onResult: (text, _) {
+          if (!mounted ||
+              _committingFromSilence ||
+              !_isListening ||
+              _manualMicStopRequested) {
+            return;
+          }
           setState(() => _transcript = text);
-          if (!isFinal) return;
-
-          speech.stopListening();
-
-          if (_manualMicStopRequested) {
-            _manualMicStopRequested = false;
-            setState(() => _isListening = false);
-            ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
-            return;
-          }
-
-          final trimmed = text.trim();
-          setState(() => _isListening = false);
-          ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
-
-          if (trimmed.isEmpty) {
-            if (mounted) setState(() => _transcript = '');
-            return;
-          }
-
-          if (mounted) setState(() => _transcript = '');
-          _sendCommand(trimmed);
+          _cancelSilenceCommitTimer();
+          _silenceCommitTimer = Timer(_kSilenceBeforeSend, () {
+            if (mounted) {
+              unawaited(_commitTranscriptAfterSilence());
+            }
+          });
         },
       );
     } catch (_) {
@@ -916,6 +924,7 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
               IconButton(
                 icon: const Icon(Icons.close, color: AppColors.onSurface),
                 onPressed: () async {
+                  _cancelSilenceCommitTimer();
                   await ref.read(speechServiceProvider).stopListening();
                   ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
                   if (context.mounted) Navigator.pop(context);

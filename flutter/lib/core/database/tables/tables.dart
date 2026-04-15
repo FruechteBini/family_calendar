@@ -10,6 +10,7 @@ class CachedEvents extends Table {
   IntColumn get categoryId => integer().nullable()();
   TextColumn get categoryName => text().nullable()();
   TextColumn get categoryColor => text().nullable()();
+  TextColumn get color => text().nullable()();
   TextColumn get memberIdsJson => text().withDefault(const Constant('[]'))();
   TextColumn get membersJson => text().withDefault(const Constant('[]'))();
 

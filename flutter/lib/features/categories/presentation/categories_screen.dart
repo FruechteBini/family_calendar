@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../categories_providers.dart';
 import '../data/category_repository.dart';
 import '../domain/category.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
-
-final categoriesListProvider = FutureProvider<List<Category>>((ref) {
-  return ref.watch(categoryRepositoryProvider).getCategories();
-});
 
 class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
@@ -97,46 +95,45 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   Future<void> _showForm(BuildContext context, WidgetRef ref,
       {Category? category}) async {
     final nameController = TextEditingController(text: category?.name ?? '');
-    final colorController =
-        TextEditingController(text: category?.color ?? '#1565C0');
     final isEdit = category != null;
+    var selectedHex = category?.color ?? '#1565C0';
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'Kategorie bearbeiten' : 'Neue Kategorie'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            LabeledOutlineTextField(
-              label: 'Name',
-              controller: nameController,
-              prefixIcon: const Icon(Icons.label_outline),
-            ),
-            const SizedBox(height: 12),
-            LabeledOutlineTextField(
-              label: 'Farbe (Hex)',
-              controller: colorController,
-              hintText: '#1565C0',
-              prefixIcon: const Icon(Icons.palette_outlined),
-            ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => AlertDialog(
+          title: Text(isEdit ? 'Kategorie bearbeiten' : 'Neue Kategorie'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LabeledOutlineTextField(
+                label: 'Name',
+                controller: nameController,
+                prefixIcon: const Icon(Icons.label_outline),
+              ),
+              const SizedBox(height: 12),
+              CategoryColorPickerTile(
+                hex: selectedHex,
+                onHexChanged: (h) => setModal(() => selectedHex = h),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(isEdit ? 'Speichern' : 'Erstellen')),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(isEdit ? 'Speichern' : 'Erstellen')),
-        ],
       ),
     );
     if (result != true || nameController.text.trim().isEmpty) return;
     try {
       final data = {
         'name': nameController.text.trim(),
-        'color': colorController.text.trim()
+        'color': selectedHex.trim(),
       };
       final repo = ref.read(categoryRepositoryProvider);
       if (isEdit) {

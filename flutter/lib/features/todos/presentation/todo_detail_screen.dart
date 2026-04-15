@@ -16,8 +16,10 @@ import '../../../core/auth/auth_provider.dart';
 import '../../../core/preferences/todo_preferences.dart';
 import '../../../shared/utils/date_utils.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/member_chip.dart';
 import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../members/domain/family_member.dart';
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
 import '../domain/todo_attachment.dart';
@@ -417,11 +419,15 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
                       runSpacing: 4,
                       children: todo.members
                           .map(
-                            (m) => Chip(
-                              label: Text('${m.emoji ?? ''} ${m.name}'.trim()),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                            (m) => MemberChip(
+                              member: FamilyMember(
+                                id: m.id,
+                                name: m.name,
+                                emoji: m.emoji,
+                                color: m.color,
+                              ),
+                              selected: true,
+                              mode: MemberChipMode.display,
                             ),
                           )
                           .toList(),

@@ -4,6 +4,7 @@ class NoteCategory {
   final String name;
   final String color;
   final String icon;
+  final bool isPersonal;
 
   const NoteCategory({
     required this.id,
@@ -11,6 +12,7 @@ class NoteCategory {
     required this.name,
     required this.color,
     required this.icon,
+    required this.isPersonal,
   });
 
   factory NoteCategory.fromJson(Map<String, dynamic> json) {
@@ -19,7 +21,8 @@ class NoteCategory {
       position: json['position'] as int? ?? 0,
       name: json['name'] as String,
       color: json['color'] as String? ?? '#0052CC',
-      icon: json['icon'] as String? ?? '📝',
+      icon: json['icon'] as String? ?? '\u{1F4DD}',
+      isPersonal: json['is_personal'] as bool? ?? true,
     );
   }
 
@@ -27,5 +30,6 @@ class NoteCategory {
         'name': name,
         'color': color,
         'icon': icon,
+        'is_personal': isPersonal,
       };
 }

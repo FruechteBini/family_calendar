@@ -64,6 +64,11 @@ class $CachedEventsTable extends CachedEvents
   late final GeneratedColumn<String> categoryColor = GeneratedColumn<String>(
       'category_color', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+      'color', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _memberIdsJsonMeta =
       const VerificationMeta('memberIdsJson');
   @override
@@ -91,6 +96,7 @@ class $CachedEventsTable extends CachedEvents
         categoryId,
         categoryName,
         categoryColor,
+        color,
         memberIdsJson,
         membersJson
       ];
@@ -153,6 +159,10 @@ class $CachedEventsTable extends CachedEvents
           categoryColor.isAcceptableOrUnknown(
               data['category_color']!, _categoryColorMeta));
     }
+    if (data.containsKey('color')) {
+      context.handle(
+          _colorMeta, color.isAcceptableOrUnknown(data['color']!, _colorMeta));
+    }
     if (data.containsKey('member_ids_json')) {
       context.handle(
           _memberIdsJsonMeta,
@@ -192,6 +202,8 @@ class $CachedEventsTable extends CachedEvents
           .read(DriftSqlType.string, data['${effectivePrefix}category_name']),
       categoryColor: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}category_color']),
+      color: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}color']),
       memberIdsJson: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}member_ids_json'])!,
       membersJson: attachedDatabase.typeMapping
@@ -215,6 +227,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
   final int? categoryId;
   final String? categoryName;
   final String? categoryColor;
+  final String? color;
   final String memberIdsJson;
   final String membersJson;
   const CachedEvent(
@@ -227,6 +240,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
       this.categoryId,
       this.categoryName,
       this.categoryColor,
+      this.color,
       required this.memberIdsJson,
       required this.membersJson});
   @override
@@ -248,6 +262,9 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
     }
     if (!nullToAbsent || categoryColor != null) {
       map['category_color'] = Variable<String>(categoryColor);
+    }
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
     }
     map['member_ids_json'] = Variable<String>(memberIdsJson);
     map['members_json'] = Variable<String>(membersJson);
@@ -273,6 +290,8 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
       categoryColor: categoryColor == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryColor),
+      color:
+          color == null && nullToAbsent ? const Value.absent() : Value(color),
       memberIdsJson: Value(memberIdsJson),
       membersJson: Value(membersJson),
     );
@@ -291,6 +310,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
       categoryId: serializer.fromJson<int?>(json['categoryId']),
       categoryName: serializer.fromJson<String?>(json['categoryName']),
       categoryColor: serializer.fromJson<String?>(json['categoryColor']),
+      color: serializer.fromJson<String?>(json['color']),
       memberIdsJson: serializer.fromJson<String>(json['memberIdsJson']),
       membersJson: serializer.fromJson<String>(json['membersJson']),
     );
@@ -308,6 +328,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
       'categoryId': serializer.toJson<int?>(categoryId),
       'categoryName': serializer.toJson<String?>(categoryName),
       'categoryColor': serializer.toJson<String?>(categoryColor),
+      'color': serializer.toJson<String?>(color),
       'memberIdsJson': serializer.toJson<String>(memberIdsJson),
       'membersJson': serializer.toJson<String>(membersJson),
     };
@@ -323,6 +344,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
           Value<int?> categoryId = const Value.absent(),
           Value<String?> categoryName = const Value.absent(),
           Value<String?> categoryColor = const Value.absent(),
+          Value<String?> color = const Value.absent(),
           String? memberIdsJson,
           String? membersJson}) =>
       CachedEvent(
@@ -337,6 +359,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
             categoryName.present ? categoryName.value : this.categoryName,
         categoryColor:
             categoryColor.present ? categoryColor.value : this.categoryColor,
+        color: color.present ? color.value : this.color,
         memberIdsJson: memberIdsJson ?? this.memberIdsJson,
         membersJson: membersJson ?? this.membersJson,
       );
@@ -357,6 +380,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
       categoryColor: data.categoryColor.present
           ? data.categoryColor.value
           : this.categoryColor,
+      color: data.color.present ? data.color.value : this.color,
       memberIdsJson: data.memberIdsJson.present
           ? data.memberIdsJson.value
           : this.memberIdsJson,
@@ -377,6 +401,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
           ..write('categoryId: $categoryId, ')
           ..write('categoryName: $categoryName, ')
           ..write('categoryColor: $categoryColor, ')
+          ..write('color: $color, ')
           ..write('memberIdsJson: $memberIdsJson, ')
           ..write('membersJson: $membersJson')
           ..write(')'))
@@ -394,6 +419,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
       categoryId,
       categoryName,
       categoryColor,
+      color,
       memberIdsJson,
       membersJson);
   @override
@@ -409,6 +435,7 @@ class CachedEvent extends DataClass implements Insertable<CachedEvent> {
           other.categoryId == this.categoryId &&
           other.categoryName == this.categoryName &&
           other.categoryColor == this.categoryColor &&
+          other.color == this.color &&
           other.memberIdsJson == this.memberIdsJson &&
           other.membersJson == this.membersJson);
 }
@@ -423,6 +450,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
   final Value<int?> categoryId;
   final Value<String?> categoryName;
   final Value<String?> categoryColor;
+  final Value<String?> color;
   final Value<String> memberIdsJson;
   final Value<String> membersJson;
   const CachedEventsCompanion({
@@ -435,6 +463,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
     this.categoryId = const Value.absent(),
     this.categoryName = const Value.absent(),
     this.categoryColor = const Value.absent(),
+    this.color = const Value.absent(),
     this.memberIdsJson = const Value.absent(),
     this.membersJson = const Value.absent(),
   });
@@ -448,6 +477,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
     this.categoryId = const Value.absent(),
     this.categoryName = const Value.absent(),
     this.categoryColor = const Value.absent(),
+    this.color = const Value.absent(),
     this.memberIdsJson = const Value.absent(),
     this.membersJson = const Value.absent(),
   })  : title = Value(title),
@@ -463,6 +493,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
     Expression<int>? categoryId,
     Expression<String>? categoryName,
     Expression<String>? categoryColor,
+    Expression<String>? color,
     Expression<String>? memberIdsJson,
     Expression<String>? membersJson,
   }) {
@@ -476,6 +507,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
       if (categoryId != null) 'category_id': categoryId,
       if (categoryName != null) 'category_name': categoryName,
       if (categoryColor != null) 'category_color': categoryColor,
+      if (color != null) 'color': color,
       if (memberIdsJson != null) 'member_ids_json': memberIdsJson,
       if (membersJson != null) 'members_json': membersJson,
     });
@@ -491,6 +523,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
       Value<int?>? categoryId,
       Value<String?>? categoryName,
       Value<String?>? categoryColor,
+      Value<String?>? color,
       Value<String>? memberIdsJson,
       Value<String>? membersJson}) {
     return CachedEventsCompanion(
@@ -503,6 +536,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
       categoryColor: categoryColor ?? this.categoryColor,
+      color: color ?? this.color,
       memberIdsJson: memberIdsJson ?? this.memberIdsJson,
       membersJson: membersJson ?? this.membersJson,
     );
@@ -538,6 +572,9 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
     if (categoryColor.present) {
       map['category_color'] = Variable<String>(categoryColor.value);
     }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
     if (memberIdsJson.present) {
       map['member_ids_json'] = Variable<String>(memberIdsJson.value);
     }
@@ -559,6 +596,7 @@ class CachedEventsCompanion extends UpdateCompanion<CachedEvent> {
           ..write('categoryId: $categoryId, ')
           ..write('categoryName: $categoryName, ')
           ..write('categoryColor: $categoryColor, ')
+          ..write('color: $color, ')
           ..write('memberIdsJson: $memberIdsJson, ')
           ..write('membersJson: $membersJson')
           ..write(')'))
@@ -4810,6 +4848,7 @@ typedef $$CachedEventsTableCreateCompanionBuilder = CachedEventsCompanion
   Value<int?> categoryId,
   Value<String?> categoryName,
   Value<String?> categoryColor,
+  Value<String?> color,
   Value<String> memberIdsJson,
   Value<String> membersJson,
 });
@@ -4824,6 +4863,7 @@ typedef $$CachedEventsTableUpdateCompanionBuilder = CachedEventsCompanion
   Value<int?> categoryId,
   Value<String?> categoryName,
   Value<String?> categoryColor,
+  Value<String?> color,
   Value<String> memberIdsJson,
   Value<String> membersJson,
 });
@@ -4863,6 +4903,9 @@ class $$CachedEventsTableFilterComposer
 
   ColumnFilters<String> get categoryColor => $composableBuilder(
       column: $table.categoryColor, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get memberIdsJson => $composableBuilder(
       column: $table.memberIdsJson, builder: (column) => ColumnFilters(column));
@@ -4909,6 +4952,9 @@ class $$CachedEventsTableOrderingComposer
       column: $table.categoryColor,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get color => $composableBuilder(
+      column: $table.color, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get memberIdsJson => $composableBuilder(
       column: $table.memberIdsJson,
       builder: (column) => ColumnOrderings(column));
@@ -4953,6 +4999,9 @@ class $$CachedEventsTableAnnotationComposer
   GeneratedColumn<String> get categoryColor => $composableBuilder(
       column: $table.categoryColor, builder: (column) => column);
 
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
   GeneratedColumn<String> get memberIdsJson => $composableBuilder(
       column: $table.memberIdsJson, builder: (column) => column);
 
@@ -4995,6 +5044,7 @@ class $$CachedEventsTableTableManager extends RootTableManager<
             Value<int?> categoryId = const Value.absent(),
             Value<String?> categoryName = const Value.absent(),
             Value<String?> categoryColor = const Value.absent(),
+            Value<String?> color = const Value.absent(),
             Value<String> memberIdsJson = const Value.absent(),
             Value<String> membersJson = const Value.absent(),
           }) =>
@@ -5008,6 +5058,7 @@ class $$CachedEventsTableTableManager extends RootTableManager<
             categoryId: categoryId,
             categoryName: categoryName,
             categoryColor: categoryColor,
+            color: color,
             memberIdsJson: memberIdsJson,
             membersJson: membersJson,
           ),
@@ -5021,6 +5072,7 @@ class $$CachedEventsTableTableManager extends RootTableManager<
             Value<int?> categoryId = const Value.absent(),
             Value<String?> categoryName = const Value.absent(),
             Value<String?> categoryColor = const Value.absent(),
+            Value<String?> color = const Value.absent(),
             Value<String> memberIdsJson = const Value.absent(),
             Value<String> membersJson = const Value.absent(),
           }) =>
@@ -5034,6 +5086,7 @@ class $$CachedEventsTableTableManager extends RootTableManager<
             categoryId: categoryId,
             categoryName: categoryName,
             categoryColor: categoryColor,
+            color: color,
             memberIdsJson: memberIdsJson,
             membersJson: membersJson,
           ),

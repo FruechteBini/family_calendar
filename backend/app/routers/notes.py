@@ -38,6 +38,7 @@ from ..schemas.note import (
     PreviewLinkRequest,
     PreviewLinkResponse,
 )
+from ..models.note_category import NoteCategory as NoteCategoryModel
 from ..schemas.note_category import NoteCategoryResponse
 from ..schemas.note_tag import NoteTagResponse
 from ..schemas.todo import TodoResponse
@@ -90,6 +91,39 @@ def _can_edit_note(note: Note, current_member_id: int) -> bool:
     return True
 
 
+def _category_visible_for_note(note: Note, *, for_user_id: int) -> bool:
+    c = note.category
+    if c is None:
+        return False
+    if note.is_personal:
+        return c.is_personal and c.user_id == for_user_id
+    return not c.is_personal
+
+
+async def _require_note_category_for_note(
+    db: AsyncSession,
+    *,
+    family_id: int,
+    category_id: int | None,
+    note_is_personal: bool,
+    user_id: int,
+) -> None:
+    if category_id is None:
+        return
+    r = await db.execute(
+        select(NoteCategoryModel).where(NoteCategoryModel.id == category_id)
+    )
+    cat = r.scalar_one_or_none()
+    if not cat or cat.family_id != family_id:
+        raise HTTPException(status_code=400, detail="Notiz-Kategorie nicht gefunden")
+    if note_is_personal:
+        if not cat.is_personal or cat.user_id != user_id:
+            raise HTTPException(status_code=400, detail="Notiz-Kategorie nicht gefunden")
+    else:
+        if cat.is_personal:
+            raise HTTPException(status_code=400, detail="Notiz-Kategorie nicht gefunden")
+
+
 def _note_to_response(note: Note, *, for_user_id: int) -> NoteResponse:
     checklist: list[ChecklistItem] | None = None
     if note.checklist_json:
@@ -139,7 +173,7 @@ def _note_to_response(note: Note, *, for_user_id: int) -> NoteResponse:
         color=note.color,
         category=(
             NoteCategoryResponse.model_validate(note.category)
-            if note.category and note.category.user_id == for_user_id
+            if _category_visible_for_note(note, for_user_id=for_user_id)
             else None
         ),
         tags=[NoteTagResponse.model_validate(t) for t in note.tags],
@@ -186,6 +220,22 @@ async def _reload_note(db: AsyncSession, note_id: int) -> Note:
         select(Note).options(*_note_load).where(Note.id == note_id)
     )
     return result.scalar_one()
+
+
+def _text_note_has_substance(note: Note) -> bool:
+    if note.type != "text":
+        return True
+    has_body = bool((note.title or "").strip()) or bool((note.content or "").strip())
+    has_att = bool(note.attachments)
+    return has_body or has_att
+
+
+async def _ensure_text_note_has_substance_or_400(note: Note) -> None:
+    if not _text_note_has_substance(note):
+        raise HTTPException(
+            status_code=400,
+            detail="Titel, Inhalt oder Anhang erforderlich",
+        )
 
 
 @router.get("/", response_model=list[NoteResponse])
@@ -307,26 +357,16 @@ async def create_note(
     current_member_id: int = Depends(require_member_id),
     current_user: User = Depends(get_current_user),
 ):
-    if data.category_id is not None:
-        from ..models.note_category import NoteCategory
-
-        r = await db.execute(
-            select(NoteCategory).where(
-                NoteCategory.id == data.category_id,
-                NoteCategory.family_id == family_id,
-                NoteCategory.user_id == current_user.id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Notiz-Kategorie nicht gefunden")
+    await _require_note_category_for_note(
+        db,
+        family_id=family_id,
+        category_id=data.category_id,
+        note_is_personal=data.is_personal,
+        user_id=current_user.id,
+    )
 
     title_norm = (data.title or "").strip()[:200]
-    if data.type == NoteType.text:
-        if not title_norm and not (data.content or "").strip():
-            raise HTTPException(
-                status_code=400, detail="Titel oder Inhalt der Notiz erforderlich"
-            )
-    elif data.type == NoteType.link:
+    if data.type == NoteType.link:
         if not (data.url or "").strip():
             raise HTTPException(status_code=400, detail="URL erforderlich")
     elif data.type == NoteType.checklist:
@@ -350,6 +390,8 @@ async def create_note(
         link_description = meta.get("link_description")
         link_thumbnail_url = meta.get("link_thumbnail_url")
         link_domain = meta.get("link_domain")
+        if not title_norm and link_title:
+            title_norm = (link_title or "").strip()[:200]
 
     max_pos = await db.scalar(
         select(func.coalesce(func.max(Note.position), 0)).where(Note.family_id == family_id)
@@ -422,19 +464,6 @@ async def update_note(
         if key in update_data:
             setattr(note, key, update_data[key])
 
-    if "category_id" in update_data and update_data["category_id"] is not None:
-        from ..models.note_category import NoteCategory
-
-        r = await db.execute(
-            select(NoteCategory).where(
-                NoteCategory.id == update_data["category_id"],
-                NoteCategory.family_id == family_id,
-                NoteCategory.user_id == current_user.id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Notiz-Kategorie nicht gefunden")
-
     if checklist_items is not None:
         note.checklist_json = json.dumps([i.model_dump() for i in checklist_items])
 
@@ -448,10 +477,20 @@ async def update_note(
         note.link_description = meta.get("link_description") or note.link_description
         note.link_thumbnail_url = meta.get("link_thumbnail_url") or note.link_thumbnail_url
         note.link_domain = meta.get("link_domain") or note.link_domain
+        if not (note.title or "").strip() and meta.get("link_title"):
+            note.title = (meta.get("link_title") or "").strip()[:200]
 
+    await _require_note_category_for_note(
+        db,
+        family_id=family_id,
+        category_id=note.category_id,
+        note_is_personal=note.is_personal,
+        user_id=current_user.id,
+    )
     note.updated_at = utcnow()
     await db.flush()
     note = await _reload_note(db, note.id)
+    await _ensure_text_note_has_substance_or_400(note)
     return _note_to_response(note, for_user_id=current_user.id)
 
 
@@ -703,6 +742,22 @@ async def delete_attachment(
     att = result.scalar_one_or_none()
     if not att:
         raise HTTPException(status_code=404, detail="Anhang nicht gefunden")
+    att_count = (
+        await db.scalar(
+            select(func.count(NoteAttachment.id)).where(NoteAttachment.note_id == note.id)
+        )
+        or 0
+    )
+    if (
+        note.type == "text"
+        and att_count <= 1
+        and not (note.title or "").strip()
+        and not (note.content or "").strip()
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Titel, Inhalt oder Anhang erforderlich",
+        )
     p = Path(att.stored_path)
     if p.is_file():
         try:

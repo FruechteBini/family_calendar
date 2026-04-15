@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../app/main_tab_swipe_scope.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
@@ -9,6 +12,7 @@ import '../../../shared/widgets/toast.dart';
 import '../data/note_category_repository.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
+import '../domain/note_category.dart';
 import 'note_card.dart';
 import 'note_categories_screen.dart';
 import 'note_comments_sheet.dart';
@@ -82,9 +86,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final pending = ref.read(pendingSharedNoteTextProvider);
-      if (pending == null || pending.isEmpty) return;
-      ref.read(pendingSharedNoteTextProvider.notifier).state = null;
-      runQuickNoteCapture(ref, context, pending, askScope: true);
+      if (pending != null && pending.isNotEmpty) {
+        ref.read(pendingSharedNoteTextProvider.notifier).state = null;
+        runQuickNoteCapture(ref, context, pending, askScope: true);
+        return;
+      }
+      final media = ref.read(pendingSharedNoteMediaProvider);
+      if (media != null && media.isNotEmpty) {
+        ref.read(pendingSharedNoteMediaProvider.notifier).state = null;
+        unawaited(_openForm(sharedMedia: media));
+      }
     });
   }
 
@@ -99,7 +110,51 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
       ref.read(notesScopeProvider.notifier).state = next;
       ref.invalidate(notesForScopeProvider(next));
       ref.invalidate(notesListProvider);
+      _syncCategorySelection(next);
     }
+  }
+
+  Widget _noteCategoriesErrorRow(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded,
+              size: 22, color: theme.colorScheme.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Kategorien konnten nicht geladen werden.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.error),
+            ),
+          ),
+          TextButton(
+            onPressed: () => invalidateNoteCategoryCaches(ref),
+            child: const Text('Erneut'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _syncCategorySelection(NotesScope scope) {
+    final sel = ref.read(_notesCategoryIdProvider);
+    if (sel == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final p = await ref.read(noteCategoriesListProvider(true).future);
+      final f = await ref.read(noteCategoriesListProvider(false).future);
+      final allowed = switch (scope) {
+        NotesScope.all => {...p.map((c) => c.id), ...f.map((c) => c.id)},
+        NotesScope.personal => p.map((c) => c.id).toSet(),
+        NotesScope.family => f.map((c) => c.id).toSet(),
+      };
+      if (!allowed.contains(sel) && mounted) {
+        ref.read(_notesCategoryIdProvider.notifier).state = null;
+        invalidateAllNotesScopes(ref);
+      }
+    });
   }
 
   @override
@@ -110,14 +165,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
     super.dispose();
   }
 
-  Future<void> _openForm({Note? note}) async {
+  Future<void> _openForm({Note? note, List<SharedMediaFile>? sharedMedia}) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => NoteFormDialog(note: note),
+      builder: (_) => NoteFormDialog(note: note, sharedMedia: sharedMedia),
     );
     if (ok == true && mounted) {
       invalidateAllNotesScopes(ref);
-      ref.invalidate(noteCategoriesListProvider);
+      invalidateNoteCategoryCaches(ref);
     }
   }
 
@@ -272,11 +327,23 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
         await runQuickNoteCapture(ref, context, captured, askScope: true);
       });
     });
+    ref.listen<List<SharedMediaFile>?>(pendingSharedNoteMediaProvider,
+        (previous, next) {
+      if (next == null || next.isEmpty) return;
+      final captured = List<SharedMediaFile>.from(next);
+      ref.read(pendingSharedNoteMediaProvider.notifier).state = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await _openForm(sharedMedia: captured);
+      });
+    });
 
     final theme = Theme.of(context);
     final archived = ref.watch(_notesArchivedProvider);
     final selectedCat = ref.watch(_notesCategoryIdProvider);
-    final catsAsync = ref.watch(noteCategoriesListProvider);
+    final listScope = ref.watch(notesScopeProvider);
+    final personalCatsAsync = ref.watch(noteCategoriesListProvider(true));
+    final familyCatsAsync = ref.watch(noteCategoriesListProvider(false));
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
@@ -316,6 +383,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
                   ref.read(notesScopeProvider.notifier).state = next;
                   ref.invalidate(notesForScopeProvider(next));
                   ref.invalidate(notesListProvider);
+                  _syncCategorySelection(next);
                 },
                 tabs: const [
                   Tab(text: 'Alle'),
@@ -324,50 +392,64 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
                 ],
               ),
             ),
-            catsAsync.when(
-              data: (cats) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: CategoryFilterStrip(
-                          entries: cats
-                              .map(
-                                (c) => CategoryStripEntry(
-                                  id: c.id,
-                                  label: '${c.icon} ${c.name}',
-                                  colorHex: c.color,
-                                ),
-                              )
-                              .toList(),
-                          selectedCategoryId: selectedCat,
-                          onCategorySelected: (id) {
-                            ref.read(_notesCategoryIdProvider.notifier).state =
-                                id;
-                            invalidateAllNotesScopes(ref);
-                          },
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Kategorien verwalten',
-                        onPressed: () async {
-                          await Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => const NoteCategoriesScreen(),
-                            ),
-                          );
-                          ref.invalidate(noteCategoriesListProvider);
-                        },
-                        icon: const Icon(Icons.add),
-                      ),
-                    ],
-                  ),
-                );
-              },
+            personalCatsAsync.when(
               loading: () => const SizedBox(height: 48),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, __) => _noteCategoriesErrorRow(theme),
+              data: (personalCats) => familyCatsAsync.when(
+                loading: () => const SizedBox(height: 48),
+                error: (_, __) => _noteCategoriesErrorRow(theme),
+                data: (familyCats) {
+                  final List<NoteCategory> cats = switch (listScope) {
+                    NotesScope.all => [...personalCats, ...familyCats],
+                    NotesScope.personal => personalCats,
+                    NotesScope.family => familyCats,
+                  };
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: CategoryFilterStrip(
+                            entries: cats
+                                .map(
+                                  (c) => CategoryStripEntry(
+                                    id: c.id,
+                                    label: '${c.icon} ${c.name}',
+                                    colorHex: c.color,
+                                  ),
+                                )
+                                .toList(),
+                            selectedCategoryId: selectedCat,
+                            onCategorySelected: (id) {
+                              ref
+                                  .read(_notesCategoryIdProvider.notifier)
+                                  .state = id;
+                              invalidateAllNotesScopes(ref);
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Kategorien verwalten',
+                          onPressed: () async {
+                            final s = ref.read(notesScopeProvider);
+                            await Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => NoteCategoriesScreen(
+                                  initialTab:
+                                      s == NotesScope.family ? 1 : 0,
+                                ),
+                              ),
+                            );
+                            invalidateNoteCategoryCaches(ref);
+                          },
+                          icon: const Icon(Icons.add),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),

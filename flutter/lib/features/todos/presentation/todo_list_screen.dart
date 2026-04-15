@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../app/main_tab_swipe_scope.dart';
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
+import '../../categories/categories_providers.dart';
 import '../../categories/data/category_repository.dart';
 import '../../categories/domain/category.dart' as cat;
 import '../../categories/presentation/categories_screen.dart';
 import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
 import '../../../core/auth/auth_provider.dart';
+import '../../../core/theme/colors.dart';
 import '../../../core/preferences/todo_preferences.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/priority_badge.dart';
@@ -29,10 +31,6 @@ enum TodoScope { all, personal, family }
 final _scopeProvider = StateProvider<TodoScope>((ref) => TodoScope.all);
 final _selectedCategoryIdProvider = StateProvider<int?>((ref) => null);
 final _familyViewMemberIdProvider = StateProvider<int?>((ref) => null);
-
-final _categoriesProvider = FutureProvider<List<cat.Category>>((ref) async {
-  return ref.watch(categoryRepositoryProvider).getCategories();
-});
 
 final _membersProvider = FutureProvider<List<FamilyMember>>((ref) async {
   return ref.watch(memberRepositoryProvider).getMembers();
@@ -251,7 +249,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
     final theme = Theme.of(context);
     final showCompleted = ref.watch(_showCompletedProvider);
     final scope = ref.watch(_scopeProvider);
-    final categoriesAsync = ref.watch(_categoriesProvider);
+    final categoriesAsync = ref.watch(categoriesListProvider);
     final membersAsync = ref.watch(_membersProvider);
     final selectedCategoryId = ref.watch(_selectedCategoryIdProvider);
     final selectedViewMemberId = ref.watch(_familyViewMemberIdProvider);
@@ -261,8 +259,9 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleSpacing: 0,
-        title: const Text('Todos'),
+               titleSpacing: 0,
+        title: const SizedBox.shrink(),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary),
@@ -361,7 +360,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                                     try {
                                       await repo.reorderCategories(
                                           local.map((c) => c.id).toList());
-                                      ref.invalidate(_categoriesProvider);
+                                      ref.invalidate(categoriesListProvider);
                                     } on ApiException catch (e) {
                                       if (ctx.mounted) {
                                         showAppToast(ctx,
@@ -406,7 +405,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                     builder: (_) => const CategoriesScreen(),
                   ),
                 );
-                ref.invalidate(_categoriesProvider);
+                ref.invalidate(categoriesListProvider);
               }
 
               return Padding(
@@ -420,7 +419,9 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                             .map(
                               (c) => CategoryStripEntry(
                                 id: c.id,
-                                label: '${c.icon} ${c.name}',
+                                label: c.name.trim().toLowerCase() == 'familie'
+                                    ? c.name
+                                    : '${c.icon} ${c.name}',
                                 colorHex: c.color,
                               ),
                             )
@@ -433,15 +434,26 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                         },
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Kategorien verwalten',
-                      onPressed: openManageCategories,
-                      icon: const Icon(Icons.add),
-                    ),
-                    IconButton(
-                      tooltip: 'Kategorien anordnen',
-                      onPressed: openReorderSheet,
-                      icon: const Icon(Icons.drag_handle),
+                    PopupMenuButton<String>(
+                      tooltip: 'Kategorien',
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (value) {
+                        if (value == 'manage') {
+                          openManageCategories();
+                        } else if (value == 'reorder') {
+                          openReorderSheet();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'manage',
+                          child: Text('Kategorien verwalten'),
+                        ),
+                        PopupMenuItem(
+                          value: 'reorder',
+                          child: Text('Reihenfolge ändern'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -743,7 +755,7 @@ class _TodoAiPrioritizeSheetState
                                         ref.invalidate(todosForScopeProvider(
                                             TodoScope.family));
                                         ref.invalidate(todosProvider);
-                                        ref.invalidate(_categoriesProvider);
+                                        ref.invalidate(categoriesListProvider);
                                         Navigator.pop(context);
                                       }
                                     } on ApiException catch (e) {
@@ -900,13 +912,37 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
           if (todo.members.isNotEmpty)
             Row(
               mainAxisSize: MainAxisSize.min,
-              children: todo.members
-                  .take(2)
-                  .map((m) => Text(
-                        m.emoji ?? m.name[0],
-                        style: const TextStyle(fontSize: 12),
-                      ))
-                  .toList(),
+              children: [
+                ...todo.members.take(3).map((m) {
+                  final c = AppColors.memberColorFromHex(m.color);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 3),
+                    child: CircleAvatar(
+                      radius: 11,
+                      backgroundColor: c,
+                      child: Text(
+                        m.emoji ?? m.name[0].toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.onMemberAccent(c),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                if (todo.members.length > 3)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Text(
+                      '+${todo.members.length - 3}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           if (todo.proposalCount > 0)
             Badge(

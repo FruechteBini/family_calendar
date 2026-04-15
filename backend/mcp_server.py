@@ -97,6 +97,7 @@ def _event_dict(e: Event) -> dict:
         "start": _dt(e.start),
         "end": _dt(e.end),
         "all_day": e.all_day,
+        "color": e.color,
         "category": e.category.name if e.category else None,
         "members": [m.name for m in e.members] if e.members else [],
         "recurrence_rules": rules,
@@ -236,6 +237,7 @@ async def create_event(
     description: str | None = None,
     all_day: bool = False,
     category_id: int | None = None,
+    color: str | None = None,
     member_ids: list[int] | None = None,
 ) -> str:
     """Neuen Termin erstellen. start/end im ISO-Format."""
@@ -249,6 +251,7 @@ async def create_event(
             end=datetime.fromisoformat(end),
             all_day=all_day,
             category_id=category_id,
+            color=color if color and str(color).strip() else None,
             members=members,
             family_id=FAMILY_ID,
         )
@@ -273,6 +276,7 @@ async def update_event(
     end: str | None = None,
     all_day: bool | None = None,
     category_id: int | None = None,
+    color: str | None = None,
     member_ids: list[int] | None = None,
 ) -> str:
     """Bestehenden Termin ändern. Nur übergebene Felder werden aktualisiert."""
@@ -295,6 +299,9 @@ async def update_event(
             event.all_day = all_day
         if category_id is not None:
             event.category_id = category_id
+        if color is not None:
+            c = str(color).strip()
+            event.color = c if c else None
         if member_ids is not None:
             event.members = await _resolve_members(db, member_ids)
         await db.flush()

@@ -154,24 +154,45 @@ class SyncService {
       final start = now.subtract(const Duration(days: 30));
       final end = now.add(const Duration(days: 60));
       final response = await _dio.get('/api/events', queryParameters: {
-        'start_date': start.toIso8601String(),
-        'end_date': end.toIso8601String(),
+        'date_from': start.toIso8601String(),
+        'date_to': end.toIso8601String(),
       });
       final items = (response.data as List);
       await _db.delete(_db.cachedEvents).go();
       for (final item in items) {
+        final cat = item['category'] as Map<String, dynamic>?;
+        final startStr = item['start'] ?? item['start_time'];
+        final endStr = item['end'] ?? item['end_time'];
+        final rawM = item['member_ids'];
+        final rawMembers = item['members'] as List<dynamic>?;
+        final mids = <int>[];
+        if (rawM is List && rawM.isNotEmpty) {
+          for (final e in rawM) {
+            if (e is int) mids.add(e);
+          }
+        } else if (rawMembers != null) {
+          for (final m in rawMembers) {
+            if (m is Map<String, dynamic> && m['id'] is int) {
+              mids.add(m['id'] as int);
+            }
+          }
+        }
         await _db.into(_db.cachedEvents).insert(
           CachedEventsCompanion.insert(
             id: Value(item['id'] as int),
             title: item['title'] as String,
             description: Value(item['description'] as String?),
-            startTime: DateTime.parse(item['start_time'] as String),
-            endTime: DateTime.parse(item['end_time'] as String),
+            startTime: DateTime.parse(startStr as String),
+            endTime: DateTime.parse(endStr as String),
             allDay: Value(item['all_day'] as bool? ?? false),
-            categoryId: Value(item['category_id'] as int?),
-            categoryName: Value(item['category_name'] as String?),
-            categoryColor: Value(item['category_color'] as String?),
-            memberIdsJson: Value(jsonEncode(item['member_ids'] ?? [])),
+            categoryId: Value(
+                item['category_id'] as int? ?? cat?['id'] as int?),
+            categoryName: Value(
+                item['category_name'] as String? ?? cat?['name'] as String?),
+            categoryColor: Value(item['category_color'] as String? ??
+                cat?['color'] as String?),
+            color: Value(item['color'] as String?),
+            memberIdsJson: Value(jsonEncode(mids)),
           ),
         );
       }

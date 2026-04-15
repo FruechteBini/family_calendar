@@ -121,11 +121,23 @@ class EventDetailScreen extends ConsumerWidget {
                 IconButton(
                   tooltip: 'Löschen',
                   icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+                  iconSize: 28,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(52, 52),
+                    padding: const EdgeInsets.all(14),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   onPressed: () => _deleteFromDetail(context, ref, e),
                 ),
                 IconButton(
                   tooltip: 'Bearbeiten',
                   icon: const Icon(Icons.edit_outlined),
+                  iconSize: 28,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(52, 52),
+                    padding: const EdgeInsets.all(14),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   onPressed: () => _edit(context, ref, e),
                 ),
               ],
@@ -202,6 +214,37 @@ class EventDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               _DetailSection(
+                icon: Icons.palette_outlined,
+                label: 'Farbe in der Ansicht',
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: _detailEventPreviewColor(context, e),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.35,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        e.color != null
+                            ? 'Eigene Terminfarbe (${e.color})'
+                            : 'Kategoriefarbe${e.categoryColor != null ? '' : ' / Standard'}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _DetailSection(
                 icon: Icons.notifications_outlined,
                 label: 'Push-Dringlichkeit',
                 child: Text(
@@ -254,6 +297,20 @@ class EventDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Color _detailEventPreviewColor(BuildContext context, Event e) {
+  final hex = e.displayColorHex;
+  if (hex == null || hex.isEmpty) {
+    return Theme.of(context).colorScheme.primary;
+  }
+  final h = hex.replaceAll('#', '').trim();
+  if (h.length == 6) {
+    try {
+      return Color(int.parse('FF$h', radix: 16));
+    } catch (_) {}
+  }
+  return Theme.of(context).colorScheme.primary;
 }
 
 String _formatRecurrenceSummary(List<EventRecurrenceRule> rules) {

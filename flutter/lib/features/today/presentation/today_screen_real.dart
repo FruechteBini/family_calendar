@@ -397,10 +397,28 @@ class _EventRow extends StatelessWidget {
     final time = event.allDay
         ? 'Ganztags'
         : '${event.startTime.hour.toString().padLeft(2, '0')}:${event.startTime.minute.toString().padLeft(2, '0')}';
+    final hex = event.displayColorHex;
+    Color? stripe;
+    if (hex != null && hex.isNotEmpty) {
+      final h = hex.replaceAll('#', '').trim();
+      if (h.length == 6) {
+        try {
+          stripe = Color(int.parse('FF$h', radix: 16));
+        } catch (_) {}
+      }
+    }
+    stripe ??= Theme.of(context).colorScheme.primary;
     return Card(
       color: AppColors.surfaceContainerHigh,
       child: ListTile(
-        leading: const Icon(Icons.event_outlined),
+        leading: Container(
+          width: 6,
+          height: 40,
+          decoration: BoxDecoration(
+            color: stripe,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
         title: Text(event.title),
         subtitle: Text(time),
         trailing: const Icon(Icons.chevron_right),

@@ -23,7 +23,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -40,6 +40,9 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(cachedRecipes, cachedRecipes.recipeCategoryId);
             await m.addColumn(cachedRecipes, cachedRecipes.recipeCategoryName);
             await m.addColumn(cachedRecipes, cachedRecipes.tagsJson);
+          }
+          if (from < 4) {
+            await m.addColumn(cachedEvents, cachedEvents.color);
           }
         },
       );

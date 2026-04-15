@@ -68,7 +68,11 @@ class EventRepository {
 
   Future<void> deleteEvent(int id) async {
     try {
-      await _dio.delete(Endpoints.event(id));
+      // API returns 204 No Content — avoid default JSON decode on empty body.
+      await _dio.delete(
+        Endpoints.event(id),
+        options: Options(responseType: ResponseType.plain),
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

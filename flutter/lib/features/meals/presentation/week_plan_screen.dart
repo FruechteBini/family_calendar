@@ -664,9 +664,7 @@ class _SuggestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        showAppToast(context, message: 'Tipp: Zum Eintragen einen Slot antippen.', type: ToastType.info);
-      },
+      onTap: () => context.push('/recipes/${recipe.id}'),
       child: Container(
         width: 200,
         height: 240,

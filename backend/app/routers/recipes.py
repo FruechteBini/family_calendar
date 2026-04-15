@@ -285,36 +285,66 @@ def _parse_amount(s: str) -> float | None:
         return None
 
 
+def _recipes_to_suggestions(recipes: list[Recipe], now) -> list[RecipeSuggestion]:
+    out: list[RecipeSuggestion] = []
+    for r in recipes:
+        days = None
+        if r.last_cooked_at:
+            days = (now - ensure_aware(r.last_cooked_at)).days
+        out.append(
+            RecipeSuggestion(
+                id=r.id,
+                title=r.title,
+                difficulty=r.difficulty,
+                prep_time_active_minutes=r.prep_time_active_minutes,
+                last_cooked_at=r.last_cooked_at,
+                cook_count=r.cook_count,
+                days_since_cooked=days,
+            )
+        )
+    return out
+
+
 @router.get("/suggestions", response_model=list[RecipeSuggestion])
 async def recipe_suggestions(
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
 ):
-    stmt = (
+    """Rezeptvorschläge (selten gekocht / lange nicht). Mindestens 5, sofern genug Rezepte."""
+    want = max(limit, 5)
+    order_by = (
+        Recipe.last_cooked_at.asc().nulls_first(),
+        Recipe.cook_count.asc(),
+    )
+    stmt_ai = (
         select(Recipe)
         .where(Recipe.ai_accessible.is_(True), Recipe.family_id == family_id)
-        .order_by(Recipe.last_cooked_at.asc().nulls_first(), Recipe.cook_count.asc())
-        .limit(limit)
+        .order_by(*order_by)
+        .limit(want)
     )
-    result = await db.execute(stmt)
-    recipes = result.scalars().all()
+    result = await db.execute(stmt_ai)
+    recipes = list(result.scalars().all())
+    ids = {r.id for r in recipes}
+
+    if len(recipes) < want:
+        fill_conds = [
+            Recipe.family_id == family_id,
+            Recipe.ai_accessible.is_(False),
+        ]
+        if ids:
+            fill_conds.append(Recipe.id.notin_(ids))
+        stmt_fill = (
+            select(Recipe)
+            .where(*fill_conds)
+            .order_by(*order_by)
+            .limit(want - len(recipes))
+        )
+        fill_result = await db.execute(stmt_fill)
+        recipes.extend(fill_result.scalars().all())
+
     now = utcnow()
-    suggestions = []
-    for r in recipes:
-        days = None
-        if r.last_cooked_at:
-            days = (now - ensure_aware(r.last_cooked_at)).days
-        suggestions.append(RecipeSuggestion(
-            id=r.id,
-            title=r.title,
-            difficulty=r.difficulty,
-            prep_time_active_minutes=r.prep_time_active_minutes,
-            last_cooked_at=r.last_cooked_at,
-            cook_count=r.cook_count,
-            days_since_cooked=days,
-        ))
-    return suggestions
+    return _recipes_to_suggestions(recipes, now)
 
 
 @router.get("/{recipe_id}", response_model=RecipeDetailResponse)

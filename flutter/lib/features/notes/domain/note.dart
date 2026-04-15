@@ -166,10 +166,21 @@ class Note {
         return 'Link';
       case NoteType.text:
         final c = content?.trim() ?? '';
-        if (c.isEmpty) return 'Notiz';
-        var line = c.split(RegExp(r'\r?\n')).first.trim();
-        if (line.length > 72) line = '${line.substring(0, 69)}…';
-        return line;
+        if (c.isNotEmpty) {
+          var line = c.split(RegExp(r'\r?\n')).first.trim();
+          if (line.length > 72) line = '${line.substring(0, 69)}…';
+          return line;
+        }
+        final img = attachments.where((a) => a.isImage).toList();
+        if (img.isNotEmpty) {
+          return img.length > 1 ? 'Fotos (${img.length})' : 'Foto';
+        }
+        final vid = attachments.where((a) => a.isVideo).toList();
+        if (vid.isNotEmpty) {
+          return vid.length > 1 ? 'Videos (${vid.length})' : 'Video';
+        }
+        if (attachments.isNotEmpty) return 'Anhang';
+        return 'Notiz';
       case NoteType.checklist:
         for (final it in checklistItems ?? const []) {
           final x = it.text.trim();

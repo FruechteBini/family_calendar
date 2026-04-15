@@ -4,7 +4,8 @@ from pydantic import BaseModel
 class NoteCategoryCreate(BaseModel):
     name: str
     color: str = "#0052CC"
-    icon: str = "📝"
+    icon: str = "\U0001f4dd"
+    is_personal: bool = True
 
 
 class NoteCategoryUpdate(BaseModel):
@@ -20,5 +21,6 @@ class NoteCategoryResponse(BaseModel):
     name: str
     color: str
     icon: str
+    is_personal: bool
 
     model_config = {"from_attributes": True}

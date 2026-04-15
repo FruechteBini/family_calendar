@@ -7,6 +7,13 @@ const Calendar = (() => {
   let selectedDate = null;
   const MS_PER_DAY = 86_400_000;
   const toDateStr = App.formatDateISO;
+  const DEFAULT_EVENT_COLOR = '#6B778C';
+
+  function eventDisplayColor(ev) {
+    if (ev.color && typeof ev.color === 'string' && ev.color.startsWith('#')) return ev.color;
+    if (ev.category && ev.category.color) return ev.category.color;
+    return DEFAULT_EVENT_COLOR;
+  }
 
   function init() {
     document.getElementById('cal-prev').addEventListener('click', () => navigate(-1));
@@ -71,7 +78,7 @@ const Calendar = (() => {
       dayEvents.slice(0, maxShow).forEach(ev => {
         const tag = document.createElement('div');
         tag.className = 'cal-event';
-        tag.style.background = ev.category ? ev.category.color : '#6B778C';
+        tag.style.background = eventDisplayColor(ev);
         tag.textContent = ev.all_day ? ev.title : `${App.formatTime(ev.start)} ${ev.title}`;
         cell.appendChild(tag);
       });
@@ -117,7 +124,7 @@ const Calendar = (() => {
     } else {
       container.innerHTML = dayEvents.map(ev => `
         <div class="day-event-item">
-          <div class="day-event-dot" style="background:${ev.category ? ev.category.color : '#6B778C'}"></div>
+          <div class="day-event-dot" style="background:${eventDisplayColor(ev)}"></div>
           <span class="day-event-time">${ev.all_day ? 'Ganztägig' : App.formatTime(ev.start) + ' - ' + App.formatTime(ev.end)}</span>
           <span class="day-event-title">${esc(ev.title)}</span>
           <span class="day-event-members">${ev.members.map(m => m.avatar_emoji).join(' ')}</span>
@@ -272,6 +279,11 @@ const Calendar = (() => {
 
     const linkedTodosHtml = renderLinkedTodosHtml(existingTodos, isEdit);
 
+    const defaultPickerColor = (event?.color)
+      || (event?.category && event.category.color)
+      || '#5C6BC0';
+    const useCustomColor = isEdit && !!event?.color;
+
     const html = `<form>
       <label>Titel</label>
       <input name="title" value="${esc(event?.title || '')}" required>
@@ -302,6 +314,10 @@ const Calendar = (() => {
 
       <label>Kategorie</label>
       <select name="category_id">${App.categoryOptionsHtml(event?.category?.id)}</select>
+      <div class="event-color-row" style="margin:0.5rem 0">
+        <label><input type="checkbox" name="use_custom_event_color" id="use-custom-event-color" ${useCustomColor ? 'checked' : ''}> Eigene Terminfarbe</label>
+        <input type="color" name="event_color" id="event-color-input" value="${esc(defaultPickerColor)}" style="margin-left:0.5rem;vertical-align:middle;width:2.5rem;height:1.6rem;border:none">
+      </div>
       <label>Mitglieder</label>
       ${App.memberChipsHtml(memberIds)}
 
@@ -320,6 +336,7 @@ const Calendar = (() => {
       const eDate = fd.get('end_date');
       const sTime = allDay ? '00:00' : fd.get('start_time');
       const eTime = allDay ? '23:59' : fd.get('end_time');
+      const useCustom = document.getElementById('use-custom-event-color')?.checked;
       const body = {
         title: fd.get('title'),
         description: fd.get('description') || null,
@@ -328,6 +345,7 @@ const Calendar = (() => {
         end: new Date(`${eDate}T${eTime}`).toISOString(),
         category_id: fd.get('category_id') ? parseInt(fd.get('category_id')) : null,
         member_ids: App.getSelectedChipIds(document.querySelector('#modal-body .checkbox-group')),
+        color: useCustom ? (fd.get('event_color') || null) : null,
       };
 
       let savedEvent;

@@ -22,6 +22,13 @@ def _dt_from_rfc3339(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def _ensure_utc(dt: datetime) -> datetime:
+    """DB/API may mix naive and aware timestamps; normalize before comparing."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _hash_dict(d: dict) -> str:
     raw = repr(sorted(d.items())).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
@@ -271,8 +278,10 @@ class GoogleSyncService:
             ge = google_items.get(m.google_event_id)
             if not ev or not ge or ge.get("status") == "cancelled":
                 continue
-            google_updated = _dt_from_rfc3339(ge.get("updated")).astimezone(timezone.utc) if ge.get("updated") else None
-            local_updated = (ev.updated_at or ev.created_at).astimezone(timezone.utc)
+            google_updated = (
+                _ensure_utc(_dt_from_rfc3339(ge.get("updated"))) if ge.get("updated") else None
+            )
+            local_updated = _ensure_utc(ev.updated_at or ev.created_at)
 
             if google_updated and google_updated > local_updated:
                 fields = _google_event_to_local_fields(ge)
@@ -443,8 +452,10 @@ class GoogleSyncService:
             gt = google_tasks.get(m.google_task_id)
             if not todo or not gt or gt.get("deleted") is True:
                 continue
-            google_updated = _dt_from_rfc3339(gt.get("updated")).astimezone(timezone.utc) if gt.get("updated") else None
-            local_updated = (todo.updated_at or todo.created_at).astimezone(timezone.utc)
+            google_updated = (
+                _ensure_utc(_dt_from_rfc3339(gt.get("updated"))) if gt.get("updated") else None
+            )
+            local_updated = _ensure_utc(todo.updated_at or todo.created_at)
 
             if google_updated and google_updated > local_updated:
                 fields = _google_task_to_local_fields(gt)

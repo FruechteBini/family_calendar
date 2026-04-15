@@ -28,6 +28,7 @@ class Event(Base):
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="SET NULL"), default=None
     )
+    color: Mapped[str | None] = mapped_column(String(7), default=None)
     notification_level_id: Mapped[int | None] = mapped_column(
         ForeignKey("notification_levels.id", ondelete="SET NULL"), default=None
     )

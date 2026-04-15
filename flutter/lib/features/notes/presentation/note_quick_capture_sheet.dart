@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../shared/widgets/toast.dart';
@@ -11,6 +12,10 @@ import 'notes_screen.dart';
 
 /// Set by [NoteShareIntentListener]; [NotesScreen] consumes and opens quick capture.
 final pendingSharedNoteTextProvider = StateProvider<String?>((ref) => null);
+
+/// Images/videos/files shared into the app; [NotesScreen] opens [NoteFormDialog].
+final pendingSharedNoteMediaProvider =
+    StateProvider<List<SharedMediaFile>?>((ref) => null);
 
 class _QuickCaptureResult {
   final int? categoryId;
@@ -38,16 +43,6 @@ Future<void> runQuickNoteCapture(
   final trimmed = raw.trim();
   if (trimmed.isEmpty) return;
 
-  List<NoteCategory> categories;
-  try {
-    categories = await ref.read(noteCategoriesListProvider.future);
-  } on ApiException catch (e) {
-    if (context.mounted) {
-      showAppToast(context, message: e.message, type: ToastType.error);
-    }
-    return;
-  }
-
   if (!context.mounted) return;
 
   final result = await showModalBottomSheet<_QuickCaptureResult>(
@@ -55,7 +50,6 @@ Future<void> runQuickNoteCapture(
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => _QuickCaptureSheetBody(
-      categories: categories,
       rawPreview: _previewRaw(trimmed),
       askScope: askScope,
       initialShareScope: NotesScope.family,
@@ -76,7 +70,7 @@ Future<void> runQuickNoteCapture(
           ),
         );
     invalidateAllNotesScopes(ref);
-    ref.invalidate(noteCategoriesListProvider);
+    invalidateNoteCategoryCaches(ref);
     if (askScope) {
       ref.read(notesScopeProvider.notifier).state = result.isPersonal
           ? NotesScope.personal
@@ -92,32 +86,38 @@ Future<void> runQuickNoteCapture(
   }
 }
 
-class _QuickCaptureSheetBody extends StatefulWidget {
+class _QuickCaptureSheetBody extends ConsumerStatefulWidget {
   const _QuickCaptureSheetBody({
-    required this.categories,
     required this.rawPreview,
     required this.askScope,
     required this.initialShareScope,
     required this.fixedIsPersonal,
   });
 
-  final List<NoteCategory> categories;
   final String rawPreview;
   final bool askScope;
   final NotesScope initialShareScope;
   final bool? fixedIsPersonal;
 
   @override
-  State<_QuickCaptureSheetBody> createState() => _QuickCaptureSheetBodyState();
+  ConsumerState<_QuickCaptureSheetBody> createState() =>
+      _QuickCaptureSheetBodyState();
 }
 
-class _QuickCaptureSheetBodyState extends State<_QuickCaptureSheetBody> {
+class _QuickCaptureSheetBodyState extends ConsumerState<_QuickCaptureSheetBody> {
   late NotesScope _shareScope;
 
   @override
   void initState() {
     super.initState();
     _shareScope = widget.initialShareScope;
+  }
+
+  bool get _categoriesForPersonal {
+    if (widget.askScope) {
+      return _shareScope == NotesScope.personal;
+    }
+    return widget.fixedIsPersonal ?? false;
   }
 
   void _pick(int? categoryId) {
@@ -133,6 +133,8 @@ class _QuickCaptureSheetBodyState extends State<_QuickCaptureSheetBody> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final maxH = MediaQuery.sizeOf(context).height * 0.65;
+    final catsAsync =
+        ref.watch(noteCategoriesListProvider(_categoriesForPersonal));
 
     return SafeArea(
       child: ConstrainedBox(
@@ -201,11 +203,27 @@ class _QuickCaptureSheetBodyState extends State<_QuickCaptureSheetBody> {
                 title: const Text('Ohne Kategorie'),
                 onTap: () => _pick(null),
               ),
-              ...widget.categories.map(
-                (c) => ListTile(
-                  leading: Text(c.icon, style: const TextStyle(fontSize: 22)),
-                  title: Text(c.name),
-                  onTap: () => _pick(c.id),
+              catsAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('$e',
+                      style: TextStyle(color: theme.colorScheme.error)),
+                ),
+                data: (List<NoteCategory> categories) => Column(
+                  children: categories
+                      .map(
+                        (c) => ListTile(
+                          leading:
+                              Text(c.icon, style: const TextStyle(fontSize: 22)),
+                          title: Text(c.name),
+                          onTap: () => _pick(c.id),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
             ],

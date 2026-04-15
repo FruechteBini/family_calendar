@@ -73,25 +73,51 @@ class _NoteShareIntentListenerState extends ConsumerState<NoteShareIntentListene
 
   Future<void> _handleShare(List<SharedMediaFile> list) async {
     if (list.isEmpty || !mounted) return;
-    final raw = extractTextFromSharedMedia(list);
     try {
       await ReceiveSharingIntent.instance.reset();
     } catch (_) {}
-    if (raw == null || raw.trim().isEmpty) return;
-    final trimmed = raw.trim();
-    final now = DateTime.now();
-    if (_lastShareRaw == trimmed &&
-        _lastShareAt != null &&
-        now.difference(_lastShareAt!) < const Duration(seconds: 2)) {
-      return;
-    }
-    _lastShareRaw = trimmed;
-    _lastShareAt = now;
 
     final auth = ref.read(authStateProvider);
     if (!auth.isAuthenticated || !auth.hasFamilyId) return;
 
-    ref.read(pendingSharedNoteTextProvider.notifier).state = trimmed;
+    final raw = extractTextFromSharedMedia(list);
+    if (raw != null && raw.trim().isNotEmpty) {
+      final trimmed = raw.trim();
+      final now = DateTime.now();
+      if (_lastShareRaw == trimmed &&
+          _lastShareAt != null &&
+          now.difference(_lastShareAt!) < const Duration(seconds: 2)) {
+        return;
+      }
+      _lastShareRaw = trimmed;
+      _lastShareAt = now;
+
+      ref.read(pendingSharedNoteTextProvider.notifier).state = trimmed;
+      ref.read(routerProvider).go('/notes');
+      return;
+    }
+
+    final mediaOnly = list
+        .where(
+          (f) =>
+              f.type == SharedMediaType.image ||
+              f.type == SharedMediaType.video ||
+              f.type == SharedMediaType.file,
+        )
+        .toList();
+    if (mediaOnly.isEmpty) return;
+
+    final sig = mediaOnly.map((e) => '${e.type.name}:${e.path}').join('|');
+    final now = DateTime.now();
+    if (_lastShareRaw == sig &&
+        _lastShareAt != null &&
+        now.difference(_lastShareAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastShareRaw = sig;
+    _lastShareAt = now;
+
+    ref.read(pendingSharedNoteMediaProvider.notifier).state = mediaOnly;
     ref.read(routerProvider).go('/notes');
   }
 

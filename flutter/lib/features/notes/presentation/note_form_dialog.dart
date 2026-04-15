@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
@@ -18,6 +20,7 @@ import '../data/note_tag_repository.dart';
 import '../domain/note.dart';
 import '../domain/note_attachment.dart';
 import 'note_attachment_helpers.dart';
+import '../logic/note_quick_capture.dart';
 
 final _urlInText = RegExp(r'https?://[^\s]+', caseSensitive: false);
 
@@ -43,8 +46,14 @@ class _PendingFile {
 
 class NoteFormDialog extends ConsumerStatefulWidget {
   final Note? note;
+  /// Media from Android/iOS share sheet; mutually exclusive with [note].
+  final List<SharedMediaFile>? sharedMedia;
 
-  const NoteFormDialog({super.key, this.note});
+  const NoteFormDialog({super.key, this.note, this.sharedMedia})
+      : assert(
+          note == null || sharedMedia == null,
+          'note and sharedMedia are mutually exclusive',
+        );
 
   @override
   ConsumerState<NoteFormDialog> createState() => _NoteFormDialogState();
@@ -63,8 +72,11 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
   final List<TextEditingController> _checkLines = [];
   final List<bool> _checkDone = [];
   bool _saving = false;
+  bool _sharedMediaBusy = false;
   String? _dupWarning;
   LinkPreview? _preview;
+  Timer? _linkUrlDebounce;
+  Timer? _textUrlDebounce;
 
   final List<NoteAttachment> _existingAttachments = [];
   final Set<int> _removedAttachmentIds = {};
@@ -103,7 +115,57 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
       _checkDone.add(false);
     }
     _content.addListener(_onContentChanged);
-    _url.addListener(() => setState(() {}));
+    _url.addListener(_onLinkUrlFieldChanged);
+
+    if (widget.sharedMedia != null && widget.sharedMedia!.isNotEmpty) {
+      _sharedMediaBusy = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_ingestSharedMedia());
+      });
+    }
+  }
+
+  Future<void> _ingestSharedMedia() async {
+    final list = widget.sharedMedia;
+    if (list == null || list.isEmpty) return;
+    try {
+      for (final f in list) {
+        if (f.type != SharedMediaType.image &&
+            f.type != SharedMediaType.video &&
+            f.type != SharedMediaType.file) {
+          continue;
+        }
+        final pathStr = f.path.trim();
+        if (pathStr.isEmpty) continue;
+        try {
+          final xf = XFile(pathStr);
+          final body = await xf.readAsBytes();
+          var name = xf.name.trim();
+          if (name.isEmpty) {
+            name = path.basename(pathStr);
+          }
+          if (name.isEmpty) name = 'Anhang';
+          if (!mounted) return;
+          setState(() {
+            _pendingFiles.add(_PendingFile(filename: name, bytes: body));
+          });
+        } catch (_) {
+          if (kIsWeb) continue;
+          if (!mounted) return;
+          final base = path.basename(pathStr);
+          setState(() {
+            _pendingFiles.add(
+              _PendingFile(
+                filename: base.isNotEmpty ? base : 'Anhang',
+                filePath: pathStr,
+              ),
+            );
+          });
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _sharedMediaBusy = false);
+    }
   }
 
   void _onContentChanged() {
@@ -112,11 +174,46 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
     if (m != null && mounted) {
       setState(() => _dupWarning = null);
     }
+    _scheduleTextOnlyUrlPreview();
+  }
+
+  void _onLinkUrlFieldChanged() {
+    if (!mounted) return;
+    setState(() {});
+    if (_type != NoteType.link) return;
+    _linkUrlDebounce?.cancel();
+    final u = _url.text.trim();
+    if (u.isEmpty) {
+      setState(() => _preview = null);
+      return;
+    }
+    _linkUrlDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted || _type != NoteType.link) return;
+      unawaited(_fetchPreview(checkDup: true));
+    });
+  }
+
+  void _scheduleTextOnlyUrlPreview() {
+    _textUrlDebounce?.cancel();
+    if (_type != NoteType.text) return;
+    final raw = _content.text;
+    final u = urlForLinkNote(raw);
+    if (u == null || raw.trim() != u) {
+      if (_preview != null && mounted) setState(() => _preview = null);
+      return;
+    }
+    _textUrlDebounce = Timer(const Duration(milliseconds: 550), () {
+      if (!mounted || _type != NoteType.text) return;
+      unawaited(_fetchPreviewForStandaloneUrl(u));
+    });
   }
 
   @override
   void dispose() {
+    _linkUrlDebounce?.cancel();
+    _textUrlDebounce?.cancel();
     _content.removeListener(_onContentChanged);
+    _url.removeListener(_onLinkUrlFieldChanged);
     _title.dispose();
     _content.dispose();
     _url.dispose();
@@ -126,16 +223,45 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
     super.dispose();
   }
 
-  Future<void> _fetchPreview() async {
+  Future<void> _fetchPreview({bool checkDup = false}) async {
     final u = _url.text.trim();
     if (u.isEmpty) return;
     try {
       final p = await ref.read(noteRepositoryProvider).previewLink(u);
-      if (mounted) setState(() => _preview = p);
+      if (!mounted || _type != NoteType.link) return;
+      setState(() {
+        _preview = p;
+        if (_title.text.trim().isEmpty &&
+            p.linkTitle != null &&
+            p.linkTitle!.trim().isNotEmpty) {
+          _title.text = p.linkTitle!.trim();
+        }
+      });
+      if (checkDup && mounted) await _checkDup();
     } on ApiException catch (e) {
       if (mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);
       }
+    }
+  }
+
+  Future<void> _fetchPreviewForStandaloneUrl(String u) async {
+    if (u.isEmpty) return;
+    try {
+      final p = await ref.read(noteRepositoryProvider).previewLink(u);
+      if (!mounted || _type != NoteType.text) return;
+      final still = urlForLinkNote(_content.text);
+      if (still == null || _content.text.trim() != still) return;
+      setState(() {
+        _preview = p;
+        if (_title.text.trim().isEmpty &&
+            p.linkTitle != null &&
+            p.linkTitle!.trim().isNotEmpty) {
+          _title.text = p.linkTitle!.trim();
+        }
+      });
+    } on ApiException {
+      // Vorschau optional — Notiz kann trotzdem ohne Metadaten gespeichert werden.
     }
   }
 
@@ -451,8 +577,9 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
           'name': trimmed,
           'color': hex,
           'icon': '\u{1F4DD}',
+          'is_personal': _personal,
         });
-        ref.invalidate(noteCategoriesListProvider);
+        invalidateNoteCategoryCaches(ref);
         setState(() => _categoryId = created.id);
       } on ApiException catch (e) {
         if (mounted) {
@@ -484,6 +611,8 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
           type: ToastType.error);
       return;
     }
+
+    if (_sharedMediaBusy) return;
 
     setState(() => _saving = true);
     final repo = ref.read(noteRepositoryProvider);
@@ -673,7 +802,7 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final catsAsync = ref.watch(noteCategoriesListProvider);
+    final catsAsync = ref.watch(noteCategoriesListProvider(_personal));
     final tagsAsync = ref.watch(_noteFormTagsProvider);
 
     final detectedUrl = _type == NoteType.text
@@ -692,6 +821,11 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_sharedMediaBusy)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: LinearProgressIndicator(),
+                ),
               SegmentedButton<NoteType>(
                 segments: const [
                   ButtonSegment(value: NoteType.text, label: Text('Text')),
@@ -701,11 +835,23 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
                 ],
                 selected: {_type},
                 onSelectionChanged: (s) {
+                  _linkUrlDebounce?.cancel();
+                  _textUrlDebounce?.cancel();
                   setState(() {
                     _type = s.first;
                     _dupWarning = null;
                     _preview = null;
                   });
+                  if (s.first == NoteType.link && _url.text.trim().isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) unawaited(_fetchPreview(checkDup: true));
+                    });
+                  }
+                  if (s.first == NoteType.text) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _scheduleTextOnlyUrlPreview();
+                    });
+                  }
                 },
               ),
               const SizedBox(height: 12),
@@ -721,7 +867,7 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
                 TextField(
                   controller: _content,
                   decoration: const InputDecoration(
-                    labelText: 'Inhalt (Markdown)',
+                    labelText: 'Inhalt (Markdown, optional)',
                     border: OutlineInputBorder(),
                     alignLabelWithHint: true,
                   ),
@@ -733,14 +879,29 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
                     padding: const EdgeInsets.only(top: 8),
                     child: OutlinedButton.icon(
                       onPressed: () {
+                        _textUrlDebounce?.cancel();
                         setState(() {
                           _type = NoteType.link;
                           _url.text = detectedUrl;
+                        });
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) unawaited(_fetchPreview(checkDup: true));
                         });
                       },
                       icon: const Icon(Icons.link),
                       label: const Text('Als Link-Notiz speichern?'),
                     ),
+                  ),
+                if (_preview != null &&
+                    (_preview!.linkTitle != null ||
+                        _preview!.linkThumbnailUrl != null))
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: _preview!.linkThumbnailUrl != null
+                        ? Image.network(_preview!.linkThumbnailUrl!, width: 48)
+                        : const Icon(Icons.link),
+                    title: Text(_preview!.linkTitle ?? ''),
+                    subtitle: Text(_preview!.linkDomain ?? ''),
                   ),
               ],
               if (_type == NoteType.link) ...[
@@ -751,14 +912,12 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
                     border: OutlineInputBorder(),
                   ),
                   onEditingComplete: () {
-                    _fetchPreview();
-                    _checkDup();
+                    unawaited(_fetchPreview(checkDup: true));
                   },
                 ),
                 TextButton(
                   onPressed: () {
-                    _fetchPreview();
-                    _checkDup();
+                    unawaited(_fetchPreview(checkDup: true));
                   },
                   child: const Text('Vorschau laden'),
                 ),
@@ -839,7 +998,10 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
                 title: const Text('Persönlich'),
                 subtitle: const Text('Nur für dich sichtbar'),
                 value: _personal,
-                onChanged: (v) => setState(() => _personal = v),
+                onChanged: (v) => setState(() {
+                  _personal = v;
+                  _categoryId = null;
+                }),
               ),
               Text(
                 'Kategorie',
@@ -973,7 +1135,7 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
           child: const Text('Abbrechen'),
         ),
         FilledButton(
-          onPressed: _saving ? null : _save,
+          onPressed: (_saving || _sharedMediaBusy) ? null : _save,
           child: _saving
               ? const SizedBox(
                   width: 20,

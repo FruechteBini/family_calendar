@@ -166,14 +166,21 @@ class TodoMember {
   final int id;
   final String name;
   final String? emoji;
+  final String? color;
 
-  const TodoMember({required this.id, required this.name, this.emoji});
+  const TodoMember({
+    required this.id,
+    required this.name,
+    this.emoji,
+    this.color,
+  });
 
   factory TodoMember.fromJson(Map<String, dynamic> json) {
     return TodoMember(
       id: json['id'] as int,
       name: json['name'] as String,
       emoji: json['emoji'] as String? ?? json['avatar_emoji'] as String?,
+      color: json['color'] as String?,
     );
   }
 }

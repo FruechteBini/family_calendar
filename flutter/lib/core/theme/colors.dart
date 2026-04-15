@@ -80,4 +80,24 @@ class AppColors {
   static const double spacing6 = 24.0;
   static const double spacing8 = 32.0;
   static const double spacing12 = 48.0;
+
+  /// Parses `#RRGGBB` / `RRGGBB` from family member settings; [fallback] if missing/invalid.
+  static Color memberColorFromHex(String? hex,
+      {Color fallback = const Color(0xFF869391)}) {
+    if (hex == null || hex.isEmpty) return fallback;
+    try {
+      var s = hex.replaceFirst('#', '');
+      if (s.length == 6) s = 'FF$s';
+      return Color(int.parse(s, radix: 16));
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  /// Readable foreground on [background] (member accent swatches).
+  static Color onMemberAccent(Color background) {
+    return background.computeLuminance() > 0.45
+        ? const Color(0xFF1C1B1F)
+        : Colors.white;
+  }
 }

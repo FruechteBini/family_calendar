@@ -4,14 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/preferences/calendar_defaults.dart';
-import '../../categories/data/category_repository.dart';
-import '../../categories/domain/category.dart';
+import '../../categories/categories_providers.dart';
 import '../../../shared/widgets/category_picker.dart';
 import '../../../shared/widgets/toast.dart';
-
-final _calendarDefaultsCategoriesProvider = FutureProvider<List<Category>>((ref) {
-  return ref.watch(categoryRepositoryProvider).getCategories();
-});
 
 /// Default calendar category (color) for personal vs family-wide events.
 class SettingsCalendarDefaultsScreen extends ConsumerWidget {
@@ -21,7 +16,7 @@ class SettingsCalendarDefaultsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authStateProvider);
     final defsAsync = ref.watch(calendarDefaultsProvider);
-    final catsAsync = ref.watch(_calendarDefaultsCategoriesProvider);
+    final catsAsync = ref.watch(categoriesListProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Kalenderfarben')),

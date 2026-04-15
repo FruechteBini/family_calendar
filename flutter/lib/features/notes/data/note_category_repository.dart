@@ -7,53 +7,52 @@ import '../../../core/auth/auth_provider.dart';
 import '../domain/note_category.dart';
 
 class NoteCategoryRepository {
-  final Dio _dio;
-
   NoteCategoryRepository(this._dio);
 
-  Future<List<NoteCategory>> getCategories() async {
-    try {
-      final response = await _dio.get(Endpoints.noteCategories);
-      return (response.data as List)
-          .map((e) => NoteCategory.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
+  final Dio _dio;
+
+  Future<List<NoteCategory>> getCategories({required bool isPersonal}) async {
+    final response = await _dio.get(
+      Endpoints.noteCategories,
+      queryParameters: {
+        'scope': isPersonal ? 'personal' : 'family',
+      },
+    );
+    final list = response.data as List<dynamic>;
+    return list
+        .map((e) => NoteCategory.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<NoteCategory> createCategory(Map<String, dynamic> data) async {
-    try {
-      final response = await _dio.post(Endpoints.noteCategories, data: data);
-      return NoteCategory.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
+    final response = await _dio.post(Endpoints.noteCategories, data: data);
+    return NoteCategory.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<NoteCategory> updateCategory(int id, Map<String, dynamic> data) async {
-    try {
-      final response = await _dio.put(Endpoints.noteCategory(id), data: data);
-      return NoteCategory.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
+    final response = await _dio.put(Endpoints.noteCategory(id), data: data);
+    return NoteCategory.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<void> deleteCategory(int id) async {
-    try {
-      await _dio.delete(Endpoints.noteCategory(id));
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
+    await _dio.delete(
+      Endpoints.noteCategory(id),
+      options: Options(responseType: ResponseType.plain),
+    );
   }
 
-  Future<void> reorderCategories(List<int> ids) async {
-    try {
-      await _dio.put(Endpoints.noteCategoriesReorder, data: {'ids': ids});
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
+  Future<void> reorderCategories(
+    List<int> ids, {
+    required bool isPersonal,
+  }) async {
+    await _dio.put(
+      Endpoints.noteCategoriesReorder,
+      data: {'ids': ids},
+      queryParameters: {
+        'scope': isPersonal ? 'personal' : 'family',
+      },
+      options: Options(responseType: ResponseType.plain),
+    );
   }
 }
 
@@ -62,10 +61,16 @@ final noteCategoryRepositoryProvider =
   return NoteCategoryRepository(ref.watch(dioProvider));
 });
 
-/// Single cache for note categories (tabs, note form, category screen).
-/// Scoped per logged-in user — categories are not shared within the family.
+/// [forPersonal] `true` = persönliche Kategorien, `false` = Familien-Kategorien.
 final noteCategoriesListProvider =
-    FutureProvider<List<NoteCategory>>((ref) {
-  ref.watch(authStateProvider.select((a) => a.user?.id));
-  return ref.watch(noteCategoryRepositoryProvider).getCategories();
+    FutureProvider.family<List<NoteCategory>, bool>((ref, forPersonal) {
+  ref.watch(authStateProvider.select((s) => s.user?.id));
+  return ref
+      .watch(noteCategoryRepositoryProvider)
+      .getCategories(isPersonal: forPersonal);
 });
+
+void invalidateNoteCategoryCaches(WidgetRef ref) {
+  ref.invalidate(noteCategoriesListProvider(true));
+  ref.invalidate(noteCategoriesListProvider(false));
+}

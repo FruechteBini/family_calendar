@@ -6,6 +6,30 @@ class NoteAttachment {
   final DateTime createdAt;
   final String? downloadUrl;
 
+  bool get isImage {
+    final ct = contentType.toLowerCase();
+    if (ct.startsWith('image/')) return true;
+    final n = filename.toLowerCase();
+    return n.endsWith('.png') ||
+        n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.gif') ||
+        n.endsWith('.webp') ||
+        n.endsWith('.heic') ||
+        n.endsWith('.bmp');
+  }
+
+  bool get isVideo {
+    final ct = contentType.toLowerCase();
+    if (ct.startsWith('video/')) return true;
+    final n = filename.toLowerCase();
+    return n.endsWith('.mp4') ||
+        n.endsWith('.mov') ||
+        n.endsWith('.webm') ||
+        n.endsWith('.mkv') ||
+        n.endsWith('.m4v');
+  }
+
   const NoteAttachment({
     required this.id,
     required this.filename,

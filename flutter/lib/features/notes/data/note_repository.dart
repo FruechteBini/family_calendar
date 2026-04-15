@@ -199,10 +199,14 @@ class NoteRepository {
     }
     try {
       final MultipartFile mf;
-      if (filePath != null) {
+      // Use bytes when present (gallery/share already read them). Relying on
+      // MultipartFile.fromFile alone can fail for some Android/iOS paths.
+      if (bytes != null) {
+        mf = MultipartFile.fromBytes(bytes, filename: filename);
+      } else if (filePath != null) {
         mf = await MultipartFile.fromFile(filePath, filename: filename);
       } else {
-        mf = MultipartFile.fromBytes(bytes!, filename: filename);
+        throw ArgumentError('filePath oder bytes erforderlich');
       }
       final form = FormData.fromMap({'file': mf});
       final response = await _dio.post(

@@ -10,7 +10,7 @@ from ..auth import get_current_user, require_family_id
 from ..config import settings
 from ..database import get_db
 from ..database import async_session
-from ..event_recurrence import occurrence_starts_for_event
+from ..event_recurrence import _as_utc, occurrence_starts_for_event
 from ..google_sync_service import GoogleSyncService
 from ..models.category import Category
 from ..models.event import Event
@@ -89,9 +89,9 @@ def _expand_event_for_range(
 ) -> list[EventResponse]:
     raw = event.recurrence_rules
     if not raw or not raw.strip():
-        if date_from and event.end < date_from:
+        if date_from and _as_utc(event.end) < _as_utc(date_from):
             return []
-        if date_to and event.start > date_to:
+        if date_to and _as_utc(event.start) > _as_utc(date_to):
             return []
         return [_event_response(event)]
 
@@ -382,6 +382,7 @@ async def create_event(
         end=data.end,
         all_day=data.all_day,
         category_id=category_id,
+        color=data.color,
         notification_level_id=data.notification_level_id,
         recurrence_rules=recurrence_json,
         members=members,

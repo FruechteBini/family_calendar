@@ -68,9 +68,12 @@ class RecipeRepository {
     }
   }
 
-  Future<List<Recipe>> getSuggestions() async {
+  Future<List<Recipe>> getSuggestions({int limit = 10}) async {
     try {
-      final response = await _dio.get(Endpoints.recipeSuggestions);
+      final response = await _dio.get(
+        Endpoints.recipeSuggestions,
+        queryParameters: {'limit': limit},
+      );
       return (response.data as List)
           .map((e) => Recipe.fromJson(e as Map<String, dynamic>))
           .toList();

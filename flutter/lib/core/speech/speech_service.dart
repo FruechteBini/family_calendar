@@ -16,6 +16,9 @@ enum MicrophonePermissionStatus {
 
 /// Thin wrapper around [SpeechToText] with init + Android/iOS mic permission.
 class SpeechService {
+  /// Ruhezeit ohne neue Erkennung, bevor [SpeechToText] die Session beendet.
+  static const Duration kPauseBeforeEnd = Duration(seconds: 5);
+
   final SpeechToText _speech = SpeechToText();
   bool _initialized = false;
 
@@ -69,6 +72,7 @@ class SpeechService {
       onResult: (result) =>
           onResult(result.recognizedWords, result.finalResult),
       localeId: localeId,
+      pauseFor: kPauseBeforeEnd,
       listenOptions: SpeechListenOptions(
         listenMode: ListenMode.dictation,
         partialResults: true,

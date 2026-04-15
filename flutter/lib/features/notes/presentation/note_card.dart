@@ -8,6 +8,7 @@ import '../../../core/api/api_client.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
+import '../domain/note_attachment.dart';
 import 'note_attachment_helpers.dart';
 import '../../todos/presentation/todo_form_dialog.dart';
 
@@ -176,9 +177,47 @@ class NoteCard extends ConsumerWidget {
     );
   }
 
+  /// Resolves stored note URLs for [launchUrl]: adds https for host-like strings,
+  /// keeps http(s) and custom schemes (e.g. app deep links).
+  static Uri? _resolveExternalUri(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return null;
+    var u = Uri.tryParse(t);
+    if (u != null && u.hasScheme && u.scheme.isNotEmpty) {
+      return u;
+    }
+    if (!t.contains(RegExp(r'\s')) && t.contains('.') && !t.startsWith('//')) {
+      u = Uri.tryParse('https://$t');
+      if (u != null && u.hasScheme) return u;
+    }
+    return null;
+  }
+
   Future<void> _openUrl(BuildContext context, String url) async {
-    final u = Uri.tryParse(url.trim());
-    if (u == null || !await canLaunchUrl(u)) {
+    final u = _resolveExternalUri(url);
+    if (u == null) {
+      if (context.mounted) {
+        showAppToast(
+          context,
+          message: 'Ungültiger Link',
+          type: ToastType.error,
+        );
+      }
+      return;
+    }
+    try {
+      final ok = await launchUrl(
+        u,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok && context.mounted) {
+        showAppToast(
+          context,
+          message: 'Link konnte nicht geöffnet werden',
+          type: ToastType.error,
+        );
+      }
+    } catch (_) {
       if (context.mounted) {
         showAppToast(
           context,
@@ -186,9 +225,7 @@ class NoteCard extends ConsumerWidget {
           type: ToastType.error,
         );
       }
-      return;
     }
-    await launchUrl(u, mode: LaunchMode.externalApplication);
   }
 
   bool _linkOpensExternally(Note note) {
@@ -204,8 +241,68 @@ class NoteCard extends ConsumerWidget {
     }
   }
 
+  Future<void> _openImageFullscreen(
+    BuildContext context,
+    WidgetRef ref,
+    NoteAttachment a,
+  ) async {
+    final url = noteAttachmentFullUrl(ref, a);
+    if (url.isEmpty) return;
+    final headers = noteImageRequestHeaders(ref);
+    if (!context.mounted) return;
+    await Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (ctx, animation, secondary) {
+          return FadeTransition(
+            opacity: animation,
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                foregroundColor: Colors.white,
+                iconTheme: const IconThemeData(color: Colors.white),
+              ),
+              body: Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4,
+                  child: CachedNetworkImage(
+                    imageUrl: url,
+                    httpHeaders: headers,
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white54,
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Icon(
+                      Icons.broken_image_outlined,
+                      size: 64,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   /// Bild- und Video-Anhänge wie Link-Vorschau (16:9-Kacheln, horizontal scrollbar).
-  Widget? _mediaAttachmentStrip(BuildContext context, WidgetRef ref, Note note) {
+  Widget? _mediaAttachmentStrip(
+    BuildContext context,
+    WidgetRef ref,
+    Note note, {
+    required VoidCallback onOpenNote,
+  }) {
     final media = note.attachments
         .where((a) => noteAttachmentIsImage(a) || noteAttachmentIsVideo(a))
         .toList();
@@ -229,32 +326,45 @@ class NoteCard extends ConsumerWidget {
             final a = media[i];
             final url = noteAttachmentFullUrl(ref, a);
             final isImg = noteAttachmentIsImage(a);
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: thumbW,
-                height: thumbH,
-                child: isImg
-                    ? CachedNetworkImage(
-                        imageUrl: url,
-                        fit: BoxFit.cover,
-                        httpHeaders: headers,
-                        placeholder: (_, __) => Container(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  if (isImg) {
+                    _openImageFullscreen(context, ref, a);
+                  } else {
+                    onOpenNote();
+                  }
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: thumbW,
+                    height: thumbH,
+                    child: isImg
+                        ? CachedNetworkImage(
+                            imageUrl: url,
+                            fit: BoxFit.cover,
+                            httpHeaders: headers,
+                            placeholder: (_, __) => Container(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        errorWidget: (_, __, ___) => _attachmentVideoPlaceholder(
-                          theme,
-                          a.filename,
-                        ),
-                      )
-                    : _attachmentVideoPlaceholder(theme, a.filename),
+                            errorWidget: (_, __, ___) => _attachmentVideoPlaceholder(
+                              theme,
+                              a.filename,
+                            ),
+                          )
+                        : _attachmentVideoPlaceholder(theme, a.filename),
+                  ),
+                ),
               ),
             );
           },
@@ -299,7 +409,8 @@ class NoteCard extends ConsumerWidget {
     final tint = _cardTint(note.color);
     final borderRadius = BorderRadius.circular(12);
 
-    final attachmentStrip = _mediaAttachmentStrip(context, ref, note);
+    final attachmentStrip =
+        _mediaAttachmentStrip(context, ref, note, onOpenNote: onEdit);
 
     Widget body;
     switch (note.type) {

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
 import '../domain/event_recurrence.dart';
-import '../../categories/data/category_repository.dart';
+import '../../categories/categories_providers.dart';
 import '../../categories/domain/category.dart';
 import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
@@ -23,10 +24,6 @@ import '../../notifications/presentation/widgets/notification_level_picker.dart'
 
 /// Returned from [EventFormDialog] when the user saves or deletes (not on cancel).
 enum EventFormDialogOutcome { saved, deleted }
-
-final _categoriesProvider = FutureProvider<List<Category>>((ref) {
-  return ref.watch(categoryRepositoryProvider).getCategories();
-});
 
 final _membersProvider = FutureProvider<List<FamilyMember>>((ref) {
   return ref.watch(memberRepositoryProvider).getMembers();
@@ -64,6 +61,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
   final Set<int> _unlinkTodoIds = {};
   final Set<int> _selectedExistingTodoIds = {};
   List<EventRecurrenceRule> _recurrenceRules = [];
+  String? _eventColorHex;
 
   bool get _isEditing => widget.event != null;
 
@@ -86,6 +84,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     _categoryId = e?.categoryId;
     _memberIds = (e?.memberIds ?? []).toSet();
     _notificationLevelId = (e?.notificationLevelId);
+    _eventColorHex = e?.color;
     if (e != null && e.recurrenceRules.isNotEmpty) {
       _recurrenceRules = List.of(e.recurrenceRules);
     }
@@ -107,7 +106,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     if (_isEditing || _categoryId != null) return;
     final myId = ref.read(authStateProvider).user?.memberId;
     final defs = ref.read(calendarDefaultsProvider).valueOrNull;
-    final cats = ref.read(_categoriesProvider).valueOrNull ?? [];
+    final cats = ref.read(categoriesListProvider).valueOrNull ?? [];
     int? pickFamily() {
       final f = defs?.familyDefaultCalendarCategoryId;
       if (_categoryIdExistsInList(f, cats)) return f;
@@ -182,6 +181,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
         'category_id': _categoryId,
         'member_ids': _memberIds.toList(),
         'notification_level_id': _notificationLevelId,
+        'color': _eventColorHex,
       };
       if (_recurrenceRules.isNotEmpty) {
         data['recurrence_rules'] =
@@ -251,7 +251,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<List<Category>>>(_categoriesProvider, (_, next) {
+    ref.listen<AsyncValue<List<Category>>>(categoriesListProvider, (_, next) {
       if (next.hasValue && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) setState(_applyDefaultCategoryIfEmpty);
@@ -267,7 +267,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
       }
     });
 
-    final categories = ref.watch(_categoriesProvider).valueOrNull ?? [];
+    final categories = ref.watch(categoriesListProvider).valueOrNull ?? [];
     final members = ref.watch(_membersProvider).valueOrNull ?? [];
 
     return Dialog(
@@ -292,7 +292,14 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                       ),
                       if (_isEditing)
                         IconButton(
+                          tooltip: 'Löschen',
                           icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          iconSize: 28,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(52, 52),
+                            padding: const EdgeInsets.all(14),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                           onPressed: _delete,
                         ),
                     ],
@@ -329,6 +336,8 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                     selectedId: _categoryId,
                     onChanged: (v) => setState(() => _categoryId = v),
                   ),
+                  const SizedBox(height: 12),
+                  _buildEventColorSection(context, categories),
                   const SizedBox(height: 12),
                   NotificationLevelPicker(
                     value: _notificationLevelId,
@@ -802,6 +811,137 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  Color? _parseHexColor(String? hex) {
+    if (hex == null || hex.isEmpty) return null;
+    final h = hex.replaceAll('#', '').trim();
+    if (h.length == 6) {
+      return Color(int.parse('FF$h', radix: 16));
+    }
+    return null;
+  }
+
+  String _hexRgb(Color c) {
+    final r = (c.r * 255.0).round() & 0xff;
+    final g = (c.g * 255.0).round() & 0xff;
+    final b = (c.b * 255.0).round() & 0xff;
+    return '#${r.toRadixString(16).padLeft(2, '0')}'
+        '${g.toRadixString(16).padLeft(2, '0')}'
+        '${b.toRadixString(16).padLeft(2, '0')}';
+  }
+
+  Future<void> _pickEventColor(
+    BuildContext context,
+    String? categoryFallbackHex,
+  ) async {
+    var pick = _parseHexColor(_eventColorHex) ??
+        _parseHexColor(categoryFallbackHex) ??
+        Theme.of(context).colorScheme.primary;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Terminfarbe'),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: pick,
+            onColorChanged: (c) => pick = c,
+            enableAlpha: false,
+            labelTypes: const [],
+            pickerAreaHeightPercent: 0.85,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => _eventColorHex = null);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Kategoriefarbe'),
+          ),
+          FilledButton(
+            onPressed: () {
+              setState(() => _eventColorHex = _hexRgb(pick));
+              Navigator.pop(ctx);
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventColorSection(
+    BuildContext context,
+    List<Category> categories,
+  ) {
+    final theme = Theme.of(context);
+    Category? cat;
+    if (_categoryId != null) {
+      for (final c in categories) {
+        if (c.id == _categoryId) {
+          cat = c;
+          break;
+        }
+      }
+    }
+    final fallbackHex = cat?.color;
+    final displayHex = _eventColorHex;
+    final previewColor = _parseHexColor(displayHex) ??
+        _parseHexColor(fallbackHex) ??
+        theme.colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Terminfarbe', style: theme.textTheme.bodySmall),
+        const SizedBox(height: 4),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: previewColor,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.35),
+              ),
+            ),
+          ),
+          title: Text(
+            displayHex ??
+                (fallbackHex != null ? 'Wie Kategorie' : 'Wie Kategorie / App'),
+            style: theme.textTheme.bodyMedium,
+          ),
+          subtitle: Text(
+            displayHex == null
+                ? 'Optional: nur diesen Termin anders einfärben.'
+                : 'Überschreibt die Kategoriefarbe in der Ansicht.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (displayHex != null)
+                TextButton(
+                  onPressed: () => setState(() => _eventColorHex = null),
+                  child: const Text('Zurücksetzen'),
+                ),
+              TextButton(
+                onPressed: () => _pickEventColor(context, fallbackHex),
+                child: const Text('Wählen'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

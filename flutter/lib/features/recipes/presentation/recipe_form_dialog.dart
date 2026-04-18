@@ -1,6 +1,11 @@
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 import '../data/recipe_category_repository.dart';
 import '../data/recipe_repository.dart';
 import '../data/recipe_tag_repository.dart';
@@ -11,6 +16,7 @@ import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/widgets/form_input_decoration.dart';
 import '../../../core/api/api_client.dart';
+import '../recipe_image_auth.dart';
 
 final _formRecipeCategoriesProvider =
     FutureProvider<List<RecipeCategory>>((ref) {
@@ -37,6 +43,8 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
   String _difficulty = 'mittel';
   int? _prepTime;
   String? _imageUrl;
+  Uint8List? _pendingRecipePhotoBytes;
+  String? _pendingRecipePhotoFilename;
   final List<_IngredientEntry> _ingredients = [];
   bool _saving = false;
   int? _categoryId;
@@ -138,6 +146,65 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     )));
   }
 
+  Future<void> _pickRecipePhoto(ImageSource source) async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(source: source);
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pendingRecipePhotoBytes = bytes;
+      _pendingRecipePhotoFilename =
+          kIsWeb ? (x.name.isNotEmpty ? x.name : 'photo.jpg') : path.basename(x.path);
+    });
+  }
+
+  Future<void> _showPhotoSourceSheet() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Foto aufnehmen'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Aus Galerie wählen'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickRecipePhoto(source);
+  }
+
+  Future<void> _removeCoverPhoto() async {
+    setState(() {
+      _pendingRecipePhotoBytes = null;
+      _pendingRecipePhotoFilename = null;
+    });
+    if (_isEditing &&
+        widget.recipe!.id > 0 &&
+        recipeImageUrlNeedsAuth(_imageUrl)) {
+      try {
+        await ref
+            .read(recipeRepositoryProvider)
+            .updateRecipe(widget.recipe!.id, {'image_url': null});
+        if (mounted) setState(() => _imageUrl = null);
+      } on ApiException catch (e) {
+        if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
+      }
+    } else {
+      setState(() => _imageUrl = null);
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -159,17 +226,38 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
             : _instructionsController.text.trim(),
         'difficulty': diffMap[_difficulty] ?? 'medium',
         'prep_time_active_minutes': _prepTime,
-        if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) 'image_url': _imageUrl!.trim(),
+        if (_pendingRecipePhotoBytes == null &&
+            _imageUrl != null &&
+            _imageUrl!.trim().isNotEmpty)
+          'image_url': _imageUrl!.trim(),
         if (!_isEditing && widget.recipe?.sourceUrl != null) 'source': 'web',
         'ingredients': ingredients,
         'recipe_category_id': _categoryId,
         'tag_ids': _selectedTagIds.toList(),
       };
       final repo = ref.read(recipeRepositoryProvider);
+      final Recipe saved;
       if (_isEditing) {
-        await repo.updateRecipe(widget.recipe!.id, data);
+        saved = await repo.updateRecipe(widget.recipe!.id, data);
       } else {
-        await repo.createRecipe(data);
+        saved = await repo.createRecipe(data);
+      }
+      if (_pendingRecipePhotoBytes != null && saved.id > 0) {
+        try {
+          await repo.uploadRecipeImage(
+            saved.id,
+            _pendingRecipePhotoBytes!,
+            _pendingRecipePhotoFilename ?? 'photo.jpg',
+          );
+        } on ApiException catch (e) {
+          if (mounted) {
+            showAppToast(
+              context,
+              message: 'Rezept gespeichert, Foto-Upload: ${e.message}',
+              type: ToastType.error,
+            );
+          }
+        }
       }
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -221,21 +309,85 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) ...[
+                  if (_pendingRecipePhotoBytes != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: AspectRatio(
                         aspectRatio: 16 / 9,
-                        child: CachedNetworkImage(
-                          imageUrl: _imageUrl!,
+                        child: Image.memory(
+                          _pendingRecipePhotoBytes!,
                           fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.restaurant),
-                          ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        FilledButton.tonalIcon(
+                          onPressed: _saving ? null : _showPhotoSourceSheet,
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          label: const Text('Anderes Foto'),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _saving ? null : _removeCoverPhoto,
+                          child: const Text('Entfernen'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ] else if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: recipeImageUrlNeedsAuth(_imageUrl)
+                            ? CachedNetworkImage(
+                                imageUrl: recipeImageAbsoluteUrl(ref, _imageUrl!),
+                                httpHeaders: recipeImageRequestHeaders(ref),
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => Container(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.restaurant),
+                                ),
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: _imageUrl!,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => Container(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.restaurant),
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        FilledButton.tonalIcon(
+                          onPressed: _saving ? null : _showPhotoSourceSheet,
+                          icon: const Icon(Icons.add_a_photo_outlined, size: 20),
+                          label: const Text('Foto ändern'),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _saving ? null : _removeCoverPhoto,
+                          child: const Text('Entfernen'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ] else ...[
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : _showPhotoSourceSheet,
+                      icon: const Icon(Icons.add_a_photo_outlined),
+                      label: const Text('Foto hinzufügen'),
                     ),
                     const SizedBox(height: 16),
                   ],

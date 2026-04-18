@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
@@ -55,6 +57,29 @@ class RecipeRepository {
     try {
       final response = await _dio.put(Endpoints.recipe(id), data: data);
       return Recipe.fromJson(response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Upload or replace the recipe cover image (JPEG/PNG/GIF/WebP, max server limit).
+  Future<Recipe> uploadRecipeImage(
+    int recipeId,
+    Uint8List bytes,
+    String filename,
+  ) async {
+    try {
+      final form = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: filename.isEmpty ? 'photo.jpg' : filename,
+        ),
+      });
+      final response = await _dio.post(
+        Endpoints.recipeImage(recipeId),
+        data: form,
+      );
+      return Recipe.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

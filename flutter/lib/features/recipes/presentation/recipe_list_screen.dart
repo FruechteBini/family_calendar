@@ -444,7 +444,7 @@ class _RecipeListScreenState extends ConsumerState<RecipeListScreen> {
   }
 }
 
-class _RecipeCard extends StatelessWidget {
+class _RecipeCard extends ConsumerWidget {
   final Recipe recipe;
   final VoidCallback onTap;
 
@@ -462,7 +462,7 @@ class _RecipeCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cc = _categoryColor();
     return Card(

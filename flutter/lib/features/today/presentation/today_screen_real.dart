@@ -306,7 +306,7 @@ class _TodayMealsSection extends ConsumerWidget {
   }
 }
 
-class _PlannedMealCard extends StatelessWidget {
+class _PlannedMealCard extends ConsumerWidget {
   final String title;
   final MealSlot? slot;
   final bool loadError;
@@ -320,7 +320,7 @@ class _PlannedMealCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (loadError) {
       return Card(
         color: AppColors.surfaceContainerHigh,

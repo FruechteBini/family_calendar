@@ -411,7 +411,7 @@ class _MealSlotTile extends ConsumerWidget {
   }
 }
 
-class _MealCard extends StatelessWidget {
+class _MealCard extends ConsumerWidget {
   final String label;
   final String title;
   final String? imageUrl;
@@ -427,7 +427,7 @@ class _MealCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Material(
       color: AppColors.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(AppColors.radiusDefault),

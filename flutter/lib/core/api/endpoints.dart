@@ -50,6 +50,7 @@ class Endpoints {
   // Recipes
   static const recipes = '/api/recipes/';
   static String recipe(int id) => '/api/recipes/$id';
+  static String recipeImage(int id) => '/api/recipes/$id/image';
   static const recipeSuggestions = '/api/recipes/suggestions';
   static const recipeParseUrl = '/api/recipes/parse-url';
 

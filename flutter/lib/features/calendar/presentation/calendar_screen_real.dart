@@ -8,6 +8,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/screen_header.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../core/sync/sync_service.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
@@ -365,6 +366,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           );
           if (outcome == EventFormDialogOutcome.saved ||
               outcome == EventFormDialogOutcome.deleted) {
+            refreshAfterMutation(ref);
             ref.invalidate(monthEventsProvider(month));
           }
         },

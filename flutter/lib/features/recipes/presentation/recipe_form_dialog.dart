@@ -11,6 +11,8 @@ import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/widgets/form_input_decoration.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/mutation_refresh.dart';
+import 'recipe_detail_provider.dart';
 
 final _formRecipeCategoriesProvider =
     FutureProvider<List<RecipeCategory>>((ref) {
@@ -194,6 +196,8 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(recipeRepositoryProvider).deleteRecipe(widget.recipe!.id);
+      refreshAfterMutation(ref);
+      ref.invalidate(recipeDetailProvider(widget.recipe!.id));
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);

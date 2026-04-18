@@ -6,6 +6,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/mutation_refresh.dart';
 
 final recipeCategoriesListProvider =
     FutureProvider<List<RecipeCategory>>((ref) {
@@ -178,7 +179,7 @@ class _RecipeCategoriesScreenState
       await ref
           .read(recipeCategoryRepositoryProvider)
           .deleteCategory(category.id);
-      ref.invalidate(recipeCategoriesListProvider);
+      refreshAfterMutation(ref);
     } on ApiException catch (e) {
       if (context.mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);

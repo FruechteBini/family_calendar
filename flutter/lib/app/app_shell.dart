@@ -22,6 +22,7 @@ import '../shared/widgets/toast.dart';
 // ── Providers ────────────────────────────────────────────────────────────
 
 final pendingProposalsProvider = FutureProvider<List<Proposal>>((ref) async {
+  ref.watch(syncTickProvider);
   try {
     return await ref.watch(todoRepositoryProvider).getPendingProposals();
   } catch (_) {

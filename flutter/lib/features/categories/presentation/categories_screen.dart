@@ -8,6 +8,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/mutation_refresh.dart';
 
 class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
@@ -169,7 +170,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     if (confirm != true) return;
     try {
       await ref.read(categoryRepositoryProvider).deleteCategory(category.id);
-      ref.invalidate(categoriesListProvider);
+      refreshAfterMutation(ref);
     } on ApiException catch (e) {
       if (context.mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);

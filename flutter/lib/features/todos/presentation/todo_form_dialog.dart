@@ -22,6 +22,7 @@ import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/widgets/form_input_decoration.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_provider.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../shared/utils/date_utils.dart' as utils;
 import 'proposal_sheet.dart';
 import '../../notifications/presentation/widgets/notification_level_picker.dart';
@@ -30,6 +31,7 @@ import '../../notes/domain/note.dart';
 import '../../notes/domain/note_todo_prefill.dart';
 import '../domain/todo_attachment.dart';
 import 'todo_attachment_helpers.dart';
+import 'todo_detail_screen.dart';
 
 class _PendingFile {
   final String filename;
@@ -501,6 +503,8 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(todoRepositoryProvider).deleteTodo(widget.todo!.id);
+      refreshAfterMutation(ref);
+      ref.invalidate(todoDetailProvider(widget.todo!.id));
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (mounted)

@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/notification_repository.dart';
 import '../../domain/notification_level.dart';
 
-final _levelsProvider = FutureProvider<List<NotificationLevel>>((ref) async {
+/// Shared by [NotificationLevelPicker] and settings screens; invalidate after level CRUD.
+final notificationLevelsListProvider =
+    FutureProvider<List<NotificationLevel>>((ref) async {
   return ref.watch(notificationRepositoryProvider).listLevels();
 });
 
@@ -22,7 +24,7 @@ class NotificationLevelPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final levelsAsync = ref.watch(_levelsProvider);
+    final levelsAsync = ref.watch(notificationLevelsListProvider);
     return levelsAsync.when(
       data: (levels) {
         final sorted = [...levels]..sort((a, b) => a.position.compareTo(b.position));

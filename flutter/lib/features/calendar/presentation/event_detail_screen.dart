@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/api/api_client.dart';
-import '../../../core/sync/sync_service.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/utils/date_utils.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
-import '../../notifications/data/notification_repository.dart';
 import '../../notifications/domain/notification_level.dart';
-import '../../today/presentation/today_screen_real.dart';
+import '../../notifications/presentation/widgets/notification_level_picker.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
 import '../domain/event_recurrence.dart';
@@ -25,10 +24,6 @@ final eventDetailProvider =
         key.id,
         occurrenceStart: key.occurrenceStart,
       );
-});
-
-final _notificationLevelsProvider = FutureProvider<List<NotificationLevel>>((ref) {
-  return ref.watch(notificationRepositoryProvider).listLevels();
 });
 
 class EventDetailScreen extends ConsumerWidget {
@@ -47,21 +42,19 @@ class EventDetailScreen extends ConsumerWidget {
       builder: (_) => EventFormDialog(event: event, initialDate: event.startTime),
     );
     if (outcome == EventFormDialogOutcome.deleted) {
+      refreshAfterMutation(ref);
       ref.invalidate(monthEventsProvider);
-      ref.invalidate(todayEventsProvider);
-      ref.read(syncTickProvider.notifier).state++;
       if (context.mounted) context.pop();
       return;
     }
     if (outcome == EventFormDialogOutcome.saved) {
+      refreshAfterMutation(ref);
       ref.invalidate(
         eventDetailProvider(
           (id: eventId, occurrenceStart: occurrenceStart),
         ),
       );
       ref.invalidate(monthEventsProvider);
-      ref.invalidate(todayEventsProvider);
-      ref.read(syncTickProvider.notifier).state++;
       if (context.mounted) {
         showAppToast(context, message: 'Gespeichert', type: ToastType.success);
       }
@@ -91,9 +84,8 @@ class EventDetailScreen extends ConsumerWidget {
     if (confirm != true || !context.mounted) return;
     try {
       await ref.read(eventRepositoryProvider).deleteEvent(e.id);
+      refreshAfterMutation(ref);
       ref.invalidate(monthEventsProvider);
-      ref.invalidate(todayEventsProvider);
-      ref.read(syncTickProvider.notifier).state++;
       if (context.mounted) context.pop();
     } on ApiException catch (err) {
       if (context.mounted) {
@@ -106,7 +98,7 @@ class EventDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailKey = (id: eventId, occurrenceStart: occurrenceStart);
     final eventAsync = ref.watch(eventDetailProvider(detailKey));
-    final levelsAsync = ref.watch(_notificationLevelsProvider);
+    final levelsAsync = ref.watch(notificationLevelsListProvider);
     final theme = Theme.of(context);
 
     return Scaffold(

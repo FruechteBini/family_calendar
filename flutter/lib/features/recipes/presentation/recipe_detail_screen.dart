@@ -9,12 +9,9 @@ import '../../../shared/widgets/recipe_thumbnail.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/recipe_repository.dart';
 import '../domain/recipe.dart';
+import 'recipe_detail_provider.dart';
 import 'recipe_form_dialog.dart';
 import 'recipe_list_screen.dart';
-
-final recipeDetailProvider = FutureProvider.family<Recipe, int>((ref, id) async {
-  return ref.watch(recipeRepositoryProvider).getRecipe(id);
-});
 
 class RecipeDetailScreen extends ConsumerStatefulWidget {
   final int recipeId;

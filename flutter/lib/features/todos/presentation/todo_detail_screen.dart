@@ -19,6 +19,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/member_chip.dart';
 import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/todo_completion_control.dart';
 import '../../members/domain/family_member.dart';
 import '../data/todo_repository.dart';
 import '../domain/todo.dart';
@@ -343,13 +344,13 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Checkbox(
-                      value: todo.completed,
-                      onChanged: (_) => _toggleComplete(todo),
+                    TodoCompletionControl(
+                      completed: todo.completed,
+                      onToggle: () => _toggleComplete(todo),
                     ),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.only(top: 10),
                         child: Text(
                           todo.title,
                           style: theme.textTheme.titleMedium?.copyWith(
@@ -587,9 +588,14 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
                             child: Card(
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
-                                leading: Checkbox(
-                                  value: sub.completed,
-                                  onChanged: (_) => _toggleComplete(sub),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                leading: TodoCompletionControl(
+                                  completed: sub.completed,
+                                  onToggle: () => _toggleComplete(sub),
+                                  iconSize: 26,
                                 ),
                                 title: Text(
                                   sub.title,

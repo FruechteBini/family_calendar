@@ -9,6 +9,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/todo_completion_control.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
 import '../../../core/sync/sync_service.dart';
 import '../../calendar/data/event_repository.dart';
@@ -437,9 +438,10 @@ class _TodoRow extends ConsumerWidget {
     return Card(
       color: AppColors.surfaceContainerHigh,
       child: ListTile(
-        leading: Checkbox(
-          value: todo.completed,
-          onChanged: (_) async {
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        leading: TodoCompletionControl(
+          completed: todo.completed,
+          onToggle: () async {
             try {
               await ref.read(todoRepositoryProvider).completeTodo(todo.id, completed: !todo.completed);
               ref.invalidate(todayTodosProvider);
@@ -452,6 +454,8 @@ class _TodoRow extends ConsumerWidget {
         subtitle: todo.dueDate != null
             ? Text('Fällig: ${todo.dueDate!.day.toString().padLeft(2, '0')}.${todo.dueDate!.month.toString().padLeft(2, '0')}.')
             : null,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/todos/${todo.id}'),
       ),
     );
   }

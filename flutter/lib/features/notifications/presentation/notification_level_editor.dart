@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/notification_repository.dart';
 import '../domain/notification_level.dart';
@@ -121,6 +122,7 @@ class _NotificationLevelEditorState extends ConsumerState<NotificationLevelEdito
     setState(() => _saving = true);
     try {
       await ref.read(notificationRepositoryProvider).deleteLevel(widget.level!.id);
+      refreshAfterMutation(ref);
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);

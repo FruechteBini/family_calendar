@@ -10,6 +10,7 @@ import '../../members/data/member_repository.dart';
 import '../../members/domain/family_member.dart';
 import '../../todos/data/todo_repository.dart';
 import '../../todos/domain/todo.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../core/sync/sync_service.dart';
 import '../../../shared/widgets/category_picker.dart';
 import '../../../shared/widgets/member_chip.dart';
@@ -242,7 +243,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(eventRepositoryProvider).deleteEvent(widget.event!.id);
-      ref.read(syncTickProvider.notifier).state++;
+      refreshAfterMutation(ref);
       if (mounted) Navigator.of(context).pop(EventFormDialogOutcome.deleted);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);

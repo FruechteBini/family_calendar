@@ -7,6 +7,7 @@ import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/utils/date_utils.dart' as utils;
 import '../../../shared/utils/app_time_picker.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 
 final _pendingProvider = FutureProvider<List<Proposal>>((ref) {
   return ref.watch(todoRepositoryProvider).getPendingProposals();
@@ -119,6 +120,7 @@ class _ProposalTile extends ConsumerWidget {
             proposal.id,
             response: status,
           );
+      ref.read(syncTickProvider.notifier).state++;
       onRespond();
       if (context.mounted) showAppToast(context, message: status == 'accepted' ? 'Angenommen' : 'Abgelehnt', type: ToastType.success);
     } on ApiException catch (e) {
@@ -172,6 +174,7 @@ class _ProposalTile extends ConsumerWidget {
         counterDate: counterDate,
         message: messageController.text.trim().isEmpty ? null : messageController.text.trim(),
       );
+      ref.read(syncTickProvider.notifier).state++;
       onRespond();
     } on ApiException catch (e) {
       if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);

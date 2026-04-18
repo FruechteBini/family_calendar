@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_tag_repository.dart';
@@ -100,7 +101,7 @@ class _NoteTagsScreenState extends ConsumerState<NoteTagsScreen> {
     if (ok != true) return;
     try {
       await ref.read(noteTagRepositoryProvider).deleteTag(t.id);
-      ref.invalidate(noteTagsListProvider);
+      refreshAfterMutation(ref);
     } on ApiException catch (e) {
       if (mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);

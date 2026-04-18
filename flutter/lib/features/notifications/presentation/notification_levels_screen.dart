@@ -6,17 +6,14 @@ import '../../../shared/widgets/toast.dart';
 import '../data/notification_repository.dart';
 import '../domain/notification_level.dart';
 import 'notification_level_editor.dart';
-
-final _levelsProvider = FutureProvider<List<NotificationLevel>>((ref) async {
-  return ref.watch(notificationRepositoryProvider).listLevels();
-});
+import 'widgets/notification_level_picker.dart';
 
 class NotificationLevelsScreen extends ConsumerWidget {
   const NotificationLevelsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final levelsAsync = ref.watch(_levelsProvider);
+    final levelsAsync = ref.watch(notificationLevelsListProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Dringlichkeits-Stufen')),
       floatingActionButton: FloatingActionButton.extended(
@@ -25,7 +22,7 @@ class NotificationLevelsScreen extends ConsumerWidget {
             context: context,
             builder: (_) => const NotificationLevelEditor(),
           );
-          if (created == true) ref.invalidate(_levelsProvider);
+          if (created == true) ref.invalidate(notificationLevelsListProvider);
         },
         icon: const Icon(Icons.add),
         label: const Text('Neue Stufe'),
@@ -42,7 +39,7 @@ class NotificationLevelsScreen extends ConsumerWidget {
               updated.insert(newIndex, moved);
               try {
                 await ref.read(notificationRepositoryProvider).reorderLevels(updated);
-                ref.invalidate(_levelsProvider);
+                ref.invalidate(notificationLevelsListProvider);
               } on ApiException catch (e) {
                 if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
               }
@@ -85,7 +82,7 @@ class NotificationLevelsScreen extends ConsumerWidget {
                     context: context,
                     builder: (_) => NotificationLevelEditor(level: lvl),
                   );
-                  if (changed == true) ref.invalidate(_levelsProvider);
+                  if (changed == true) ref.invalidate(notificationLevelsListProvider);
                 },
               );
             },

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/mutation_refresh.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
@@ -123,7 +124,10 @@ class NoteCard extends ConsumerWidget {
               ],
             ),
           );
-          if (ok == true) await repo.deleteNote(note.id);
+          if (ok == true) {
+            await repo.deleteNote(note.id);
+            refreshAfterMutation(ref);
+          }
           break;
       }
       onRefresh();

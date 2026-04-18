@@ -452,6 +452,8 @@ class _TodoRow extends ConsumerWidget {
         subtitle: todo.dueDate != null
             ? Text('Fällig: ${todo.dueDate!.day.toString().padLeft(2, '0')}.${todo.dueDate!.month.toString().padLeft(2, '0')}.')
             : null,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/todos/${todo.id}'),
       ),
     );
   }

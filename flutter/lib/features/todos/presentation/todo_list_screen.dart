@@ -18,6 +18,7 @@ import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/todo_completion_control.dart';
 import '../../../core/api/api_client.dart';
 import 'todo_detail_screen.dart';
 import 'todo_form_dialog.dart';
@@ -985,9 +986,9 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Checkbox(
-                value: todo.completed,
-                onChanged: (_) => widget.onToggleComplete(todo),
+              TodoCompletionControl(
+                completed: todo.completed,
+                onToggle: () => widget.onToggleComplete(todo),
               ),
               Expanded(
                 child: Row(
@@ -1091,12 +1092,13 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
                   color: Colors.transparent,
                   child: ListTile(
                     dense: true,
-                    visualDensity: VisualDensity.compact,
+                    visualDensity: VisualDensity.standard,
                     contentPadding:
-                        const EdgeInsets.only(left: 12, right: 4),
-                    leading: Checkbox(
-                      value: sub.completed,
-                      onChanged: (_) => widget.onToggleComplete(sub),
+                        const EdgeInsets.only(left: 4, right: 4),
+                    leading: TodoCompletionControl(
+                      completed: sub.completed,
+                      onToggle: () => widget.onToggleComplete(sub),
+                      iconSize: 26,
                     ),
                     title: Text(
                       sub.title,

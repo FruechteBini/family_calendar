@@ -10,7 +10,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..auth import get_current_user, require_family_id
+from ..auth import get_current_user, require_family_id, require_member_id
 from ..config import settings
 from ..database import get_db, utcnow
 from ..models.meal_plan import MealPlan
@@ -807,7 +807,9 @@ Parameter:
 - "event_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Event, z.B. "evt1")
 - "event_id" (Integer, optional - ID eines existierenden Events)
 - "parent_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Todo, für Sub-Todos)
-- "member_ids" (Array von Integers, optional)
+WICHTIG — Zuordnung (Sprachbefehl): Setze "member_ids" NICHT / lasse es weg. Das Backend weist das Todo
+automatisch dem Sprecher zu. Nur wenn der Nutzer ausdrücklich will, dass ALLE betroffen sind
+(z.B. "für alle", "ganze Familie", "alle Mitglieder"), weist das Backend alle Familienmitglieder zu.
 
 ### create_recipe
 Erstellt ein Rezept.
@@ -921,6 +923,24 @@ Antwort:
 """
 
 
+def _voice_command_means_family_wide_todo(text: str) -> bool:
+    """True when the user explicitly wants a family-wide todo (all members)."""
+    t = text.lower()
+    phrases = (
+        "für alle",
+        "fur alle",
+        "fuer alle",
+        "ganze familie",
+        "die ganze familie",
+        "ganzen familie",
+        "alle mitglieder",
+        "alle in der familie",
+        "für die ganze familie",
+        "fur die ganze familie",
+    )
+    return any(p in t for p in phrases)
+
+
 ACTION_TYPE_ORDER = {
     "create_event": 0,
     "create_recurring_event": 0,
@@ -940,7 +960,11 @@ ACTION_TYPE_ORDER = {
 
 
 async def _execute_voice_actions(
-    actions: list[dict], db: AsyncSession, family_id: int,
+    actions: list[dict],
+    db: AsyncSession,
+    family_id: int,
+    actor_member_id: int,
+    voice_assign_family_wide_todos: bool,
 ) -> list[VoiceCommandAction]:
     """Execute parsed voice actions, resolving cross-references."""
     ref_map: dict[str, int] = {}
@@ -960,7 +984,14 @@ async def _execute_voice_actions(
             elif action_type == "create_recurring_event":
                 result_data = await _exec_create_recurring_event(params, db, family_id)
             elif action_type == "create_todo":
-                result_data = await _exec_create_todo(params, ref_map, db, family_id)
+                result_data = await _exec_create_todo(
+                    params,
+                    ref_map,
+                    db,
+                    family_id,
+                    actor_member_id,
+                    voice_assign_family_wide_todos,
+                )
             elif action_type == "create_recipe":
                 result_data = await _exec_create_recipe(params, db, family_id)
             elif action_type == "set_meal_slot":
@@ -1111,7 +1142,12 @@ async def _exec_create_recurring_event(params: dict, db: AsyncSession, family_id
 
 
 async def _exec_create_todo(
-    params: dict, ref_map: dict[str, int], db: AsyncSession, family_id: int,
+    params: dict,
+    ref_map: dict[str, int],
+    db: AsyncSession,
+    family_id: int,
+    actor_member_id: int,
+    assign_all_members: bool,
 ) -> dict:
     event_id = params.get("event_id")
     event_ref = params.get("event_ref")
@@ -1141,10 +1177,15 @@ async def _exec_create_todo(
     db.add(todo)
     await db.flush()
 
-    member_ids = params.get("member_ids", [])
-    if member_ids:
-        for mid in member_ids:
-            await db.execute(todo_members.insert().values(todo_id=todo.id, member_id=mid))
+    # Voice: default assign to speaker; only if user said "for everyone" assign all members.
+    # Ignore model-supplied member_ids for voice-created todos.
+    if assign_all_members:
+        r = await db.execute(select(FamilyMember.id).where(FamilyMember.family_id == family_id))
+        member_ids = [row[0] for row in r.all()]
+    else:
+        member_ids = [actor_member_id]
+    for mid in member_ids:
+        await db.execute(todo_members.insert().values(todo_id=todo.id, member_id=mid))
 
     return {"id": todo.id, "title": todo.title}
 
@@ -1607,6 +1648,7 @@ async def voice_command(
     data: VoiceCommandRequest,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    actor_member_id: int = Depends(require_member_id),
 ):
     """Interpret a voice command via Claude and execute the resulting actions."""
     if not settings.ANTHROPIC_API_KEY:
@@ -1624,7 +1666,14 @@ async def voice_command(
     raw_text = await _call_claude(prompt, max_tokens=4096)
     actions_raw, summary = _parse_voice_response(raw_text)
 
-    executed = await _execute_voice_actions(actions_raw, db, family_id)
+    assign_all_todos = _voice_command_means_family_wide_todo(user_text)
+    executed = await _execute_voice_actions(
+        actions_raw,
+        db,
+        family_id,
+        actor_member_id,
+        assign_all_todos,
+    )
 
     return VoiceCommandResponse(summary=summary, actions=executed)
 

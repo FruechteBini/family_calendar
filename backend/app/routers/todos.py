@@ -117,10 +117,10 @@ async def list_todos(
         if view_member_id is not None:
             stmt = stmt.where(Todo.members.any(FamilyMember.id == view_member_id))
     else:
-        # all: own personal + family todos assigned to current member
+        # all: own personal + all family todos (visible to everyone; any member may complete)
         stmt = stmt.where(
             (Todo.is_personal.is_(True) & (Todo.created_by_member_id == current_member_id))
-            | (Todo.is_personal.is_(False) & Todo.members.any(FamilyMember.id == current_member_id))
+            | (Todo.is_personal.is_(False))
         )
     if completed is not None:
         stmt = stmt.where(Todo.completed == completed)
@@ -150,8 +150,9 @@ async def get_todo(
     todo = result.scalar_one_or_none()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo nicht gefunden")
-    if todo.is_personal and todo.created_by_member_id != current_member_id:
-        raise HTTPException(status_code=404, detail="Todo nicht gefunden")
+    if todo.is_personal:
+        if todo.created_by_member_id != current_member_id:
+            raise HTTPException(status_code=404, detail="Todo nicht gefunden")
     return todo
 
 
@@ -313,9 +314,6 @@ async def complete_todo(
     if todo.is_personal:
         if todo.created_by_member_id != current_member_id:
             raise HTTPException(status_code=403, detail="Nur der Ersteller kann dieses Todo abhaken")
-    else:
-        if not any(m.id == current_member_id for m in todo.members):
-            raise HTTPException(status_code=403, detail="Nur zugewiesene Mitglieder können dieses Todo abhaken")
 
     will_complete = not todo.completed
 

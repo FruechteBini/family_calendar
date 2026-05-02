@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -102,7 +105,7 @@ class RecipeResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     @model_validator(mode="after")
-    def _apply_cover_image_url(self) -> RecipeResponse:
+    def _apply_cover_image_url(self) -> Self:
         if self.cover_image_path:
             return self.model_copy(update={"image_url": f"/api/recipes/{self.id}/cover"})
         return self

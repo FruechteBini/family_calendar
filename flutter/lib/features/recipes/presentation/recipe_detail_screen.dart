@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../cookidoo/data/cookidoo_repository.dart';
 import '../../../shared/widgets/difficulty_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -36,6 +37,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     if (changed == true) {
       ref.invalidate(recipeDetailProvider(widget.recipeId));
       ref.invalidate(recipesProvider);
+      notifyDataMutated(ref);
       if (context.mounted) {
         showAppToast(context, message: 'Gespeichert', type: ToastType.success);
       }

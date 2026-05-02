@@ -43,7 +43,7 @@ from ..schemas.note_category import NoteCategoryResponse
 from ..schemas.note_tag import NoteTagResponse
 from ..schemas.todo import TodoResponse
 from ..utils import resolve_members
-from ..link_preview import fetch_link_preview
+from ..link_preview import fetch_link_preview, primary_url_from_paste_text
 
 router = APIRouter(
     prefix="/api/notes",
@@ -381,6 +381,14 @@ async def create_note(
         checklist_json = json.dumps([i.model_dump() for i in data.checklist_items])
     elif data.type == NoteType.checklist:
         checklist_json = "[]"
+
+    if data.type == NoteType.text and not title_norm:
+        u_guess = primary_url_from_paste_text(data.content or "")
+        if u_guess:
+            meta_text = await fetch_link_preview(u_guess)
+            lt_guess = meta_text.get("link_title")
+            if lt_guess and str(lt_guess).strip():
+                title_norm = str(lt_guess).strip()[:200]
 
     link_title = link_description = link_thumbnail_url = link_domain = None
     url = data.url

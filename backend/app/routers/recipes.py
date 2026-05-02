@@ -1,13 +1,19 @@
 import logging
+import mimetypes
 import re
+import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user, require_family_id
+from ..config import settings
 from ..database import get_db, utcnow
+from ..recipe_media import public_recipe_image_url
 from ..utils import ensure_aware
 from ..models.cooking_history import CookingHistory
 from ..models.ingredient import Ingredient
@@ -27,6 +33,8 @@ from ..schemas.recipe import (
 )
 
 log = logging.getLogger("kalender.recipes")
+
+_MISSING = object()
 
 router = APIRouter(
     prefix="/api/recipes",
@@ -73,6 +81,39 @@ def _recipe_load_options():
         selectinload(Recipe.category),
         selectinload(Recipe.tags),
     )
+
+
+def _unlink_recipe_cover_disk(recipe: Recipe) -> None:
+    p = getattr(recipe, "cover_image_path", None) or ""
+    if not p.strip():
+        return
+    path = Path(p)
+    if path.is_file():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+def _recipe_cover_extension(content_type: str | None, filename: str | None) -> str:
+    ct = (content_type or "").lower().split(";")[0].strip()
+    mapping = [
+        ("image/jpeg", ".jpg"),
+        ("image/jpg", ".jpg"),
+        ("image/png", ".png"),
+        ("image/webp", ".webp"),
+        ("image/heic", ".heic"),
+        ("image/heif", ".heif"),
+        ("image/gif", ".gif"),
+    ]
+    for prefix, ext in mapping:
+        if ct == prefix:
+            return ext
+    name = (filename or "").lower()
+    for ext in (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".gif"):
+        if name.endswith(ext):
+            return ".jpg" if ext == ".jpeg" else ext
+    return ".jpg"
 
 
 @router.get("/", response_model=list[RecipeResponse])
@@ -297,6 +338,7 @@ def _recipes_to_suggestions(recipes: list[Recipe], now) -> list[RecipeSuggestion
                 title=r.title,
                 difficulty=r.difficulty,
                 prep_time_active_minutes=r.prep_time_active_minutes,
+                image_url=public_recipe_image_url(r),
                 last_cooked_at=r.last_cooked_at,
                 cook_count=r.cook_count,
                 days_since_cooked=days,
@@ -369,6 +411,70 @@ async def get_recipe(
     return recipe
 
 
+@router.post("/{recipe_id}/cover", response_model=RecipeResponse)
+async def upload_recipe_cover(
+    recipe_id: int,
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+    file: UploadFile = File(...),
+):
+    result = await db.execute(
+        select(Recipe)
+        .options(*_recipe_load_options())
+        .where(Recipe.id == recipe_id, Recipe.family_id == family_id)
+    )
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Rezept nicht gefunden")
+
+    body = await file.read()
+    if len(body) > settings.MAX_NOTE_ATTACHMENT_BYTES:
+        raise HTTPException(status_code=413, detail="Datei zu groß (max. 10 MB)")
+
+    ct = (file.content_type or "").lower()
+    if not ct.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail="Nur Bilddateien erlaubt (z. B. JPEG, PNG, WebP).",
+        )
+
+    upload_root = Path(settings.UPLOAD_DIR) / "recipe_covers"
+    upload_root.mkdir(parents=True, exist_ok=True)
+    if recipe.cover_image_path:
+        _unlink_recipe_cover_disk(recipe)
+    ext = _recipe_cover_extension(file.content_type, file.filename)
+    stored_path = upload_root / f"recipe_{recipe_id}_{uuid.uuid4().hex}{ext}"
+    stored_path.write_bytes(body)
+    recipe.cover_image_path = str(stored_path.resolve())
+    recipe.image_url = None
+    recipe.updated_at = utcnow()
+
+    await db.flush()
+    await db.refresh(recipe)
+    return recipe
+
+
+@router.get("/{recipe_id}/cover")
+async def download_recipe_cover(
+    recipe_id: int,
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    result = await db.execute(
+        select(Recipe).where(Recipe.id == recipe_id, Recipe.family_id == family_id)
+    )
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Rezept nicht gefunden")
+    if not recipe.cover_image_path:
+        raise HTTPException(status_code=404, detail="Kein Bild vorhanden")
+    path = Path(recipe.cover_image_path)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Bild nicht gefunden")
+    media_type, _ = mimetypes.guess_type(str(path))
+    return FileResponse(path=str(path), media_type=media_type or "image/jpeg")
+
+
 @router.put("/{recipe_id}", response_model=RecipeResponse)
 async def update_recipe(
     recipe_id: int,
@@ -392,12 +498,24 @@ async def update_recipe(
     update_fields = data.model_dump(exclude_unset=True)
     new_ingredients_raw = update_fields.pop("ingredients", None)
     new_tag_ids = update_fields.pop("tag_ids", None)
+    image_url_update = update_fields.pop("image_url", _MISSING)
 
     if "difficulty" in update_fields and update_fields["difficulty"] is not None:
         update_fields["difficulty"] = update_fields["difficulty"].value
 
     if "recipe_category_id" in update_fields:
         await _validate_recipe_category(db, family_id, update_fields["recipe_category_id"])
+
+    if image_url_update is not _MISSING:
+        if image_url_update is None:
+            _unlink_recipe_cover_disk(recipe)
+            recipe.cover_image_path = None
+            recipe.image_url = None
+        else:
+            if recipe.cover_image_path:
+                _unlink_recipe_cover_disk(recipe)
+                recipe.cover_image_path = None
+            recipe.image_url = image_url_update
 
     for key, value in update_fields.items():
         setattr(recipe, key, value)
@@ -433,6 +551,7 @@ async def delete_recipe(
     recipe = result.scalar_one_or_none()
     if not recipe:
         raise HTTPException(status_code=404, detail="Rezept nicht gefunden")
+    _unlink_recipe_cover_disk(recipe)
     await db.delete(recipe)
 
 

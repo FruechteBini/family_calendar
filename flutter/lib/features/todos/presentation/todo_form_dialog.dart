@@ -21,6 +21,7 @@ import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/widgets/form_input_decoration.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../shared/utils/date_utils.dart' as utils;
 import 'proposal_sheet.dart';
@@ -86,6 +87,10 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
 
   bool get _isEditing => widget.todo != null;
 
+  /// Persönliche Kategorien im Dropdown nur bei persönlichen Todos (inkl. Bearbeiten).
+  bool get _showPersonalCategories =>
+      _isEditing ? (widget.todo?.isPersonal ?? false) : _isPersonal;
+
   @override
   void initState() {
     super.initState();
@@ -144,7 +149,12 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
 
   Future<void> _addPhoto(ImageSource source) async {
     final picker = ImagePicker();
-    final x = await picker.pickImage(source: source);
+    final x = await picker.pickImage(
+      source: source,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 85,
+    );
     if (x == null) return;
     final preview = await x.readAsBytes();
     if (kIsWeb) {
@@ -501,6 +511,7 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(todoRepositoryProvider).deleteTodo(widget.todo!.id);
+      notifyDataMutated(ref);
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (mounted)
@@ -574,8 +585,9 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
         'name': trimmed,
         'color': selectedHex.trim(),
         'icon': icon.text.trim().isEmpty ? '\u{1F4C1}' : icon.text.trim(),
+        'is_personal': _isPersonal,
       });
-      ref.invalidate(categoriesListProvider);
+      invalidateTodoCategoryCaches(ref);
       setState(() => _categoryId = created.id);
     } on ApiException catch (e) {
       if (mounted) {
@@ -632,7 +644,8 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                     value: _isPersonal,
                     onChanged: _isEditing
                         ? null
-                        : (v) => setState(() {
+                        : (v) {
+                            setState(() {
                               _isPersonal = v;
                               if (_isPersonal) {
                                 _memberIds = {};
@@ -645,8 +658,19 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                                 if (mid != null) {
                                   _memberIds = {mid};
                                 }
+                                final id = _categoryId;
+                                final cats = ref
+                                    .read(categoriesListProvider)
+                                    .valueOrNull;
+                                if (id != null &&
+                                    cats != null &&
+                                    cats.any(
+                                        (c) => c.id == id && c.isPersonal)) {
+                                  _categoryId = null;
+                                }
                               }
-                            }),
+                            });
+                          },
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                   ),
@@ -708,7 +732,10 @@ class _TodoFormDialogState extends ConsumerState<TodoFormDialog> {
                     children: [
                       categoriesAsync.when(
                         data: (categories) => CategoryPicker(
-                          categories: categories,
+                          categories: categories
+                              .where((c) =>
+                                  _showPersonalCategories || !c.isPersonal)
+                              .toList(),
                           selectedId: _categoryId,
                           onChanged: (v) => setState(() => _categoryId = v),
                         ),

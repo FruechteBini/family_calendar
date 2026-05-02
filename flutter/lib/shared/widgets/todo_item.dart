@@ -50,12 +50,19 @@ class _TodoItemState extends State<TodoItem> {
           ),
           child: Row(
             children: [
-              // Checkbox circle
+              // Checkbox circle — min. 48×48 Bedienfläche für Touch
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: widget.onChanged != null
                     ? () => widget.onChanged!(!widget.isChecked)
                     : null,
-                child: _buildCheckbox(),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(
+                    child: _buildCheckbox(),
+                  ),
+                ),
               ),
               const SizedBox(width: AppColors.spacing3),
               // Text
@@ -80,12 +87,14 @@ class _TodoItemState extends State<TodoItem> {
     );
   }
 
+  static const double _glyph = 28;
+
   Widget _buildCheckbox() {
     if (widget.isPriority && !widget.isChecked) {
       // Priority variant: secondary border + priority_high icon
       return Container(
-        width: 24,
-        height: 24,
+        width: _glyph,
+        height: _glyph,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
@@ -95,7 +104,7 @@ class _TodoItemState extends State<TodoItem> {
         ),
         child: const Icon(
           Icons.priority_high,
-          size: 14,
+          size: 17,
           color: AppColors.secondary,
         ),
       );
@@ -105,8 +114,8 @@ class _TodoItemState extends State<TodoItem> {
       final primary = Theme.of(context).colorScheme.primary;
       // Checked: primary border + check icon
       return Container(
-        width: 24,
-        height: 24,
+        width: _glyph,
+        height: _glyph,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
@@ -116,7 +125,7 @@ class _TodoItemState extends State<TodoItem> {
         ),
         child: Icon(
           Icons.check,
-          size: 18,
+          size: 20,
           color: primary,
         ),
       );
@@ -124,8 +133,8 @@ class _TodoItemState extends State<TodoItem> {
 
     // Unchecked: outlineVariant border, no fill
     return Container(
-      width: 24,
-      height: 24,
+      width: _glyph,
+      height: _glyph,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(

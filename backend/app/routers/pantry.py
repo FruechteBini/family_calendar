@@ -26,8 +26,24 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-LOW_STOCK_DEFAULT = 2
+LOW_STOCK_DEFAULT = 4.0
 EXPIRY_WARN_DAYS = 7
+
+
+def _low_stock_triggered(item: PantryItem, threshold: float) -> bool:
+    return (
+        item.amount is not None
+        and item.low_stock_watch_active
+        and item.amount <= threshold
+    )
+
+
+def _maybe_clear_low_stock_watch(item: PantryItem, old_amount: float | None, new_amount: float | None) -> None:
+    """Clear meal-based warnings after a replenishment (higher quantity or newly set stock)."""
+    if new_amount is None:
+        return
+    if old_amount is None or new_amount > old_amount + 1e-6:
+        item.low_stock_watch_active = False
 
 
 def _to_response(item: PantryItem) -> dict:
@@ -35,8 +51,8 @@ def _to_response(item: PantryItem) -> dict:
     today = utcnow().date()
     is_low = False
     if item.amount is not None:
-        threshold = item.min_stock if item.min_stock is not None else LOW_STOCK_DEFAULT
-        is_low = item.amount <= threshold
+        threshold = float(item.min_stock) if item.min_stock is not None else LOW_STOCK_DEFAULT
+        is_low = _low_stock_triggered(item, threshold)
 
     is_expiring = False
     if item.expiry_date is not None:
@@ -61,6 +77,8 @@ def _to_response(item: PantryItem) -> dict:
 async def list_pantry(
     category: str | None = Query(default=None),
     search: str | None = Query(default=None),
+    sort: str = Query(default="category"),
+    order: str = Query(default="asc"),
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
 ):
@@ -69,7 +87,26 @@ async def list_pantry(
         stmt = stmt.where(PantryItem.category == category)
     if search:
         stmt = stmt.where(PantryItem.name.ilike(f"%{search}%"))
-    stmt = stmt.order_by(PantryItem.category, PantryItem.name)
+
+    sort_key = sort.lower() if sort else "category"
+    if sort_key not in ("category", "name", "amount", "updated"):
+        sort_key = "category"
+    desc = order.lower() == "desc" if order else False
+
+    def _ord(col):
+        if desc:
+            return col.desc().nulls_last()
+        return col.asc().nulls_last()
+
+    if sort_key == "name":
+        stmt = stmt.order_by(_ord(PantryItem.name))
+    elif sort_key == "amount":
+        stmt = stmt.order_by(_ord(PantryItem.amount), PantryItem.name.asc())
+    elif sort_key == "updated":
+        stmt = stmt.order_by(_ord(PantryItem.updated_at), PantryItem.name.asc())
+    else:
+        cat_col = PantryItem.category.desc() if desc else PantryItem.category.asc()
+        stmt = stmt.order_by(cat_col, PantryItem.name.asc())
     result = await db.execute(stmt)
     items = result.scalars().all()
     return [_to_response(i) for i in items]
@@ -96,6 +133,7 @@ async def _add_or_merge(
 ) -> PantryItem:
     existing = await _find_existing(db, family_id, data.name, data.unit)
     if existing:
+        old_amt = existing.amount
         if data.amount is not None and existing.amount is not None:
             existing.amount = round(existing.amount + data.amount, 2)
         elif data.amount is not None:
@@ -104,6 +142,7 @@ async def _add_or_merge(
             existing.expiry_date = data.expiry_date
         if data.min_stock is not None:
             existing.min_stock = data.min_stock
+        _maybe_clear_low_stock_watch(existing, old_amt, existing.amount)
         await db.flush()
         await db.refresh(existing)
         return existing
@@ -158,11 +197,14 @@ async def update_pantry_item(
     if not item or item.family_id != family_id:
         raise HTTPException(status_code=404, detail="Artikel nicht gefunden")
 
+    old_amount = item.amount
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         if field == "category" and hasattr(value, "value"):
             value = value.value
         setattr(item, field, value)
+    if "amount" in update_data:
+        _maybe_clear_low_stock_watch(item, old_amount, item.amount)
     if "name" in update_data:
         item.name_normalized = normalize_ingredient_name(item.name)
 
@@ -196,8 +238,8 @@ async def get_alerts(
     alerts: list[PantryAlertItem] = []
     for item in items:
         if item.amount is not None:
-            threshold = item.min_stock if item.min_stock is not None else LOW_STOCK_DEFAULT
-            if item.amount <= threshold:
+            threshold = float(item.min_stock) if item.min_stock is not None else LOW_STOCK_DEFAULT
+            if _low_stock_triggered(item, threshold):
                 alerts.append(PantryAlertItem(
                     id=item.id, name=item.name, amount=item.amount,
                     unit=item.unit, reason="low_stock", expiry_date=item.expiry_date,
@@ -247,6 +289,7 @@ async def add_alert_to_shopping(
     # Clear alert conditions so warning disappears
     item.amount = None
     item.expiry_date = None
+    item.low_stock_watch_active = False
     await db.flush()
     return {"message": f"{item.name} zur Einkaufsliste hinzugefügt"}
 
@@ -262,5 +305,6 @@ async def dismiss_alert(
         raise HTTPException(status_code=404, detail="Artikel nicht gefunden")
     item.amount = None
     item.expiry_date = None
+    item.low_stock_watch_active = False
     await db.flush()
     return {"message": f"Warnung für {item.name} verworfen"}

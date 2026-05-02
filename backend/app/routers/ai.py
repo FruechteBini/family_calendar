@@ -24,7 +24,10 @@ from ..models.ingredient import Ingredient
 from ..models.pantry_item import PantryItem
 from ..models.shopping_list import ShoppingItem, ShoppingList
 from ..models.todo import Todo, todo_members
+from ..models.user import User
 from ..schemas.ai import (
+    ApplyPantryCategorizationRequest,
+    ApplyPantryCategorizationResponse,
     ApplyRecipeCategorizationRequest,
     ApplyRecipeCategorizationResponse,
     ApplyTodoPrioritiesRequest,
@@ -33,6 +36,8 @@ from ..schemas.ai import (
     ConfirmMealPlanResponse,
     GenerateMealPlanRequest,
     MealSuggestion,
+    PantryCategoryAssignment,
+    PantryCategorizationPreview,
     PreviewMealPlanResponse,
     RecipeCategorizationAssignment,
     RecipeCategorizationPreview,
@@ -45,7 +50,8 @@ from ..schemas.ai import (
     VoiceCommandRequest,
     VoiceCommandResponse,
 )
-from ..utils import ensure_aware, monday_of, normalize_ingredient_name
+from ..schemas.recipe import IngredientCategory
+from ..utils import ensure_aware, monday_of, normalize_ingredient_name, resolve_members
 
 logger = logging.getLogger("kalender.ai")
 
@@ -807,7 +813,7 @@ Parameter:
 - "event_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Event, z.B. "evt1")
 - "event_id" (Integer, optional - ID eines existierenden Events)
 - "parent_ref" (String, optional - Referenz auf ein in dieser Anweisung erstelltes Todo, für Sub-Todos)
-- "member_ids" (Array von Integers, optional)
+- "member_ids" (NICHT setzen — Zuweisung erfolgt automatisch immer zum Benutzer der Spracheingabe)
 
 ### create_recipe
 Erstellt ein Rezept.
@@ -940,7 +946,10 @@ ACTION_TYPE_ORDER = {
 
 
 async def _execute_voice_actions(
-    actions: list[dict], db: AsyncSession, family_id: int,
+    actions: list[dict],
+    db: AsyncSession,
+    family_id: int,
+    voice_creator_member_id: int | None,
 ) -> list[VoiceCommandAction]:
     """Execute parsed voice actions, resolving cross-references."""
     ref_map: dict[str, int] = {}
@@ -960,7 +969,13 @@ async def _execute_voice_actions(
             elif action_type == "create_recurring_event":
                 result_data = await _exec_create_recurring_event(params, db, family_id)
             elif action_type == "create_todo":
-                result_data = await _exec_create_todo(params, ref_map, db, family_id)
+                result_data = await _exec_create_todo(
+                    params,
+                    ref_map,
+                    db,
+                    family_id,
+                    voice_creator_member_id,
+                )
             elif action_type == "create_recipe":
                 result_data = await _exec_create_recipe(params, db, family_id)
             elif action_type == "set_meal_slot":
@@ -1111,7 +1126,11 @@ async def _exec_create_recurring_event(params: dict, db: AsyncSession, family_id
 
 
 async def _exec_create_todo(
-    params: dict, ref_map: dict[str, int], db: AsyncSession, family_id: int,
+    params: dict,
+    ref_map: dict[str, int],
+    db: AsyncSession,
+    family_id: int,
+    voice_creator_member_id: int | None,
 ) -> dict:
     event_id = params.get("event_id")
     event_ref = params.get("event_ref")
@@ -1127,8 +1146,17 @@ async def _exec_create_todo(
     if params.get("due_date"):
         due_date_val = date.fromisoformat(params["due_date"])
 
+    if voice_creator_member_id is not None:
+        assignment_members = await resolve_members(db, [voice_creator_member_id], family_id)
+    else:
+        mid_raw = params.get("member_ids") or []
+        assignment_members = (
+            await resolve_members(db, list(mid_raw), family_id) if mid_raw else []
+        )
+
     todo = Todo(
         family_id=family_id,
+        created_by_member_id=voice_creator_member_id,
         title=params.get("title", "Ohne Titel"),
         description=params.get("description"),
         priority=params.get("priority", "medium"),
@@ -1137,14 +1165,10 @@ async def _exec_create_todo(
         event_id=event_id,
         parent_id=parent_id,
         requires_multiple=params.get("requires_multiple", False),
+        members=assignment_members,
     )
     db.add(todo)
     await db.flush()
-
-    member_ids = params.get("member_ids", [])
-    if member_ids:
-        for mid in member_ids:
-            await db.execute(todo_members.insert().values(todo_id=todo.id, member_id=mid))
 
     return {"id": todo.id, "title": todo.title}
 
@@ -1607,6 +1631,7 @@ async def voice_command(
     data: VoiceCommandRequest,
     db: AsyncSession = Depends(get_db),
     family_id: int = Depends(require_family_id),
+    user: User = Depends(get_current_user),
 ):
     """Interpret a voice command via Claude and execute the resulting actions."""
     if not settings.ANTHROPIC_API_KEY:
@@ -1624,7 +1649,9 @@ async def voice_command(
     raw_text = await _call_claude(prompt, max_tokens=4096)
     actions_raw, summary = _parse_voice_response(raw_text)
 
-    executed = await _execute_voice_actions(actions_raw, db, family_id)
+    executed = await _execute_voice_actions(
+        actions_raw, db, family_id, user.member_id,
+    )
 
     return VoiceCommandResponse(summary=summary, actions=executed)
 
@@ -2151,3 +2178,201 @@ async def apply_recipe_categorization(
         categories_created=categories_created,
         tags_created=tags_created,
     )
+
+
+# ── Pantry categorization (preview + apply) ────────────────────────────────
+
+
+def _pantry_categorize_line(p: PantryItem) -> str:
+    if p.amount is not None:
+        amt = f"{p.amount} {p.unit or ''}".strip()
+    else:
+        amt = "Menge offen"
+    return f'- ID {p.id} | name={p.name!r} | aktuell={amt} | kategorie="{p.category}"'
+
+
+def _allowed_pantry_categories_text() -> str:
+    lines = []
+    for e in IngredientCategory:
+        german = {
+            IngredientCategory.kuehlregal: "Kühlregal / Frische",
+            IngredientCategory.obst_gemuese: "Obst & Gemüse",
+            IngredientCategory.trockenware: "Trockenware / Vorrat",
+            IngredientCategory.drogerie: "Drogerie & Haushalt",
+            IngredientCategory.sonstiges: "Sonstiges",
+        }.get(e, e.value)
+        lines.append(f'- "{e.value}" ({german})')
+    return "\n".join(lines)
+
+
+def _build_pantry_categorize_prompt(items: list[PantryItem]) -> str:
+    items_text = "\n".join(_pantry_categorize_line(p) for p in items) or "- (keine Artikel)"
+    cats_text = _allowed_pantry_categories_text()
+
+    return f"""Du sortierst einen Haushaltsvorrat in Einkaufs-Kategorien für eine Familien-App.
+
+## Erlaubte Kategorie-Schlüssel (exakt einer pro Artikel)
+Nutze **nur** einen der folgenden Schlüsselwerte als \"category\" — keine anderen Strings:
+{cats_text}
+
+## Artikel
+{items_text}
+
+## Aufgabe
+- Ordne jeden Artikel einer sinnvollen Kategorie zu (deutsche Supermarkt-Logik).
+- Bei Unsicherheit: \"sonstiges\".
+
+## Antwortformat
+Antworte **AUSSCHLIESSLICH** mit JSON, **ohne** Markdown-Codeblöcke.
+Schema:
+{{
+  "summary": "Kurzfassung auf Deutsch",
+  "items": [
+    {{
+      "pantry_item_id": 1,
+      "category": "kuehlregal"
+    }}
+  ]
+}}
+
+## Regeln
+- **Jeden** Artikel aus der Liste **genau einmal** in \"items\" aufführen (passende pantry_item_id).
+"""
+
+
+def _resolve_pantry_category_key(raw: object) -> str:
+    allowed = frozenset(e.value for e in IngredientCategory)
+    fallback = IngredientCategory.sonstiges.value
+    if isinstance(raw, str):
+        cand = raw.strip().lower().replace("-", "_")
+        if cand in allowed:
+            return cand
+        alias_map: dict[str, str] = {
+            "milch": "kuehlregal",
+            "milchprodukte": "kuehlregal",
+            "fleisch": "kuehlregal",
+            "wurst": "kuehlregal",
+            "kaese": "kuehlregal",
+            "joghurt": "kuehlregal",
+            "obst und gemuese": "obst_gemuese",
+            "obst": "obst_gemuese",
+            "gemuese": "obst_gemuese",
+            "gemüse": "obst_gemuese",
+            "trocken": "trockenware",
+            "nudeln": "trockenware",
+            "getreide": "trockenware",
+            "konserven": "trockenware",
+            "gewuerze": "trockenware",
+            "backen": "trockenware",
+            "drogerie": "drogerie",
+            "haushalt": "drogerie",
+            "reinigung": "drogerie",
+        }
+        if cand in alias_map:
+            return alias_map[cand]
+        for token, target in alias_map.items():
+            if token in cand:
+                return target
+    return fallback
+
+
+def _merge_pantry_categorization(
+    parsed: dict,
+    items: list[PantryItem],
+) -> PantryCategorizationPreview:
+    valid_ids = {p.id for p in items}
+    by_id = {p.id: p for p in items}
+    assignments: list[PantryCategoryAssignment] = []
+    raw_items = parsed.get("items") if isinstance(parsed.get("items"), list) else []
+
+    seen: set[int] = set()
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        pid = it.get("pantry_item_id")
+        if not isinstance(pid, int) or pid not in valid_ids:
+            continue
+        cat_key = _resolve_pantry_category_key(it.get("category"))
+        pname = by_id[pid].name
+        assignments.append(
+            PantryCategoryAssignment(
+                pantry_item_id=pid,
+                item_name=pname,
+                category=cat_key,
+            )
+        )
+        seen.add(pid)
+
+    for p in items:
+        if p.id in seen:
+            continue
+        assignments.append(
+            PantryCategoryAssignment(
+                pantry_item_id=p.id,
+                item_name=p.name,
+                category=IngredientCategory.sonstiges.value,
+            )
+        )
+
+    summary = parsed.get("summary")
+    if not isinstance(summary, str):
+        summary = ""
+
+    return PantryCategorizationPreview(assignments=assignments, summary=summary)
+
+
+@router.post("/categorize-pantry", response_model=PantryCategorizationPreview)
+async def categorize_pantry(
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY ist nicht konfiguriert")
+
+    res = await db.execute(
+        select(PantryItem).where(PantryItem.family_id == family_id).order_by(PantryItem.category, PantryItem.name)
+    )
+    items = list(res.scalars().all())
+    if not items:
+        return PantryCategorizationPreview(assignments=[], summary="Keine Vorrat-Artikel vorhanden.")
+
+    prompt = _build_pantry_categorize_prompt(items)
+    raw_text = await _call_claude(prompt, max_tokens=4096)
+    text = _strip_json_fence(raw_text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        logger.error("Pantry categorize: invalid JSON: %s", text[:500])
+        raise HTTPException(
+            status_code=502,
+            detail="KI hat ungültiges Format zurückgegeben. Bitte erneut versuchen.",
+        )
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=502, detail="KI hat ungültiges Format zurückgegeben.")
+
+    return _merge_pantry_categorization(parsed, items)
+
+
+@router.post("/apply-pantry-categorization", response_model=ApplyPantryCategorizationResponse)
+async def apply_pantry_categorization(
+    data: ApplyPantryCategorizationRequest,
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    updated = 0
+    allowed = frozenset(e.value for e in IngredientCategory)
+    by_pid: dict[int, PantryCategoryAssignment] = {}
+    for a in data.assignments:
+        by_pid[a.pantry_item_id] = a
+    for a in by_pid.values():
+        item = await db.get(PantryItem, a.pantry_item_id)
+        if not item or item.family_id != family_id:
+            continue
+        cat_key = _resolve_pantry_category_key(a.category)
+        if cat_key not in allowed:
+            cat_key = IngredientCategory.sonstiges.value
+        item.category = cat_key
+        updated += 1
+
+    await db.flush()
+    return ApplyPantryCategorizationResponse(updated=updated)

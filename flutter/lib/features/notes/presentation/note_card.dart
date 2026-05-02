@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_repository.dart';
 import '../domain/note.dart';
@@ -123,7 +124,10 @@ class NoteCard extends ConsumerWidget {
               ],
             ),
           );
-          if (ok == true) await repo.deleteNote(note.id);
+          if (ok == true) {
+            await repo.deleteNote(note.id);
+            notifyDataMutated(ref);
+          }
           break;
       }
       onRefresh();
@@ -296,6 +300,56 @@ class NoteCard extends ConsumerWidget {
     );
   }
 
+  /// Ein einzelnes Bild/Video oben auf der Karte (volle Breite), wie Link-Vorschau.
+  Widget _singleMediaHero(
+    BuildContext context,
+    WidgetRef ref,
+    NoteAttachment a, {
+    required VoidCallback onOpenNote,
+  }) {
+    final theme = Theme.of(context);
+    final url = noteAttachmentFullUrl(ref, a);
+    final isImg = noteAttachmentIsImage(a);
+    final headers = noteImageRequestHeaders(ref);
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              if (isImg) {
+                _openImageFullscreen(context, ref, a);
+              } else {
+                onOpenNote();
+              }
+            },
+            child: isImg
+                ? CachedNetworkImage(
+                    imageUrl: url,
+                    fit: BoxFit.cover,
+                    httpHeaders: headers,
+                    placeholder: (_, __) => Container(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) =>
+                        _attachmentVideoPlaceholder(theme, a.filename),
+                  )
+                : _attachmentVideoPlaceholder(theme, a.filename),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Bild- und Video-Anhänge wie Link-Vorschau (16:9-Kacheln, horizontal scrollbar).
   Widget? _mediaAttachmentStrip(
     BuildContext context,
@@ -409,8 +463,28 @@ class NoteCard extends ConsumerWidget {
     final tint = _cardTint(note.color);
     final borderRadius = BorderRadius.circular(12);
 
-    final attachmentStrip =
-        _mediaAttachmentStrip(context, ref, note, onOpenNote: onEdit);
+    final visualMedia = note.attachments
+        .where((a) => noteAttachmentIsImage(a) || noteAttachmentIsVideo(a))
+        .toList();
+    final textVisualMediaOnly = note.type == NoteType.text &&
+        note.title.trim().isEmpty &&
+        (note.content ?? '').trim().isEmpty &&
+        visualMedia.isNotEmpty;
+
+    Widget? mediaWidget;
+    if (visualMedia.isNotEmpty) {
+      if (textVisualMediaOnly && visualMedia.length == 1) {
+        mediaWidget = _singleMediaHero(
+          context,
+          ref,
+          visualMedia.first,
+          onOpenNote: onEdit,
+        );
+      } else {
+        mediaWidget =
+            _mediaAttachmentStrip(context, ref, note, onOpenNote: onEdit);
+      }
+    }
 
     Widget body;
     switch (note.type) {
@@ -462,7 +536,7 @@ class NoteCard extends ConsumerWidget {
                 ],
               ),
             ),
-            if (attachmentStrip != null) attachmentStrip,
+            if (mediaWidget != null) mediaWidget,
           ],
         );
         break;
@@ -472,7 +546,7 @@ class NoteCard extends ConsumerWidget {
         body = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (attachmentStrip != null) attachmentStrip,
+            if (mediaWidget != null) mediaWidget,
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -526,31 +600,40 @@ class NoteCard extends ConsumerWidget {
       case NoteType.text:
         final md = note.content ?? '';
         final preview = md.length > 400 ? '${md.substring(0, 400)}…' : md;
-        body = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (attachmentStrip != null) attachmentStrip,
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(note.displayTitle, style: theme.textTheme.titleMedium),
-                  if (md.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    MarkdownBody(
-                      data: preview,
-                      shrinkWrap: true,
-                      styleSheet: MarkdownStyleSheet(
-                        p: theme.textTheme.bodyMedium,
+        if (textVisualMediaOnly) {
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (mediaWidget != null) mediaWidget,
+            ],
+          );
+        } else {
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (mediaWidget != null) mediaWidget,
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(note.displayTitle, style: theme.textTheme.titleMedium),
+                    if (md.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      MarkdownBody(
+                        data: preview,
+                        shrinkWrap: true,
+                        styleSheet: MarkdownStyleSheet(
+                          p: theme.textTheme.bodyMedium,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
-        );
+            ],
+          );
+        }
     }
 
     return Card(

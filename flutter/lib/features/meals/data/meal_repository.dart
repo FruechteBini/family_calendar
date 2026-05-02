@@ -42,6 +42,19 @@ class MealRepository {
     }
   }
 
+  /// Leert alle Slots der Kalenderwoche, in die [weekAnchor] fällt (Mo–So).
+  Future<void> clearWeekPlan({String? weekAnchor}) async {
+    try {
+      await _dio.delete(
+        Endpoints.mealsPlan,
+        queryParameters:
+            weekAnchor != null ? <String, dynamic>{'week': weekAnchor} : null,
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<void> markCooked(
     String date,
     String slot, {

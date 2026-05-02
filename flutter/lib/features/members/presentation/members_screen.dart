@@ -6,6 +6,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../core/auth/auth_provider.dart';
 
 final membersListProvider = FutureProvider<List<FamilyMember>>((ref) {
@@ -168,6 +169,7 @@ class MembersScreen extends ConsumerWidget {
     try {
       await ref.read(memberRepositoryProvider).deleteMember(member.id);
       ref.invalidate(membersListProvider);
+      notifyDataMutated(ref);
     } on ApiException catch (e) {
       if (context.mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);

@@ -4,6 +4,7 @@ class Category {
   final String name;
   final String color;
   final String icon;
+  final bool isPersonal;
 
   const Category({
     required this.id,
@@ -11,6 +12,7 @@ class Category {
     required this.name,
     required this.color,
     required this.icon,
+    this.isPersonal = false,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class Category {
       name: json['name'] as String,
       color: json['color'] as String? ?? '#0052CC',
       icon: json['icon'] as String? ?? '\u{1F4C1}',
+      isPersonal: json['is_personal'] as bool? ?? false,
     );
   }
 
@@ -29,6 +32,7 @@ class Category {
       'color': color,
       'icon': icon,
       'position': position,
+      'is_personal': isPersonal,
     };
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
@@ -146,6 +147,7 @@ class _NoteCategoriesScreenState extends ConsumerState<NoteCategoriesScreen>
     try {
       await ref.read(noteCategoryRepositoryProvider).deleteCategory(c.id);
       invalidateNoteCategoryCaches(ref);
+      notifyDataMutated(ref);
     } on ApiException catch (e) {
       if (mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);

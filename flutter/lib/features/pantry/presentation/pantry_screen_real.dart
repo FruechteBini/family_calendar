@@ -12,6 +12,43 @@ import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/sync/sync_service.dart';
 import '../data/pantry_repository.dart';
 import '../domain/pantry_item.dart';
+import 'pantry_ai_categorize_sheet.dart';
+
+class PantryListSortOption {
+  final String apiSort;
+  final String apiOrder;
+  final String label;
+  const PantryListSortOption(this.apiSort, this.apiOrder, this.label);
+
+  static const categoryAsc =
+      PantryListSortOption('category', 'asc', 'Kategorie · A→Z');
+  static const categoryDesc =
+      PantryListSortOption('category', 'desc', 'Kategorie · Z→A');
+  static const nameAsc = PantryListSortOption('name', 'asc', 'Name · A→Z');
+  static const nameDesc = PantryListSortOption('name', 'desc', 'Name · Z→A');
+  static const amountDesc =
+      PantryListSortOption('amount', 'desc', 'Menge · hoch zuerst');
+  static const amountAsc =
+      PantryListSortOption('amount', 'asc', 'Menge · niedrig zuerst');
+  static const updatedDesc =
+      PantryListSortOption('updated', 'desc', 'Zuletzt geändert');
+  static const updatedAsc =
+      PantryListSortOption('updated', 'asc', 'Älteste Änderung');
+
+  static const List<PantryListSortOption> choices = [
+    categoryAsc,
+    categoryDesc,
+    nameAsc,
+    nameDesc,
+    amountDesc,
+    amountAsc,
+    updatedDesc,
+    updatedAsc,
+  ];
+}
+
+final pantrySortOptionProvider =
+    StateProvider<PantryListSortOption>((ref) => PantryListSortOption.categoryAsc);
 
 final pantrySearchProvider = StateProvider<String>((ref) => '');
 final pantryCategoryProvider = StateProvider<String?>((ref) => null);
@@ -21,7 +58,13 @@ final pantryItemsProvider = FutureProvider<List<PantryItem>>((ref) {
   ref.watch(syncTickProvider);
   final search = ref.watch(pantrySearchProvider);
   final category = ref.watch(pantryCategoryProvider);
-  return ref.watch(pantryRepositoryProvider).getItems(category: category, search: search);
+  final sort = ref.watch(pantrySortOptionProvider);
+  return ref.watch(pantryRepositoryProvider).getItems(
+        category: category,
+        search: search,
+        sort: sort.apiSort,
+        order: sort.apiOrder,
+      );
 });
 
 final pantryAlertsProvider = FutureProvider<List<PantryAlert>>((ref) {
@@ -64,6 +107,12 @@ class PantryScreen extends ConsumerWidget {
                           ),
                           IconButton(
                             visualDensity: VisualDensity.compact,
+                            tooltip: 'KI: in Kategorien sortieren',
+                            icon: const Icon(Icons.auto_awesome_outlined, size: 22),
+                            onPressed: () => _showPantryAiCategorize(context, ref),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
                             tooltip: 'Artikel hinzufügen',
                             icon: const Icon(Icons.add_circle_outline, size: 22),
                             onPressed: () => _openAddDialog(context, ref),
@@ -71,10 +120,35 @@ class PantryScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      AppInputField(
-                        hintText: 'Suchen…',
-                        prefixIcon: Icons.search,
-                        onChanged: (v) => ref.read(pantrySearchProvider.notifier).state = v,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: AppInputField(
+                              hintText: 'Suchen…',
+                              prefixIcon: Icons.search,
+                              onChanged: (v) =>
+                                  ref.read(pantrySearchProvider.notifier).state = v,
+                            ),
+                          ),
+                          PopupMenuButton<PantryListSortOption>(
+                            tooltip: 'Sortierung',
+                            icon: const Icon(Icons.sort),
+                            initialValue: ref.watch(pantrySortOptionProvider),
+                            onSelected: (v) {
+                              ref.read(pantrySortOptionProvider.notifier).state = v;
+                              ref.invalidate(pantryItemsProvider);
+                            },
+                            itemBuilder: (ctx) => PantryListSortOption.choices
+                                .map(
+                                  (opt) => PopupMenuItem(
+                                    value: opt,
+                                    child: Text(opt.label),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -128,6 +202,20 @@ class PantryScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _showPantryAiCategorize(BuildContext context, WidgetRef ref) async {
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const PantryAiCategorizeSheet(),
+    );
+    if (!context.mounted) return;
+    if (applied != true) return;
+    ref.invalidate(pantryItemsProvider);
+    ref.invalidate(pantryAlertsProvider);
+    ref.read(syncTickProvider.notifier).state++;
+  }
+
   Future<void> _openAddDialog(BuildContext context, WidgetRef ref) async {
     final nameCtrl = TextEditingController();
     final qtyCtrl = TextEditingController();
@@ -178,7 +266,7 @@ class PantryScreen extends ConsumerWidget {
 
     final data = <String, dynamic>{'name': name};
     final qty = double.tryParse(qtyCtrl.text.trim().replaceAll(',', '.'));
-    if (qty != null) data['quantity'] = qty;
+    if (qty != null) data['amount'] = qty;
     if (unitCtrl.text.trim().isNotEmpty) data['unit'] = unitCtrl.text.trim();
     if (catCtrl.text.trim().isNotEmpty) data['category'] = catCtrl.text.trim();
 
@@ -191,6 +279,17 @@ class PantryScreen extends ConsumerWidget {
     } on ApiException catch (e) {
       if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
     }
+  }
+}
+
+String _pantryAlertReasonLabel(String raw) {
+  switch (raw) {
+    case 'expiring_soon':
+      return 'Läuft bald ab';
+    case 'low_stock':
+      return 'Niedrige Menge (nach Mengenabbruch beim Kochen)';
+    default:
+      return raw;
   }
 }
 
@@ -232,7 +331,8 @@ class _AlertsStrip extends ConsumerWidget {
                             children: [
                               ListTile(
                                 title: Text(a.itemName),
-                                subtitle: Text(a.alertType),
+                                subtitle:
+                                    Text(_pantryAlertReasonLabel(a.alertType)),
                               ),
                               const Divider(height: 1),
                               ListTile(
@@ -294,11 +394,24 @@ class _PantryItemTile extends ConsumerWidget {
     final subtitleParts = <String>[];
     if (item.quantity != null) subtitleParts.add(item.quantity!.toString());
     if (item.unit != null && item.unit!.isNotEmpty) subtitleParts.add(item.unit!);
-    if (item.category != null && item.category!.isNotEmpty) subtitleParts.add('· ${item.category}');
+    final ck = item.category;
+    if (ck != null && ck.isNotEmpty) subtitleParts.add('· ${pantryCategoryLabelDe(ck)}');
+
     final subtitle = subtitleParts.join(' ');
+
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: item.isLowStock
+          ? BorderSide(
+              color: Theme.of(context).colorScheme.tertiary,
+              width: 1,
+            )
+          : BorderSide.none,
+    );
 
     return Card(
       color: AppColors.surfaceContainerHigh,
+      shape: shape,
       child: ListTile(
         title: Text(item.name),
         subtitle: subtitle.isEmpty ? null : Text(subtitle),
@@ -308,13 +421,14 @@ class _PantryItemTile extends ConsumerWidget {
               try {
                 await ref.read(pantryRepositoryProvider).deleteItem(item.id);
                 ref.invalidate(pantryItemsProvider);
-                ref.read(syncTickProvider.notifier).state++;
+                notifyDataMutated(ref);
                 await ref.read(pantryItemsProvider.future);
               } on ApiException catch (e) {
                 if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
               }
             }
             if (v == 'edit') {
+              if (!context.mounted) return;
               await _openEditDialog(context, ref, item);
             }
           },
@@ -368,8 +482,12 @@ class _PantryItemTile extends ConsumerWidget {
 
     if (res != true) return;
     final data = <String, dynamic>{'name': nameCtrl.text.trim()};
-    final qty = double.tryParse(qtyCtrl.text.trim().replaceAll(',', '.'));
-    data['quantity'] = qtyCtrl.text.trim().isEmpty ? null : qty;
+    if (qtyCtrl.text.trim().isEmpty) {
+      data['amount'] = null;
+    } else {
+      data['amount'] =
+          double.tryParse(qtyCtrl.text.trim().replaceAll(',', '.'));
+    }
     data['unit'] = unitCtrl.text.trim().isEmpty ? null : unitCtrl.text.trim();
     data['category'] = catCtrl.text.trim().isEmpty ? null : catCtrl.text.trim();
 

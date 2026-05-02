@@ -49,8 +49,16 @@ DEFAULT_CATEGORIES = [
 
 
 async def _seed_categories_for_family(family_id: int, db: AsyncSession) -> None:
-    for cat in DEFAULT_CATEGORIES:
-        db.add(Category(family_id=family_id, **cat))
+    for pos, cat in enumerate(DEFAULT_CATEGORIES):
+        db.add(
+            Category(
+                family_id=family_id,
+                position=pos,
+                is_personal=False,
+                user_id=None,
+                **cat,
+            )
+        )
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -122,7 +130,11 @@ async def update_preferences(
                     detail="Kalender-Farbe ist erst nach Familienbeitritt möglich.",
                 )
             cat = await db.get(Category, cid)
-            if not cat or cat.family_id != user.family_id:
+            if (
+                not cat
+                or cat.family_id != user.family_id
+                or cat.is_personal
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Ungültige Kategorie für diese Familie.",
@@ -226,7 +238,7 @@ async def update_family_settings(
     cid = updates["default_family_calendar_category_id"]
     if cid is not None:
         cat = await db.get(Category, cid)
-        if not cat or cat.family_id != family.id:
+        if not cat or cat.family_id != family.id or cat.is_personal:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ungültige Kategorie für diese Familie.",

@@ -16,7 +16,7 @@ class SettingsCalendarDefaultsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authStateProvider);
     final defsAsync = ref.watch(calendarDefaultsProvider);
-    final catsAsync = ref.watch(categoriesListProvider);
+    final catsAsync = ref.watch(familyTodoCategoriesListProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Kalenderfarben')),

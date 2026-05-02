@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -317,45 +316,6 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
     }
   }
 
-  Future<void> _addVideo() async {
-    final picker = ImagePicker();
-    final x = await picker.pickVideo(source: ImageSource.gallery);
-    if (x == null) return;
-    if (kIsWeb) {
-      final b = await x.readAsBytes();
-      setState(() {
-        _pendingFiles.add(_PendingFile(filename: x.name, bytes: b));
-      });
-    } else {
-      setState(() {
-        _pendingFiles.add(
-          _PendingFile(filename: path.basename(x.path), filePath: x.path),
-        );
-      });
-    }
-  }
-
-  Future<void> _addDocuments() async {
-    final r = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      withData: kIsWeb,
-    );
-    if (r == null || r.files.isEmpty) return;
-    setState(() {
-      for (final f in r.files) {
-        final name = f.name;
-        if (name.isEmpty) continue;
-        if (kIsWeb) {
-          if (f.bytes != null) {
-            _pendingFiles.add(_PendingFile(filename: name, bytes: f.bytes));
-          }
-        } else if (f.path != null && f.path!.isNotEmpty) {
-          _pendingFiles.add(_PendingFile(filename: name, filePath: f.path));
-        }
-      }
-    });
-  }
-
   Future<void> _showAttachMenu() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -381,22 +341,6 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
                   _addPhoto(ImageSource.camera);
                 },
               ),
-            ListTile(
-              leading: const Icon(Icons.videocam_outlined),
-              title: const Text('Video aus Galerie'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _addVideo();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.attach_file),
-              title: const Text('Datei auswählen'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _addDocuments();
-              },
-            ),
           ],
         ),
       ),
@@ -597,7 +541,7 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
           _title.text.trim().isNotEmpty || _content.text.trim().isNotEmpty;
       if (!hasBody && !_hasAnyAttachment()) {
         showAppToast(context,
-            message: 'Titel, Inhalt oder Anhang erforderlich', type: ToastType.error);
+            message: 'Titel, Inhalt oder Foto erforderlich', type: ToastType.error);
         return;
       }
     }
@@ -1100,7 +1044,7 @@ class _NoteFormDialogState extends ConsumerState<NoteFormDialog> {
               OutlinedButton.icon(
                 onPressed: _showAttachMenu,
                 icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: const Text('Datei, Foto oder Video'),
+                label: const Text('Foto hinzufügen'),
               ),
               if (visibleExisting.isNotEmpty || _pendingFiles.isNotEmpty) ...[
                 const SizedBox(height: 8),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/widgets/app_input_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -396,6 +397,7 @@ class _ActionRow extends ConsumerWidget {
       try {
         await ref.read(shoppingRepositoryProvider).clearAll();
         ref.invalidate(shoppingListProvider);
+        notifyDataMutated(ref);
         if (context.mounted) showAppToast(context, message: 'Liste geleert', type: ToastType.success);
       } on ApiException catch (e) {
         if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
@@ -763,10 +765,30 @@ class _CategorySection extends ConsumerWidget {
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                         icon: const Icon(Icons.delete_outline, size: 22),
+                        tooltip: 'Löschen',
                         onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Artikel löschen?'),
+                              content: Text('"${it.name}" wirklich löschen?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Abbrechen'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Löschen'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm != true || !context.mounted) return;
                           try {
                             await ref.read(shoppingRepositoryProvider).deleteItem(it.id);
                             ref.invalidate(shoppingListProvider);
+                            notifyDataMutated(ref);
                           } on ApiException catch (e) {
                             if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
                           }

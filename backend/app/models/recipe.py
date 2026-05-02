@@ -32,6 +32,7 @@ class Recipe(Base):
     instructions: Mapped[str | None] = mapped_column(Text, default=None)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     image_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    cover_image_path: Mapped[str | None] = mapped_column(String(512), default=None)
     ai_accessible: Mapped[bool] = mapped_column(default=True)
     recipe_category_id: Mapped[int | None] = mapped_column(
         ForeignKey("recipe_categories.id", ondelete="SET NULL"), default=None

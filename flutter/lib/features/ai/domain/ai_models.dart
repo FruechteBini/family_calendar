@@ -388,3 +388,68 @@ class ApplyRecipeCategorizationResult {
     );
   }
 }
+
+// ── Pantry AI categorization ───────────────────────────────────────────────
+
+class PantryCategoryAssignment {
+  final int pantryItemId;
+  final String itemName;
+  final String category;
+
+  const PantryCategoryAssignment({
+    required this.pantryItemId,
+    this.itemName = '',
+    required this.category,
+  });
+
+  factory PantryCategoryAssignment.fromJson(Map<String, dynamic> json) {
+    return PantryCategoryAssignment(
+      pantryItemId: json['pantry_item_id'] as int,
+      itemName: json['item_name'] as String? ?? '',
+      category: json['category'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'pantry_item_id': pantryItemId,
+        if (itemName.isNotEmpty) 'item_name': itemName,
+        'category': category,
+      };
+}
+
+class PantryCategorizationPreview {
+  final List<PantryCategoryAssignment> assignments;
+  final String summary;
+
+  const PantryCategorizationPreview({
+    this.assignments = const [],
+    this.summary = '',
+  });
+
+  factory PantryCategorizationPreview.fromJson(Map<String, dynamic> json) {
+    return PantryCategorizationPreview(
+      assignments: (json['assignments'] as List<dynamic>?)
+              ?.map((e) =>
+                  PantryCategoryAssignment.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      summary: json['summary'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toApplyBody() => {
+        'assignments': assignments.map((e) => e.toJson()).toList(),
+      };
+}
+
+class ApplyPantryCategorizationResult {
+  final int updated;
+
+  const ApplyPantryCategorizationResult({this.updated = 0});
+
+  factory ApplyPantryCategorizationResult.fromJson(Map<String, dynamic> json) {
+    return ApplyPantryCategorizationResult(
+      updated: json['updated'] as int? ?? 0,
+    );
+  }
+}

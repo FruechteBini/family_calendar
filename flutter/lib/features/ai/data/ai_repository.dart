@@ -127,6 +127,35 @@ class AiRepository {
     }
   }
 
+  Future<PantryCategorizationPreview> categorizePantry() async {
+    try {
+      final response = await _dio.post(
+        Endpoints.aiCategorizePantry,
+        options: Options(receiveTimeout: const Duration(seconds: 120)),
+      );
+      return PantryCategorizationPreview.fromJson(
+          response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<ApplyPantryCategorizationResult> applyPantryCategorization(
+    PantryCategorizationPreview preview,
+  ) async {
+    try {
+      final response = await _dio.post(
+        Endpoints.aiApplyPantryCategorization,
+        data: preview.toApplyBody(),
+        options: Options(receiveTimeout: const Duration(seconds: 120)),
+      );
+      return ApplyPantryCategorizationResult.fromJson(
+          response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<VoiceCommandResult> voiceCommand({
     required String text,
     List<Map<String, dynamic>>? context,

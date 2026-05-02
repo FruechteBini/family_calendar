@@ -5,6 +5,7 @@ class CategoryCreate(BaseModel):
     name: str
     color: str = "#0052CC"
     icon: str = "📁"
+    is_personal: bool = False
 
 
 class CategoryUpdate(BaseModel):
@@ -20,5 +21,6 @@ class CategoryResponse(BaseModel):
     name: str
     color: str
     icon: str
+    is_personal: bool
 
     model_config = {"from_attributes": True}

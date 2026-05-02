@@ -115,6 +115,25 @@ class ApplyRecipeCategorizationResponse(BaseModel):
     tags_created: int
 
 
+class PantryCategoryAssignment(BaseModel):
+    pantry_item_id: int
+    item_name: str = ""
+    category: str
+
+
+class PantryCategorizationPreview(BaseModel):
+    assignments: list[PantryCategoryAssignment] = []
+    summary: str = ""
+
+
+class ApplyPantryCategorizationRequest(BaseModel):
+    assignments: list[PantryCategoryAssignment]
+
+
+class ApplyPantryCategorizationResponse(BaseModel):
+    updated: int
+
+
 # ── Voice Command Schemas ──
 
 

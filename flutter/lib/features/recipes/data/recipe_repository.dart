@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
@@ -46,6 +48,33 @@ class RecipeRepository {
     try {
       final response = await _dio.post(Endpoints.recipes, data: data);
       return Recipe.fromJson(response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<Recipe> uploadRecipeCover(
+    int recipeId, {
+    required String filename,
+    String? filePath,
+    Uint8List? bytes,
+  }) async {
+    if (filePath == null && bytes == null) {
+      throw ArgumentError('filePath oder bytes erforderlich');
+    }
+    try {
+      final MultipartFile mf;
+      if (filePath != null) {
+        mf = await MultipartFile.fromFile(filePath, filename: filename);
+      } else {
+        mf = MultipartFile.fromBytes(bytes!, filename: filename);
+      }
+      final form = FormData.fromMap({'file': mf});
+      final response = await _dio.post(
+        Endpoints.recipeCover(recipeId),
+        data: form,
+      );
+      return Recipe.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

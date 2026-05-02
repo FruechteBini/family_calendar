@@ -1795,8 +1795,18 @@ class $CachedCategoriesTable extends CachedCategories
   late final GeneratedColumn<String> color = GeneratedColumn<String>(
       'color', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _isPersonalMeta =
+      const VerificationMeta('isPersonal');
   @override
-  List<GeneratedColumn> get $columns => [id, name, color];
+  late final GeneratedColumn<bool> isPersonal = GeneratedColumn<bool>(
+      'is_personal', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_personal" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, color, isPersonal];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1820,6 +1830,12 @@ class $CachedCategoriesTable extends CachedCategories
       context.handle(
           _colorMeta, color.isAcceptableOrUnknown(data['color']!, _colorMeta));
     }
+    if (data.containsKey('is_personal')) {
+      context.handle(
+          _isPersonalMeta,
+          isPersonal.isAcceptableOrUnknown(
+              data['is_personal']!, _isPersonalMeta));
+    }
     return context;
   }
 
@@ -1835,6 +1851,8 @@ class $CachedCategoriesTable extends CachedCategories
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       color: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}color']),
+      isPersonal: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_personal'])!,
     );
   }
 
@@ -1848,7 +1866,12 @@ class CachedCategory extends DataClass implements Insertable<CachedCategory> {
   final int id;
   final String name;
   final String? color;
-  const CachedCategory({required this.id, required this.name, this.color});
+  final bool isPersonal;
+  const CachedCategory(
+      {required this.id,
+      required this.name,
+      this.color,
+      required this.isPersonal});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1857,6 +1880,7 @@ class CachedCategory extends DataClass implements Insertable<CachedCategory> {
     if (!nullToAbsent || color != null) {
       map['color'] = Variable<String>(color);
     }
+    map['is_personal'] = Variable<bool>(isPersonal);
     return map;
   }
 
@@ -1866,6 +1890,7 @@ class CachedCategory extends DataClass implements Insertable<CachedCategory> {
       name: Value(name),
       color:
           color == null && nullToAbsent ? const Value.absent() : Value(color),
+      isPersonal: Value(isPersonal),
     );
   }
 
@@ -1876,6 +1901,7 @@ class CachedCategory extends DataClass implements Insertable<CachedCategory> {
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       color: serializer.fromJson<String?>(json['color']),
+      isPersonal: serializer.fromJson<bool>(json['isPersonal']),
     );
   }
   @override
@@ -1885,23 +1911,28 @@ class CachedCategory extends DataClass implements Insertable<CachedCategory> {
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
       'color': serializer.toJson<String?>(color),
+      'isPersonal': serializer.toJson<bool>(isPersonal),
     };
   }
 
   CachedCategory copyWith(
           {int? id,
           String? name,
-          Value<String?> color = const Value.absent()}) =>
+          Value<String?> color = const Value.absent(),
+          bool? isPersonal}) =>
       CachedCategory(
         id: id ?? this.id,
         name: name ?? this.name,
         color: color.present ? color.value : this.color,
+        isPersonal: isPersonal ?? this.isPersonal,
       );
   CachedCategory copyWithCompanion(CachedCategoriesCompanion data) {
     return CachedCategory(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       color: data.color.present ? data.color.value : this.color,
+      isPersonal:
+          data.isPersonal.present ? data.isPersonal.value : this.isPersonal,
     );
   }
 
@@ -1910,54 +1941,65 @@ class CachedCategory extends DataClass implements Insertable<CachedCategory> {
     return (StringBuffer('CachedCategory(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('color: $color')
+          ..write('color: $color, ')
+          ..write('isPersonal: $isPersonal')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, color);
+  int get hashCode => Object.hash(id, name, color, isPersonal);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CachedCategory &&
           other.id == this.id &&
           other.name == this.name &&
-          other.color == this.color);
+          other.color == this.color &&
+          other.isPersonal == this.isPersonal);
 }
 
 class CachedCategoriesCompanion extends UpdateCompanion<CachedCategory> {
   final Value<int> id;
   final Value<String> name;
   final Value<String?> color;
+  final Value<bool> isPersonal;
   const CachedCategoriesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.color = const Value.absent(),
+    this.isPersonal = const Value.absent(),
   });
   CachedCategoriesCompanion.insert({
     this.id = const Value.absent(),
     required String name,
     this.color = const Value.absent(),
+    this.isPersonal = const Value.absent(),
   }) : name = Value(name);
   static Insertable<CachedCategory> custom({
     Expression<int>? id,
     Expression<String>? name,
     Expression<String>? color,
+    Expression<bool>? isPersonal,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (color != null) 'color': color,
+      if (isPersonal != null) 'is_personal': isPersonal,
     });
   }
 
   CachedCategoriesCompanion copyWith(
-      {Value<int>? id, Value<String>? name, Value<String?>? color}) {
+      {Value<int>? id,
+      Value<String>? name,
+      Value<String?>? color,
+      Value<bool>? isPersonal}) {
     return CachedCategoriesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       color: color ?? this.color,
+      isPersonal: isPersonal ?? this.isPersonal,
     );
   }
 
@@ -1973,6 +2015,9 @@ class CachedCategoriesCompanion extends UpdateCompanion<CachedCategory> {
     if (color.present) {
       map['color'] = Variable<String>(color.value);
     }
+    if (isPersonal.present) {
+      map['is_personal'] = Variable<bool>(isPersonal.value);
+    }
     return map;
   }
 
@@ -1981,7 +2026,8 @@ class CachedCategoriesCompanion extends UpdateCompanion<CachedCategory> {
     return (StringBuffer('CachedCategoriesCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('color: $color')
+          ..write('color: $color, ')
+          ..write('isPersonal: $isPersonal')
           ..write(')'))
         .toString();
   }
@@ -5650,12 +5696,14 @@ typedef $$CachedCategoriesTableCreateCompanionBuilder
   Value<int> id,
   required String name,
   Value<String?> color,
+  Value<bool> isPersonal,
 });
 typedef $$CachedCategoriesTableUpdateCompanionBuilder
     = CachedCategoriesCompanion Function({
   Value<int> id,
   Value<String> name,
   Value<String?> color,
+  Value<bool> isPersonal,
 });
 
 class $$CachedCategoriesTableFilterComposer
@@ -5675,6 +5723,9 @@ class $$CachedCategoriesTableFilterComposer
 
   ColumnFilters<String> get color => $composableBuilder(
       column: $table.color, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isPersonal => $composableBuilder(
+      column: $table.isPersonal, builder: (column) => ColumnFilters(column));
 }
 
 class $$CachedCategoriesTableOrderingComposer
@@ -5694,6 +5745,9 @@ class $$CachedCategoriesTableOrderingComposer
 
   ColumnOrderings<String> get color => $composableBuilder(
       column: $table.color, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isPersonal => $composableBuilder(
+      column: $table.isPersonal, builder: (column) => ColumnOrderings(column));
 }
 
 class $$CachedCategoriesTableAnnotationComposer
@@ -5713,6 +5767,9 @@ class $$CachedCategoriesTableAnnotationComposer
 
   GeneratedColumn<String> get color =>
       $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<bool> get isPersonal => $composableBuilder(
+      column: $table.isPersonal, builder: (column) => column);
 }
 
 class $$CachedCategoriesTableTableManager extends RootTableManager<
@@ -5745,21 +5802,25 @@ class $$CachedCategoriesTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> color = const Value.absent(),
+            Value<bool> isPersonal = const Value.absent(),
           }) =>
               CachedCategoriesCompanion(
             id: id,
             name: name,
             color: color,
+            isPersonal: isPersonal,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
             required String name,
             Value<String?> color = const Value.absent(),
+            Value<bool> isPersonal = const Value.absent(),
           }) =>
               CachedCategoriesCompanion.insert(
             id: id,
             name: name,
             color: color,
+            isPersonal: isPersonal,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

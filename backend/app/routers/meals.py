@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
 
 from ..auth import get_current_user, require_family_id
 from ..database import get_db, utcnow
+from ..recipe_media import public_recipe_image_url
 from ..models.cooking_history import CookingHistory
 from ..models.meal_plan import MealPlan
 from ..models.pantry_item import PantryItem
@@ -77,6 +78,25 @@ async def get_week_plan(
     return WeekPlanResponse(week_start=monday, days=days)
 
 
+@router.delete("/plan", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_week_plan(
+    week: date | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    family_id: int = Depends(require_family_id),
+):
+    """Alle geplanten Mahlzeiten der Kalenderwoche löschen (Mo–So)."""
+    if week is None:
+        week = utcnow().date()
+    monday = monday_of(week)
+    sunday = monday + timedelta(days=6)
+    stmt = delete(MealPlan).where(and_(
+        MealPlan.family_id == family_id,
+        MealPlan.plan_date >= monday,
+        MealPlan.plan_date <= sunday,
+    ))
+    await db.execute(stmt)
+
+
 @router.get("/history", response_model=list[CookingHistoryEntry])
 async def get_cooking_history(
     limit: int = Query(default=10, ge=1, le=50),
@@ -99,7 +119,7 @@ async def get_cooking_history(
             recipe_id=e.recipe_id,
             recipe_title=e.recipe.title,
             recipe_difficulty=e.recipe.difficulty,
-            recipe_image_url=e.recipe.image_url,
+            recipe_image_url=public_recipe_image_url(e.recipe),
             cooked_at=e.cooked_at,
             servings_cooked=e.servings_cooked,
             rating=e.rating,
@@ -206,6 +226,8 @@ async def _deduct_from_pantry(
         old_amount = match.amount
         new_amount = max(0, round(old_amount - scaled, 2))
         match.amount = new_amount
+        if new_amount < old_amount - 1e-9:
+            match.low_stock_watch_active = True
 
         deductions.append(PantryDeductionItem(
             name=match.name,

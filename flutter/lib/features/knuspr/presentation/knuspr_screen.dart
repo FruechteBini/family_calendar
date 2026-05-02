@@ -6,6 +6,7 @@ import '../data/knuspr_status_provider.dart';
 import '../domain/knuspr.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 
 class KnusprScreen extends ConsumerStatefulWidget {
   const KnusprScreen({super.key});
@@ -393,6 +394,7 @@ class _KnusprScreenState extends ConsumerState<KnusprScreen>
             confirmDismiss: (_) async {
               try {
                 await ref.read(knusprRepositoryProvider).deleteMapping(m.id);
+                notifyDataMutated(ref);
                 await _loadMappings();
                 return true;
               } on ApiException catch (e) {

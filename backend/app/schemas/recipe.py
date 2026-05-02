@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from .recipe_category import RecipeCategoryResponse
 from .recipe_tag import RecipeTagResponse
@@ -90,6 +90,7 @@ class RecipeResponse(BaseModel):
     instructions: str | None
     notes: str | None
     image_url: str | None
+    cover_image_path: str | None = Field(default=None, exclude=True)
     ai_accessible: bool
     recipe_category_id: int | None
     category: RecipeCategoryResponse | None
@@ -99,6 +100,12 @@ class RecipeResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _apply_cover_image_url(self) -> RecipeResponse:
+        if self.cover_image_path:
+            return self.model_copy(update={"image_url": f"/api/recipes/{self.id}/cover"})
+        return self
 
 
 class CookingHistoryResponse(BaseModel):
@@ -122,6 +129,7 @@ class RecipeSuggestion(BaseModel):
     title: str
     difficulty: str
     prep_time_active_minutes: int | None
+    image_url: str | None = None
     last_cooked_at: datetime | None
     cook_count: int
     days_since_cooked: int | None

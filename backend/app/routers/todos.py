@@ -13,6 +13,7 @@ from ..config import settings
 from ..database import get_db, utcnow
 from ..database import async_session
 from ..google_sync_service import GoogleSyncService
+from ..models.category import Category
 from ..models.event import Event
 from ..models.family_member import FamilyMember
 from ..models.todo import Todo
@@ -47,6 +48,29 @@ _todo_options = [
 ]
 
 _google_sync = GoogleSyncService()
+
+
+async def _require_todo_category_id(
+    db: AsyncSession,
+    *,
+    family_id: int,
+    user: User,
+    category_id: int | None,
+    is_personal_todo: bool,
+) -> None:
+    if category_id is None:
+        return
+    cat = await db.get(Category, category_id)
+    if not cat or cat.family_id != family_id:
+        raise HTTPException(status_code=400, detail="Ungültige Kategorie")
+    if cat.is_personal:
+        if cat.user_id != user.id:
+            raise HTTPException(status_code=400, detail="Ungültige Kategorie")
+        if not is_personal_todo:
+            raise HTTPException(
+                status_code=400,
+                detail="Persönliche Kategorien sind nur für persönliche Todos erlaubt",
+            )
 
 
 async def _google_push_todo(user_id: int, todo_id: int) -> None:
@@ -165,6 +189,7 @@ async def create_todo(
     user: User = Depends(get_current_user),
 ):
     sort_order_val = 0
+    parent: Todo | None = None
     if data.parent_id:
         parent = await db.get(Todo, data.parent_id)
         if not parent or parent.family_id != family_id:
@@ -192,6 +217,13 @@ async def create_todo(
             raise HTTPException(status_code=404, detail="Termin nicht gefunden")
         due_date = event.start.date()
         notification_level_id = event.notification_level_id
+    await _require_todo_category_id(
+        db,
+        family_id=family_id,
+        user=user,
+        category_id=data.category_id,
+        is_personal_todo=parent.is_personal if parent is not None else data.is_personal,
+    )
     todo = Todo(
         family_id=family_id,
         created_by_member_id=current_member_id,
@@ -273,6 +305,15 @@ async def update_todo(
         if todo.is_personal:
             raise HTTPException(status_code=400, detail="Persönliche Todos können nicht zugewiesen werden")
         todo.members = await resolve_members(db, member_ids, family_id)
+
+    if todo.category_id is not None:
+        await _require_todo_category_id(
+            db,
+            family_id=family_id,
+            user=user,
+            category_id=todo.category_id,
+            is_personal_todo=todo.is_personal,
+        )
 
     if todo.event_id is not None:
         event = await db.get(Event, todo.event_id)

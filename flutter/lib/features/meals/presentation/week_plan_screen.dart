@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
+import '../../../shared/utils/recipe_image_url.dart';
 import '../../../core/sync/sync_service.dart';
 import '../../ai/presentation/ai_meal_plan_wizard.dart';
 import '../../meals/data/meal_repository.dart';
@@ -77,6 +79,66 @@ class WeekPlanScreen extends ConsumerWidget {
                               'KW $kw · ${_formatDateShort(weekStart)} – ${_formatDateShort(weekEnd)}',
                               style: ScreenHeader.subtitleStyle(context),
                             ),
+                          ),
+                          IconButton(
+                            tooltip: 'Wochenplan leeren',
+                            icon: Icon(
+                              Icons.delete_sweep_outlined,
+                              color: Theme.of(context).colorScheme.error,
+                              size: 22,
+                            ),
+                            onPressed: () async {
+                              final ok = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Wochenplan leeren?'),
+                                      content: const Text(
+                                        'Alle geplanten Gerichte für diese Woche werden entfernt.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: const Text('Abbrechen'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor:
+                                                Theme.of(ctx).colorScheme.error,
+                                          ),
+                                          child: const Text('Alles löschen'),
+                                        ),
+                                      ],
+                                    ),
+                                  ) ??
+                                  false;
+                              if (!ok || !context.mounted) return;
+                              try {
+                                await ref.read(mealRepositoryProvider).clearWeekPlan(
+                                      weekAnchor:
+                                          '${weekStart.year}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}',
+                                    );
+                                ref.invalidate(weekPlanProvider);
+                                ref.read(syncTickProvider.notifier).state++;
+                                notifyDataMutated(ref);
+                                await ref.read(weekPlanProvider.future);
+                                if (context.mounted) {
+                                  showAppToast(
+                                    context,
+                                    message: 'Wochenplan geleert',
+                                    type: ToastType.success,
+                                  );
+                                }
+                              } on ApiException catch (e) {
+                                if (context.mounted) {
+                                  showAppToast(
+                                    context,
+                                    message: e.message,
+                                    type: ToastType.error,
+                                  );
+                                }
+                              }
+                            },
                           ),
                           _AiChip(
                             onTap: () {
@@ -278,6 +340,7 @@ class _MealSlotTile extends ConsumerWidget {
           _openMealActions(context, ref);
         }
       },
+      onMenuTap: () => _openMealActions(context, ref),
     );
   }
 
@@ -387,16 +450,18 @@ class _MealSlotTile extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Slot leeren'),
+                leading: Icon(Icons.delete_outline, color: Theme.of(ctx).colorScheme.error),
+                title: Text('Gericht entfernen', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
                 onTap: () async {
                   Navigator.pop(ctx);
                   try {
                     await ref.read(mealRepositoryProvider).clearSlot(date, slot);
                     ref.invalidate(weekPlanProvider);
-                    ref.read(syncTickProvider.notifier).state++;
+                    notifyDataMutated(ref);
                     await ref.read(weekPlanProvider.future);
-                    if (context.mounted) showAppToast(context, message: 'Slot geleert', type: ToastType.success);
+                    if (context.mounted) {
+                      showAppToast(context, message: 'Gericht entfernt', type: ToastType.success);
+                    }
                   } on ApiException catch (e) {
                     if (context.mounted) showAppToast(context, message: e.message, type: ToastType.error);
                   }
@@ -417,6 +482,7 @@ class _MealCard extends StatelessWidget {
   final String? imageUrl;
   final bool cooked;
   final VoidCallback onTap;
+  final VoidCallback onMenuTap;
 
   const _MealCard({
     required this.label,
@@ -424,6 +490,7 @@ class _MealCard extends StatelessWidget {
     required this.imageUrl,
     required this.cooked,
     required this.onTap,
+    required this.onMenuTap,
   });
 
   @override
@@ -432,52 +499,63 @@ class _MealCard extends StatelessWidget {
       color: AppColors.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(AppColors.radiusDefault),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppColors.spacing4),
-          child: Row(
-            children: [
-              RecipeThumbnail(
-                imageUrl: imageUrl,
-                size: 44,
-                borderRadius: 12,
-                fallback: Icon(
-                  cooked ? Icons.check : Icons.restaurant,
-                  color: cooked ? Theme.of(context).colorScheme.primary : AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: AppColors.spacing4),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(AppColors.spacing4),
+                child: Row(
                   children: [
-                    Text(
-                      label,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.08 * 11,
-                          ),
+                    RecipeThumbnail(
+                      imageUrl: imageUrl,
+                      size: 44,
+                      borderRadius: 12,
+                      fallback: Icon(
+                        cooked ? Icons.check : Icons.restaurant,
+                        color: cooked ? Theme.of(context).colorScheme.primary : AppColors.onSurfaceVariant,
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.onSurface,
-                            fontWeight: FontWeight.w600,
+                    const SizedBox(width: AppColors.spacing4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.08 * 11,
+                                ),
                           ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 4),
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: AppColors.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: AppColors.spacing2),
+                    const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
                   ],
                 ),
               ),
-              const SizedBox(width: AppColors.spacing2),
-              const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
-            ],
+            ),
           ),
-        ),
+          IconButton(
+            tooltip: 'Aktionen',
+            icon: const Icon(Icons.more_vert, color: AppColors.onSurfaceVariant),
+            onPressed: onMenuTap,
+          ),
+        ],
       ),
     );
   }
@@ -654,6 +732,54 @@ class _AiSuggestionsSection extends StatelessWidget {
   }
 }
 
+class _SuggestionCover extends ConsumerWidget {
+  final Recipe recipe;
+
+  const _SuggestionCover({required this.recipe});
+
+  Widget _placeholder() {
+    return ColoredBox(
+      color: AppColors.surfaceContainerHighest,
+      child: Center(
+        child: Icon(
+          Icons.dinner_dining,
+          size: 40,
+          color: AppColors.onSurfaceVariant.withValues(alpha: 0.3),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final u = recipe.imageUrl?.trim();
+    if (u == null || u.isEmpty) return _placeholder();
+
+    final fullUrl = recipeCoverFullUrl(ref, u);
+    if (fullUrl.isEmpty) return _placeholder();
+
+    return CachedNetworkImage(
+      imageUrl: fullUrl,
+      httpHeaders: recipeCoverImageHeaders(ref, u),
+      fit: BoxFit.cover,
+      placeholder: (ctx, _) => ColoredBox(
+        color: AppColors.surfaceContainerHighest,
+        child: Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.45),
+            ),
+          ),
+        ),
+      ),
+      errorWidget: (_, __, ___) => _placeholder(),
+    );
+  }
+}
+
 // ── Suggestion Card Widget ──────────────────────────────────────────────
 
 class _SuggestionCard extends StatelessWidget {
@@ -682,16 +808,8 @@ class _SuggestionCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Placeholder image
-                  Container(
-                    color: AppColors.surfaceContainerHighest,
-                    child: Center(
-                      child: Icon(
-                        Icons.dinner_dining,
-                        size: 40,
-                        color: AppColors.onSurfaceVariant.withValues(alpha: 0.3),
-                      ),
-                    ),
+                  Positioned.fill(
+                    child: _SuggestionCover(recipe: recipe),
                   ),
 
                   // Gradient overlay

@@ -35,6 +35,30 @@ _event_load_options = [
     selectinload(Event.todos),
 ]
 
+
+async def _validate_calendar_category_for_event(
+    db: AsyncSession,
+    *,
+    family_id: int,
+    user: User,
+    category_id: int | None,
+    member_ids: list[int],
+) -> None:
+    if category_id is None:
+        return
+    cat = await db.get(Category, category_id)
+    if not cat or cat.family_id != family_id:
+        raise HTTPException(status_code=400, detail="Ungültige Kategorie")
+    if not cat.is_personal:
+        return
+    if cat.user_id != user.id:
+        raise HTTPException(status_code=400, detail="Ungültige Kategorie")
+    if user.member_id is None or len(member_ids) != 1 or member_ids[0] != user.member_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Persönliche Kategorien sind nur für Termine möglich, bei denen nur du als Mitglied eingetragen bist",
+        )
+
 _google_sync = GoogleSyncService()
 
 _REMINDER_HORIZON_DAYS = 400
@@ -373,6 +397,13 @@ async def create_event(
             cat = await db.get(Category, family.default_family_calendar_category_id)
             if cat and cat.family_id == family_id:
                 category_id = cat.id
+    await _validate_calendar_category_for_event(
+        db,
+        family_id=family_id,
+        user=user,
+        category_id=category_id,
+        member_ids=member_ids,
+    )
     recurrence_json = _recurrence_rules_json_from_payload(data.recurrence_rules)
     event = Event(
         family_id=family_id,
@@ -486,6 +517,14 @@ async def update_event(
 
     if member_ids is not None:
         event.members = await resolve_members(db, member_ids, family_id)
+
+    await _validate_calendar_category_for_event(
+        db,
+        family_id=family_id,
+        user=user,
+        category_id=event.category_id,
+        member_ids=[m.id for m in event.members],
+    )
 
     await db.flush()
 

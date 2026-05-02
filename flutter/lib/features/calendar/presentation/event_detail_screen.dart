@@ -10,11 +10,9 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../notifications/data/notification_repository.dart';
 import '../../notifications/domain/notification_level.dart';
-import '../../today/presentation/today_screen_real.dart';
 import '../data/event_repository.dart';
 import '../domain/event.dart';
 import '../domain/event_recurrence.dart';
-import 'calendar_screen_real.dart';
 import 'event_form_dialog.dart';
 
 typedef EventDetailKey = ({int id, DateTime? occurrenceStart});
@@ -47,9 +45,7 @@ class EventDetailScreen extends ConsumerWidget {
       builder: (_) => EventFormDialog(event: event, initialDate: event.startTime),
     );
     if (outcome == EventFormDialogOutcome.deleted) {
-      ref.invalidate(monthEventsProvider);
-      ref.invalidate(todayEventsProvider);
-      ref.read(syncTickProvider.notifier).state++;
+      notifyDataMutated(ref);
       if (context.mounted) context.pop();
       return;
     }
@@ -59,9 +55,7 @@ class EventDetailScreen extends ConsumerWidget {
           (id: eventId, occurrenceStart: occurrenceStart),
         ),
       );
-      ref.invalidate(monthEventsProvider);
-      ref.invalidate(todayEventsProvider);
-      ref.read(syncTickProvider.notifier).state++;
+      notifyDataMutated(ref);
       if (context.mounted) {
         showAppToast(context, message: 'Gespeichert', type: ToastType.success);
       }
@@ -91,9 +85,7 @@ class EventDetailScreen extends ConsumerWidget {
     if (confirm != true || !context.mounted) return;
     try {
       await ref.read(eventRepositoryProvider).deleteEvent(e.id);
-      ref.invalidate(monthEventsProvider);
-      ref.invalidate(todayEventsProvider);
-      ref.read(syncTickProvider.notifier).state++;
+      notifyDataMutated(ref);
       if (context.mounted) context.pop();
     } on ApiException catch (err) {
       if (context.mounted) {

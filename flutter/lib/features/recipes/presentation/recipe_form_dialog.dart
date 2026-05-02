@@ -1,6 +1,11 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 import '../data/recipe_category_repository.dart';
 import '../data/recipe_repository.dart';
 import '../data/recipe_tag_repository.dart';
@@ -10,7 +15,9 @@ import '../domain/recipe_tag.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../shared/widgets/form_input_decoration.dart';
+import '../../../shared/utils/recipe_image_url.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 
 final _formRecipeCategoriesProvider =
     FutureProvider<List<RecipeCategory>>((ref) {
@@ -36,11 +43,22 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
   late TextEditingController _instructionsController;
   String _difficulty = 'mittel';
   int? _prepTime;
-  String? _imageUrl;
+  /// Vom Server (externes Bild oder später API-Pfad [/api/recipes/…/cover]).
+  String? _serverImageUrl;
+  Uint8List? _pickedCoverBytes;
+  String? _pickedCoverFilename;
+  bool _removeStoredCover = false;
   final List<_IngredientEntry> _ingredients = [];
   bool _saving = false;
   int? _categoryId;
   final Set<int> _selectedTagIds = {};
+
+  bool get _hasRemoteCoverPreview {
+    if (_removeStoredCover || _pickedCoverBytes != null) return false;
+    final u = _serverImageUrl?.trim();
+    if (u == null || u.isEmpty) return false;
+    return u.startsWith('http') || u.contains('/api/recipes/');
+  }
 
   bool get _isEditing => widget.recipe != null && (widget.recipe!.id != 0);
 
@@ -53,7 +71,7 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     _instructionsController = TextEditingController(text: r?.instructions ?? '');
     _difficulty = r?.difficulty ?? 'mittel';
     _prepTime = r?.prepTime;
-    _imageUrl = r?.imageUrl;
+    _serverImageUrl = r?.imageUrl;
     if (r != null) {
       _categoryId = r.categoryId;
       _selectedTagIds.addAll(r.tags.map((t) => t.id));
@@ -138,6 +156,64 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     )));
   }
 
+  Future<void> _showCoverPickMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Foto aus Galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickCover(ImageSource.gallery);
+              },
+            ),
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Foto aufnehmen'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickCover(ImageSource.camera);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickCover(ImageSource source) async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+      source: source,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 88,
+    );
+    if (x == null) return;
+    final preview = await x.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pickedCoverBytes = preview;
+      _pickedCoverFilename = kIsWeb ? x.name : path.basename(x.path);
+      _removeStoredCover = false;
+    });
+  }
+
+  void _clearCover() {
+    setState(() {
+      _pickedCoverBytes = null;
+      _pickedCoverFilename = null;
+      _removeStoredCover = true;
+      _serverImageUrl = null;
+    });
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -151,6 +227,13 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
               })
           .toList();
       const diffMap = {'einfach': 'easy', 'mittel': 'medium', 'schwer': 'hard'};
+      final trimmedHttp = !_removeStoredCover
+          ? _serverImageUrl?.trim()
+          : null;
+      final includeImportImageUrl = trimmedHttp != null &&
+          trimmedHttp.isNotEmpty &&
+          trimmedHttp.startsWith('http');
+
       final data = <String, dynamic>{
         'title': _nameController.text.trim(),
         'notes': _descController.text.trim().isEmpty ? null : _descController.text.trim(),
@@ -159,18 +242,38 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
             : _instructionsController.text.trim(),
         'difficulty': diffMap[_difficulty] ?? 'medium',
         'prep_time_active_minutes': _prepTime,
-        if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) 'image_url': _imageUrl!.trim(),
+        if (includeImportImageUrl) 'image_url': trimmedHttp,
         if (!_isEditing && widget.recipe?.sourceUrl != null) 'source': 'web',
         'ingredients': ingredients,
         'recipe_category_id': _categoryId,
         'tag_ids': _selectedTagIds.toList(),
       };
-      final repo = ref.read(recipeRepositoryProvider);
-      if (_isEditing) {
-        await repo.updateRecipe(widget.recipe!.id, data);
-      } else {
-        await repo.createRecipe(data);
+
+      if (_isEditing && _removeStoredCover) {
+        data['image_url'] = null;
       }
+
+      final repo = ref.read(recipeRepositoryProvider);
+      late final int recipeId;
+      if (_isEditing) {
+        recipeId = widget.recipe!.id;
+        await repo.updateRecipe(recipeId, data);
+      } else {
+        final created = await repo.createRecipe(data);
+        recipeId = created.id;
+      }
+
+      if (_pickedCoverBytes != null && _pickedCoverBytes!.isNotEmpty) {
+        final fn =
+            (_pickedCoverFilename?.trim().isNotEmpty ?? false) ? _pickedCoverFilename!.trim() : 'cover.jpg';
+        await repo.uploadRecipeCover(
+          recipeId,
+          filename: fn,
+          bytes: _pickedCoverBytes,
+        );
+      }
+
+      notifyDataMutated(ref);
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
@@ -194,6 +297,7 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(recipeRepositoryProvider).deleteRecipe(widget.recipe!.id);
+      notifyDataMutated(ref);
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
@@ -221,14 +325,47 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (_imageUrl != null && _imageUrl!.trim().isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Text(
+                        'Foto',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const Spacer(),
+                      if (_pickedCoverBytes != null || _hasRemoteCoverPreview)
+                        TextButton(
+                          onPressed: _saving ? null : _clearCover,
+                          child: const Text('Entfernen'),
+                        ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: _saving ? null : _showCoverPickMenu,
+                        icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+                        label: Text(_pickedCoverBytes != null || _hasRemoteCoverPreview ? 'Ändern' : 'Hochladen'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_pickedCoverBytes != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Image.memory(
+                          _pickedCoverBytes!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else if (_hasRemoteCoverPreview)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: AspectRatio(
                         aspectRatio: 16 / 9,
                         child: CachedNetworkImage(
-                          imageUrl: _imageUrl!,
+                          imageUrl: recipeCoverFullUrl(ref, _serverImageUrl),
                           fit: BoxFit.cover,
+                          httpHeaders: recipeCoverImageHeaders(ref, _serverImageUrl),
                           errorWidget: (_, __, ___) => Container(
                             color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             alignment: Alignment.center,
@@ -237,8 +374,7 @@ class _RecipeFormDialogState extends ConsumerState<RecipeFormDialog> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
+                  if (_pickedCoverBytes != null || _hasRemoteCoverPreview) const SizedBox(height: 16),
                   TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name'), validator: (v) => v == null || v.trim().isEmpty ? 'Name erforderlich' : null),
                   const SizedBox(height: 12),
                   LabeledMultilineTextField(

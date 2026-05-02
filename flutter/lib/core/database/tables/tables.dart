@@ -57,6 +57,7 @@ class CachedCategories extends Table {
   IntColumn get id => integer()();
   TextColumn get name => text()();
   TextColumn get color => text().nullable()();
+  BoolColumn get isPersonal => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

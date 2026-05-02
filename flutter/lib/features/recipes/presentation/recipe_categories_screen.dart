@@ -6,6 +6,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../../shared/widgets/labeled_multiline_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 
 final recipeCategoriesListProvider =
     FutureProvider<List<RecipeCategory>>((ref) {
@@ -34,7 +35,9 @@ class _RecipeCategoriesScreenState
         data: (cats) {
           _local ??= [...cats];
           final list = _local!;
-          if (cats.isNotEmpty && list.length != cats.length) {
+          if (cats.isEmpty) {
+            _local = [];
+          } else if (list.length != cats.length) {
             _local = [...cats];
           }
           return list.isEmpty
@@ -179,6 +182,7 @@ class _RecipeCategoriesScreenState
           .read(recipeCategoryRepositoryProvider)
           .deleteCategory(category.id);
       ref.invalidate(recipeCategoriesListProvider);
+      notifyDataMutated(ref);
     } on ApiException catch (e) {
       if (context.mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);

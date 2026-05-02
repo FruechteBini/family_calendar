@@ -1,100 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/labeled_multiline_field.dart';
+import '../../../shared/widgets/toast.dart';
 import '../categories_providers.dart';
 import '../data/category_repository.dart';
 import '../domain/category.dart';
-import '../../../shared/widgets/category_accent_chips.dart';
-import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/toast.dart';
-import '../../../shared/widgets/labeled_multiline_field.dart';
-import '../../../core/api/api_client.dart';
 
 class CategoriesScreen extends ConsumerStatefulWidget {
-  const CategoriesScreen({super.key});
+  const CategoriesScreen({super.key, this.initialTab = 1});
+
+  /// 0 = persönlich, 1 = Familie (Standard: Familie, wie bisher sichtbar).
+  final int initialTab;
 
   @override
   ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
-  List<Category>? _local;
+class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
-  @override
-  Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesListProvider);
+  final Map<bool, List<Category>?> _orderOverride = {
+    true: null,
+    false: null,
+  };
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Kategorien')),
-      body: categoriesAsync.when(
-        data: (cats) {
-          _local ??= [...cats];
-          final list = _local!;
-          if (cats.isNotEmpty && list.length != cats.length) {
-            // resync when count changed (create/delete)
-            _local = [...cats];
-          }
-          return list.isEmpty
-              ? const EmptyState(
-                  icon: Icons.label_outline, title: 'Keine Kategorien')
-              : RefreshIndicator(
-                  onRefresh: () async {
-                    _local = null;
-                    ref.invalidate(categoriesListProvider);
-                  },
-                  child: ReorderableListView.builder(
-                    itemCount: list.length,
-                    onReorder: (oldIndex, newIndex) async {
-                      setState(() {
-                        if (newIndex > oldIndex) newIndex -= 1;
-                        final item = list.removeAt(oldIndex);
-                        list.insert(newIndex, item);
-                      });
-                      try {
-                        await ref
-                            .read(categoryRepositoryProvider)
-                            .reorderCategories(list.map((c) => c.id).toList());
-                        ref.invalidate(categoriesListProvider);
-                      } on ApiException catch (e) {
-                        if (mounted) {
-                          showAppToast(context,
-                              message: e.message, type: ToastType.error);
-                        }
-                      }
-                    },
-                    itemBuilder: (_, i) => _CategoryTile(
-                      key: ValueKey('cat_${list[i].id}'),
-                      index: i,
-                      category: list[i],
-                      onEdit: () async {
-                        await _showForm(context, ref, category: list[i]);
-                        _local = null;
-                      },
-                      onDelete: () async {
-                        await _delete(context, ref, list[i]);
-                        _local = null;
-                      },
-                    ),
-                  ),
-                );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => EmptyState(
-            icon: Icons.error_outline, title: 'Fehler', subtitle: e.toString()),
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'addCategory',
-        onPressed: () async {
-          await _showForm(context, ref);
-          _local = null;
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
+  bool _sameIdsUnordered(List<Category> a, List<Category> b) {
+    if (a.length != b.length) return false;
+    final sa = a.map((e) => e.id).toSet();
+    return sa.length == a.length && b.every((e) => sa.contains(e.id));
   }
 
-  Future<void> _showForm(BuildContext context, WidgetRef ref,
-      {Category? category}) async {
-    final nameController = TextEditingController(text: category?.name ?? '');
+  @override
+  void initState() {
+    super.initState();
+    final idx = widget.initialTab.clamp(0, 1);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: idx);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  bool get _forPersonal => _tabController.index == 0;
+
+  Color _parseColor(String hex) {
+    try {
+      return Color(
+          int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
+  Future<void> _form(bool forPersonal, [Category? category]) async {
+    final nameController =
+        TextEditingController(text: category?.name ?? '');
     final isEdit = category != null;
     var selectedHex = category?.color ?? '#1565C0';
 
@@ -120,11 +92,13 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Abbrechen')),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen'),
+            ),
             FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(isEdit ? 'Speichern' : 'Erstellen')),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(isEdit ? 'Speichern' : 'Erstellen'),
+            ),
           ],
         ),
       ),
@@ -134,6 +108,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       final data = {
         'name': nameController.text.trim(),
         'color': selectedHex.trim(),
+        if (!isEdit) 'is_personal': forPersonal,
       };
       final repo = ref.read(categoryRepositoryProvider);
       if (isEdit) {
@@ -141,7 +116,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       } else {
         await repo.createCategory(data);
       }
-      ref.invalidate(categoriesListProvider);
+      invalidateTodoCategoryCaches(ref);
     } on ApiException catch (e) {
       if (context.mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);
@@ -149,8 +124,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     }
   }
 
-  Future<void> _delete(
-      BuildContext context, WidgetRef ref, Category category) async {
+  Future<void> _delete(bool forPersonal, Category category) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -158,70 +132,156 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         content: Text('"${category.name}" löschen?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Löschen')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
         ],
       ),
     );
     if (confirm != true) return;
     try {
       await ref.read(categoryRepositoryProvider).deleteCategory(category.id);
-      ref.invalidate(categoriesListProvider);
+      invalidateTodoCategoryCaches(ref);
+      notifyDataMutated(ref);
     } on ApiException catch (e) {
       if (context.mounted) {
         showAppToast(context, message: e.message, type: ToastType.error);
       }
     }
   }
-}
 
-class _CategoryTile extends StatelessWidget {
-  final int index;
-  final Category category;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _CategoryTile({
-    super.key,
-    required this.index,
-    required this.category,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  Color _parseColor() {
-    try {
-      return Color(int.parse(
-          'FF${category.color.replaceFirst('#', '')}', radix: 16));
-    } catch (_) {
-      return Colors.grey;
-    }
+  Widget _tabBody(bool forPersonal) {
+    final async = ref.watch(todoCategoriesScopeProvider(forPersonal));
+    return async.when(
+      data: (cats) {
+        final o = _orderOverride[forPersonal];
+        final display =
+            (o != null && _sameIdsUnordered(o, cats)) ? o : cats;
+        if (o != null && !_sameIdsUnordered(o, cats)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _orderOverride[forPersonal] = null);
+            }
+          });
+        }
+        if (display.isEmpty) {
+          return EmptyState(
+            icon: Icons.label_outline,
+            title: forPersonal
+                ? 'Keine persönlichen Kategorien'
+                : 'Keine Familien-Kategorien',
+            subtitle: forPersonal
+                ? 'Nur du siehst diese Kategorien; nutze sie z. B. für persönliche Todos.'
+                : 'Alle Familienmitglieder sehen diese Kategorien.',
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(todoCategoriesScopeProvider(forPersonal));
+          },
+          child: ReorderableListView.builder(
+            itemCount: display.length,
+            onReorder: (oldIndex, newIndex) async {
+              var ni = newIndex;
+              if (ni > oldIndex) ni -= 1;
+              final reordered = List<Category>.from(display);
+              final item = reordered.removeAt(oldIndex);
+              reordered.insert(ni, item);
+              setState(() => _orderOverride[forPersonal] = reordered);
+              try {
+                await ref.read(categoryRepositoryProvider).reorderCategories(
+                      reordered.map((c) => c.id).toList(),
+                      isPersonal: forPersonal,
+                    );
+                if (mounted) {
+                  setState(() => _orderOverride[forPersonal] = null);
+                }
+                invalidateTodoCategoryCaches(ref);
+              } on ApiException catch (e) {
+                if (mounted) {
+                  setState(() => _orderOverride[forPersonal] = null);
+                  showAppToast(context,
+                      message: e.message, type: ToastType.error);
+                }
+              }
+            },
+            itemBuilder: (_, i) {
+              final c = display[i];
+              final color = _parseColor(c.color);
+              return ListTile(
+                key: ValueKey('todo_cat_${forPersonal}_${c.id}'),
+                leading: CircleAvatar(
+                  backgroundColor: color,
+                  radius: 16,
+                ),
+                title: Text(c.name),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ReorderableDragStartListener(
+                      index: i,
+                      child: Icon(Icons.drag_handle,
+                          color: Theme.of(context).hintColor),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () async {
+                        await _form(forPersonal, c);
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          size: 20, color: Colors.red),
+                      onPressed: () async {
+                        await _delete(forPersonal, c);
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => EmptyState(
+        icon: Icons.error_outline,
+        title: 'Fehler',
+        subtitle: e.toString(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = _parseColor();
-    return ListTile(
-      leading: CircleAvatar(backgroundColor: color, radius: 16),
-      title: Text(category.name),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Kategorien'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Persönlich'),
+            Tab(text: 'Familie'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          ReorderableDragStartListener(
-            index: index,
-            child: Icon(Icons.drag_handle, color: Theme.of(context).hintColor),
-          ),
-          IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: onEdit),
-          IconButton(
-              icon:
-                  const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-              onPressed: onDelete),
+          _tabBody(true),
+          _tabBody(false),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'addCategory',
+        onPressed: () async {
+          await _form(_forPersonal);
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }

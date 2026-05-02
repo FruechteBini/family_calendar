@@ -138,7 +138,7 @@ def main():
         print("  - OK")
 
     print("[14] Pantry: add item")
-    st, p = _json_request("POST", "/api/pantry/", token=token, data={"name": "Milch", "quantity": 1.0, "unit": "L", "category": "kuehlregal"})
+    st, p = _json_request("POST", "/api/pantry/", token=token, data={"name": "Milch", "amount": 1.0, "unit": "L", "category": "kuehlregal"})
     assert_ok("pantry_add", st, p)
     pantry_id = p["id"]
 

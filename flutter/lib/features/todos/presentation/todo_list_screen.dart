@@ -14,6 +14,7 @@ import '../../members/domain/family_member.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/preferences/todo_preferences.dart';
+import '../../../shared/widgets/todo_complete_checkbox.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/priority_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -358,9 +359,27 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                                       local.insert(newIndex, item);
                                     });
                                     try {
-                                      await repo.reorderCategories(
-                                          local.map((c) => c.id).toList());
-                                      ref.invalidate(categoriesListProvider);
+                                      final personalIds = local
+                                          .where((c) => c.isPersonal)
+                                          .map((c) => c.id)
+                                          .toList();
+                                      final familyIds = local
+                                          .where((c) => !c.isPersonal)
+                                          .map((c) => c.id)
+                                          .toList();
+                                      if (personalIds.isNotEmpty) {
+                                        await repo.reorderCategories(
+                                          personalIds,
+                                          isPersonal: true,
+                                        );
+                                      }
+                                      if (familyIds.isNotEmpty) {
+                                        await repo.reorderCategories(
+                                          familyIds,
+                                          isPersonal: false,
+                                        );
+                                      }
+                                      invalidateTodoCategoryCaches(ref);
                                     } on ApiException catch (e) {
                                       if (ctx.mounted) {
                                         showAppToast(ctx,
@@ -405,7 +424,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                     builder: (_) => const CategoriesScreen(),
                   ),
                 );
-                ref.invalidate(categoriesListProvider);
+                invalidateTodoCategoryCaches(ref);
               }
 
               return Padding(
@@ -755,7 +774,7 @@ class _TodoAiPrioritizeSheetState
                                         ref.invalidate(todosForScopeProvider(
                                             TodoScope.family));
                                         ref.invalidate(todosProvider);
-                                        ref.invalidate(categoriesListProvider);
+                                        invalidateTodoCategoryCaches(ref);
                                         Navigator.pop(context);
                                       }
                                     } on ApiException catch (e) {
@@ -983,9 +1002,9 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Checkbox(
+              TodoCompleteCheckbox(
                 value: todo.completed,
                 onChanged: (_) => widget.onToggleComplete(todo),
               ),
@@ -1094,7 +1113,7 @@ class _TodoItemState extends ConsumerState<_TodoItem> {
                     visualDensity: VisualDensity.compact,
                     contentPadding:
                         const EdgeInsets.only(left: 12, right: 4),
-                    leading: Checkbox(
+                    leading: TodoCompleteCheckbox(
                       value: sub.completed,
                       onChanged: (_) => widget.onToggleComplete(sub),
                     ),

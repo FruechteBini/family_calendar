@@ -9,6 +9,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../../../shared/widgets/screen_header.dart';
 import '../../../shared/widgets/toast.dart';
+import '../../../shared/widgets/todo_complete_checkbox.dart';
 import '../../../shared/widgets/recipe_thumbnail.dart';
 import '../../../core/sync/sync_service.dart';
 import '../../calendar/data/event_repository.dart';
@@ -28,10 +29,24 @@ final todayEventsProvider = FutureProvider<List<Event>>((ref) async {
   return ref.watch(eventRepositoryProvider).getEvents(startDate: start, endDate: end);
 });
 
+/// Inclusive calendar window: today through the third calendar day from today.
+bool _todoDueWithinNextDays(Todo todo, DateTime now, int dayCount) {
+  final raw = todo.dueDate?.toLocal();
+  if (raw == null) return false;
+  final dueDay = DateTime(raw.year, raw.month, raw.day);
+  final start = DateTime(now.year, now.month, now.day);
+  if (dayCount < 1) return false;
+  final endDay = DateTime(now.year, now.month, now.day).add(Duration(days: dayCount - 1));
+  return !dueDay.isBefore(start) && !dueDay.isAfter(endDay);
+}
+
 final todayTodosProvider = FutureProvider<List<Todo>>((ref) async {
   ref.watch(syncTickProvider);
   final todos = await ref.watch(todoRepositoryProvider).getTodos(completed: false);
-  todos.sort((a, b) {
+  final now = DateTime.now();
+  final filtered =
+      todos.where((t) => _todoDueWithinNextDays(t, now, 3)).toList();
+  filtered.sort((a, b) {
     final ad = a.dueDate;
     final bd = b.dueDate;
     if (ad == null && bd == null) return 0;
@@ -39,7 +54,7 @@ final todayTodosProvider = FutureProvider<List<Todo>>((ref) async {
     if (bd == null) return -1;
     return ad.compareTo(bd);
   });
-  return todos.take(8).toList();
+  return filtered;
 });
 
 final todayMembersProvider = FutureProvider<List<FamilyMember>>((ref) {
@@ -171,7 +186,7 @@ class TodayScreen extends ConsumerWidget {
                     ),
                     data: (todos) {
                       if (todos.isEmpty) {
-                        return const _CompactEmptyHint('Keine offenen Aufgaben.');
+                        return const _CompactEmptyHint('Keine Aufgaben in den nächsten 3 Tagen.');
                       }
                       return Column(
                         children: todos.map((t) => _TodoRow(todo: t)).toList(),
@@ -437,7 +452,7 @@ class _TodoRow extends ConsumerWidget {
     return Card(
       color: AppColors.surfaceContainerHigh,
       child: ListTile(
-        leading: Checkbox(
+        leading: TodoCompleteCheckbox(
           value: todo.completed,
           onChanged: (_) async {
             try {
@@ -452,6 +467,8 @@ class _TodoRow extends ConsumerWidget {
         subtitle: todo.dueDate != null
             ? Text('Fällig: ${todo.dueDate!.day.toString().padLeft(2, '0')}.${todo.dueDate!.month.toString().padLeft(2, '0')}.')
             : null,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/todos/${todo.id}'),
       ),
     );
   }

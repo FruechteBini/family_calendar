@@ -606,11 +606,16 @@ class _FamilienherdVoiceFABState
   }
 
   void _showVoiceDialog(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _VoiceCommandSheet(),
+      useRootNavigator: true,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: const _VoiceCommandSheet(),
+      ),
     );
   }
 }
@@ -863,7 +868,7 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
           // Sync is best-effort here; UI will still show server result next refresh.
         }
         if (mounted) {
-          ref.read(syncTickProvider.notifier).state++;
+          notifyDataMutated(ref);
         }
       }
     } on ApiException catch (e) {
@@ -881,61 +886,48 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      decoration: const BoxDecoration(
+    final maxH = MediaQuery.sizeOf(context).height * 0.85;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxH),
+      child: Material(
         color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppColors.radiusXL),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Header row
-          Row(
-            children: [
-              Text(
-                'Sprachassistent',
-                style: GoogleFonts.getFont(
-                  'Plus Jakarta Sans',
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+        borderRadius: BorderRadius.circular(AppColors.radiusXL),
+        clipBehavior: Clip.antiAlias,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header row
+                Row(
+                  children: [
+                    Text(
+                      'Sprachassistent',
+                      style: GoogleFonts.getFont(
+                        'Plus Jakarta Sans',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.onSurface),
+                      onPressed: () async {
+                        _cancelSilenceCommitTimer();
+                        await ref.read(speechServiceProvider).stopListening();
+                        ref.read(voiceStateProvider.notifier).state =
+                            VoiceState.idle;
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                    ),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.close, color: AppColors.onSurface),
-                onPressed: () async {
-                  _cancelSilenceCommitTimer();
-                  await ref.read(speechServiceProvider).stopListening();
-                  ref.read(voiceStateProvider.notifier).state = VoiceState.idle;
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-          // Processing indicator
-          if (_isProcessing)
+                // Processing indicator
+                if (_isProcessing)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -1094,6 +1086,8 @@ class _VoiceCommandSheetState extends ConsumerState<_VoiceCommandSheet> {
               ),
           ],
         ],
+          ),
+        ),
       ),
     );
   }

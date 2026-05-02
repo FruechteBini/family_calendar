@@ -187,6 +187,10 @@ def _add_missing_columns(conn):
         )
         logger.info("Spalte 'recipe_category_id' zu recipes hinzugefügt")
 
+    if "cover_image_path" not in recipe_columns:
+        conn.execute(text("ALTER TABLE recipes ADD COLUMN cover_image_path VARCHAR(512)"))
+        logger.info("Spalte 'cover_image_path' zu recipes hinzugefügt")
+
     # Google auth/sync: optional columns on users
     user_columns = {c["name"] for c in inspector.get_columns("users")}
     if "google_id" not in user_columns:
@@ -537,6 +541,76 @@ def _add_missing_columns(conn):
                 )
             )
             logger.info("CHECK ck_note_category_scope_user für note_categories")
+
+    # Todo-/Kalender-Kategorien: persönlich vs. Familie (wie note_categories)
+    if inspector.has_table("categories"):
+        cat_cols = {c["name"] for c in inspector.get_columns("categories")}
+        if "is_personal" not in cat_cols:
+            conn.execute(
+                text(
+                    "ALTER TABLE categories ADD COLUMN is_personal BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE categories
+                    ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_categories_user_id ON categories (user_id)"
+                )
+            )
+            logger.info(
+                "Spalten is_personal, user_id zu categories (persönliche Todo-Kategorien)"
+            )
+
+        cat_uc = {u["name"] for u in inspector.get_unique_constraints("categories")}
+        if "uq_category_family_name" in cat_uc:
+            conn.execute(
+                text(
+                    "ALTER TABLE categories DROP CONSTRAINT IF EXISTS uq_category_family_name"
+                )
+            )
+            logger.info(
+                "Constraint uq_category_family_name entfernt (Kategorien persönlich/Familie)"
+            )
+
+        inspector = sa_inspect(conn)
+        cat_ix = {i["name"] for i in inspector.get_indexes("categories") if i.get("name")}
+        if "uq_category_personal_user_name" not in cat_ix:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_category_personal_user_name "
+                    "ON categories (user_id, name) WHERE is_personal = true"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_category_family_name "
+                    "ON categories (family_id, name) WHERE is_personal = false"
+                )
+            )
+            logger.info(
+                "Eindeutige Todo-/Kalender-Kategorien: getrennt nach Persönlich/Familie"
+            )
+
+        inspector = sa_inspect(conn)
+        cat_chk = {c["name"] for c in inspector.get_check_constraints("categories")}
+        if "ck_category_scope_user" not in cat_chk:
+            conn.execute(
+                text(
+                    "ALTER TABLE categories ADD CONSTRAINT ck_category_scope_user "
+                    "CHECK ("
+                    "(is_personal = true AND user_id IS NOT NULL) "
+                    "OR (is_personal = false AND user_id IS NULL)"
+                    ")"
+                )
+            )
+            logger.info("CHECK ck_category_scope_user für categories")
 
 
 @asynccontextmanager

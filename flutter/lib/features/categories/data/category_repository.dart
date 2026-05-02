@@ -9,9 +9,14 @@ class CategoryRepository {
 
   CategoryRepository(this._dio);
 
-  Future<List<Category>> getCategories() async {
+  /// [scope] `all` = eigene persönliche + Familien-Kategorien (z. B. Todos),
+  /// `personal` / `family` für die Kategorien-Verwaltung.
+  Future<List<Category>> getCategories({String scope = 'all'}) async {
     try {
-      final response = await _dio.get(Endpoints.categories);
+      final response = await _dio.get(
+        Endpoints.categories,
+        queryParameters: {'scope': scope},
+      );
       return (response.data as List)
           .map((e) => Category.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -46,9 +51,18 @@ class CategoryRepository {
     }
   }
 
-  Future<void> reorderCategories(List<int> ids) async {
+  Future<void> reorderCategories(
+    List<int> ids, {
+    required bool isPersonal,
+  }) async {
     try {
-      await _dio.put(Endpoints.categoriesReorder, data: {'ids': ids});
+      await _dio.put(
+        Endpoints.categoriesReorder,
+        data: {'ids': ids},
+        queryParameters: {
+          'scope': isPersonal ? 'personal' : 'family',
+        },
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

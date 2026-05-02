@@ -50,6 +50,7 @@ class Endpoints {
   // Recipes
   static const recipes = '/api/recipes/';
   static String recipe(int id) => '/api/recipes/$id';
+  static String recipeCover(int id) => '/api/recipes/$id/cover';
   static const recipeSuggestions = '/api/recipes/suggestions';
   static const recipeParseUrl = '/api/recipes/parse-url';
 
@@ -128,6 +129,9 @@ class Endpoints {
   static const aiCategorizeRecipes = '/api/ai/categorize-recipes';
   static const aiApplyRecipeCategorization =
       '/api/ai/apply-recipe-categorization';
+  static const aiCategorizePantry = '/api/ai/categorize-pantry';
+  static const aiApplyPantryCategorization =
+      '/api/ai/apply-pantry-categorization';
 
   // Categories
   static const categories = '/api/categories/';

@@ -12,12 +12,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/sync/sync_service.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/preferences/todo_preferences.dart';
 import '../../../shared/utils/date_utils.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/member_chip.dart';
 import '../../../shared/widgets/priority_badge.dart';
+import '../../../shared/widgets/todo_complete_checkbox.dart';
 import '../../../shared/widgets/toast.dart';
 import '../../members/domain/family_member.dart';
 import '../data/todo_repository.dart';
@@ -25,7 +27,6 @@ import '../domain/todo.dart';
 import '../domain/todo_attachment.dart';
 import 'todo_attachment_helpers.dart';
 import 'todo_form_dialog.dart';
-import 'todo_list_refresh.dart';
 
 final todoDetailProvider = FutureProvider.family<Todo, int>((ref, id) async {
   return ref.watch(todoRepositoryProvider).getTodo(id);
@@ -65,7 +66,7 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
       await ref.read(todoRepositoryProvider).getTodo(widget.todoId);
     } on ApiException catch (e) {
       if (e.statusCode == 404) {
-        ref.read(todoListRefreshTriggerProvider.notifier).state++;
+        notifyDataMutated(ref);
         if (mounted) context.pop();
         return;
       }
@@ -341,15 +342,15 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
                   const SizedBox(height: 16),
                 ],
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Checkbox(
+                    TodoCompleteCheckbox(
                       value: todo.completed,
                       onChanged: (_) => _toggleComplete(todo),
                     ),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Text(
                           todo.title,
                           style: theme.textTheme.titleMedium?.copyWith(
@@ -587,7 +588,7 @@ class _TodoDetailScreenState extends ConsumerState<TodoDetailScreen> {
                             child: Card(
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
-                                leading: Checkbox(
+                                leading: TodoCompleteCheckbox(
                                   value: sub.completed,
                                   onChanged: (_) => _toggleComplete(sub),
                                 ),

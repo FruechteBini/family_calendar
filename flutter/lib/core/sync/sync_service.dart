@@ -123,6 +123,7 @@ class SyncService {
             id: Value(item['id'] as int),
             name: item['name'] as String,
             color: Value(item['color'] as String?),
+            isPersonal: Value(item['is_personal'] as bool? ?? false),
           ),
         );
       }
@@ -295,11 +296,11 @@ class SyncService {
           CachedPantryItemsCompanion.insert(
             id: Value(item['id'] as int),
             name: item['name'] as String,
-            quantity: Value((item['quantity'] as num?)?.toDouble()),
+            quantity: Value(((item['amount'] ?? item['quantity']) as num?)?.toDouble()),
             unit: Value(item['unit'] as String?),
             category: Value(item['category'] as String?),
             expiryDate: Value(item['expiry_date'] != null ? DateTime.parse(item['expiry_date'] as String) : null),
-            lowStockThreshold: Value(item['low_stock_threshold'] as int?),
+            lowStockThreshold: Value((item['min_stock'] as num?)?.round()),
           ),
         );
       }
@@ -323,6 +324,16 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 /// Increment this to force refetching API-backed providers after mutations
 /// that happen outside the usual screens (e.g. voice commands).
 final syncTickProvider = StateProvider<int>((ref) => 0);
+
+/// Bumps with [syncTickProvider] so [TodoListScreen] tabs refetch after todo mutations.
+final todoListRefreshTriggerProvider = StateProvider<int>((ref) => 0);
+
+/// After create/update/delete on the server, bump ticks so every screen that
+/// watches [syncTickProvider] or [todoListRefreshTriggerProvider] refetches immediately.
+void notifyDataMutated(WidgetRef ref) {
+  ref.read(syncTickProvider.notifier).state++;
+  ref.read(todoListRefreshTriggerProvider.notifier).state++;
+}
 
 final syncStatusProvider = StateProvider<SyncStatus>((ref) => SyncStatus.idle);
 

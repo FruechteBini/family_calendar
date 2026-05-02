@@ -128,6 +128,22 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     _categoryId = personalOnly ? pickPersonal() : pickFamily();
   }
 
+  void _stripPersonalCategoryIfNotSolo(List<Category> cats) {
+    final myId = ref.read(authStateProvider).user?.memberId;
+    final solo = myId != null &&
+        _memberIds.length == 1 &&
+        _memberIds.contains(myId);
+    if (solo) return;
+    final id = _categoryId;
+    if (id == null) return;
+    for (final c in cats) {
+      if (c.id == id && c.isPersonal) {
+        _categoryId = null;
+        return;
+      }
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -166,6 +182,20 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
+      final allCats = ref.read(categoriesListProvider).valueOrNull ?? [];
+      final myMid = ref.read(authStateProvider).user?.memberId;
+      final soloEv = myMid != null &&
+          _memberIds.length == 1 &&
+          _memberIds.contains(myMid);
+      final allowedCats = soloEv
+          ? allCats
+          : allCats.where((c) => !c.isPersonal).toList();
+      int? safeCategoryId = _categoryId;
+      if (safeCategoryId != null &&
+          !allowedCats.any((c) => c.id == safeCategoryId)) {
+        safeCategoryId = null;
+      }
+
       final data = {
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim().isEmpty
@@ -178,7 +208,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
             ? AppDateUtils.endOfDay(_endDate).toIso8601String()
             : _combine(_endDate, _endTime).toIso8601String(),
         'all_day': _allDay,
-        'category_id': _categoryId,
+        'category_id': safeCategoryId,
         'member_ids': _memberIds.toList(),
         'notification_level_id': _notificationLevelId,
         'color': _eventColorHex,
@@ -242,7 +272,7 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
     if (confirm != true) return;
     try {
       await ref.read(eventRepositoryProvider).deleteEvent(widget.event!.id);
-      ref.read(syncTickProvider.notifier).state++;
+      notifyDataMutated(ref);
       if (mounted) Navigator.of(context).pop(EventFormDialogOutcome.deleted);
     } on ApiException catch (e) {
       if (mounted) showAppToast(context, message: e.message, type: ToastType.error);
@@ -269,6 +299,17 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
 
     final categories = ref.watch(categoriesListProvider).valueOrNull ?? [];
     final members = ref.watch(_membersProvider).valueOrNull ?? [];
+    final myMemberId = ref.watch(authStateProvider).user?.memberId;
+    final soloPersonalEvent = myMemberId != null &&
+        _memberIds.length == 1 &&
+        _memberIds.contains(myMemberId);
+    final categoriesForPicker = soloPersonalEvent
+        ? categories
+        : categories.where((c) => !c.isPersonal).toList();
+    final categoryPickerValue = _categoryId != null &&
+            categoriesForPicker.any((c) => c.id == _categoryId)
+        ? _categoryId
+        : null;
 
     return Dialog(
       child: ConstrainedBox(
@@ -332,8 +373,8 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                   _buildRecurrenceSection(context),
                   const SizedBox(height: 12),
                   CategoryPicker(
-                    categories: categories,
-                    selectedId: _categoryId,
+                    categories: categoriesForPicker,
+                    selectedId: categoryPickerValue,
                     onChanged: (v) => setState(() => _categoryId = v),
                   ),
                   const SizedBox(height: 12),
@@ -356,6 +397,9 @@ class _EventFormDialogState extends ConsumerState<EventFormDialog> {
                         _memberIds.add(id);
                       }
                       _applyDefaultCategoryIfEmpty();
+                      _stripPersonalCategoryIfNotSolo(
+                        ref.read(categoriesListProvider).valueOrNull ?? [],
+                      );
                     }),
                   ),
                   const SizedBox(height: 12),

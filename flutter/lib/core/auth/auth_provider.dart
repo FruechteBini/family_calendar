@@ -52,12 +52,32 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         state = AuthState(token: token, user: user);
         _ref.invalidate(todoPreferencesProvider);
         _ref.invalidate(calendarDefaultsProvider);
+        // Silently renew the token so the 30-day window resets on each app start.
+        _renewTokenSilently(token);
       } catch (_) {
         state = const AuthState();
         await _storage.delete(key: _tokenKey);
       }
     } else {
       state = const AuthState();
+    }
+  }
+
+  Future<void> _renewTokenSilently(String currentToken) async {
+    try {
+      final serverUrl = _ref.read(serverUrlProvider);
+      final dio = Dio(BaseOptions(
+        baseUrl: serverUrl,
+        headers: {'Authorization': 'Bearer $currentToken'},
+      ));
+      final response = await dio.post(Endpoints.authRenew);
+      final newToken = response.data['access_token'] as String;
+      await _storage.write(key: _tokenKey, value: newToken);
+      if (state.token == currentToken) {
+        state = state.copyWith(token: newToken);
+      }
+    } catch (_) {
+      // Renewal is best-effort; current token still valid.
     }
   }
 
@@ -240,6 +260,26 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       _ref.invalidate(todoPreferencesProvider);
       _ref.invalidate(calendarDefaultsProvider);
     } catch (_) {}
+  }
+
+  /// Try to renew the token. Returns the new token on success, null on failure.
+  Future<String?> tryRenewToken() async {
+    final currentToken = state.token;
+    if (currentToken == null) return null;
+    try {
+      final serverUrl = _ref.read(serverUrlProvider);
+      final dio = Dio(BaseOptions(
+        baseUrl: serverUrl,
+        headers: {'Authorization': 'Bearer $currentToken'},
+      ));
+      final response = await dio.post(Endpoints.authRenew);
+      final newToken = response.data['access_token'] as String;
+      await _storage.write(key: _tokenKey, value: newToken);
+      state = state.copyWith(token: newToken);
+      return newToken;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> logout() async {

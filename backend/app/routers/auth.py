@@ -101,6 +101,13 @@ async def me(user: User = Depends(get_current_user)):
     return user
 
 
+@router.post("/renew", response_model=TokenResponse)
+async def renew_token(user: User = Depends(get_current_user)):
+    """Issue a fresh JWT for the authenticated user (rolling session)."""
+    token = create_access_token(user.username)
+    return TokenResponse(access_token=token)
+
+
 @router.get("/preferences", response_model=UserPreferencesResponse)
 async def get_preferences(user: User = Depends(get_current_user)):
     return UserPreferencesResponse(

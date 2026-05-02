@@ -12,6 +12,7 @@ class Endpoints {
   static const authGoogle = '/api/auth/google';
   static const authGoogleLink = '/api/auth/google/link';
   static const authGoogleUnlink = '/api/auth/google/unlink';
+  static const authRenew = '/api/auth/renew';
   static const authGoogleGrantSync = '/api/auth/google/grant-sync';
 
   // Google sync

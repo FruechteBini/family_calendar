@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = _INSECURE_DEFAULT_KEY
     DATABASE_URL: str = "postgresql+asyncpg://kalender:kalender@localhost:5432/kalender"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24h
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days
     ALGORITHM: str = "HS256"
 
     CORS_ORIGINS: str = "http://localhost:8000,http://localhost:3000"

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/accent_color_provider.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/theme/ui_scale_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -61,6 +62,8 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showAccentColorPicker(context, ref, accentColor),
           ),
+
+          _UiScaleTile(),
 
           const Divider(),
           ListTile(
@@ -198,5 +201,88 @@ class SettingsScreen extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+class _UiScaleTile extends ConsumerWidget {
+  static const _steps = [0.75, 0.80, 0.85, 0.90, 0.95, 1.00];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scaleAsync = ref.watch(uiScaleProvider);
+    final current = scaleAsync.valueOrNull ?? defaultUiScale;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.zoom_out_map, size: 24),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Darstellungsgröße', style: theme.textTheme.bodyLarge),
+                    Text(
+                      'Kleinere Werte zeigen mehr Inhalt',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${(current * 100).round()}%',
+                style: theme.textTheme.labelLarge?.copyWith(color: cs.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('75%', style: theme.textTheme.labelSmall),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    allowedInteraction: SliderInteraction.tapAndSlide,
+                  ),
+                  child: Slider(
+                    value: current,
+                    min: minUiScale,
+                    max: maxUiScale,
+                    divisions: _steps.length - 1,
+                    label: '${(current * 100).round()}%',
+                    onChanged: (v) {
+                      final snapped = _snapToStep(v);
+                      ref.read(uiScaleProvider.notifier).setScale(snapped);
+                    },
+                  ),
+                ),
+              ),
+              Text('100%', style: theme.textTheme.labelSmall),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static double _snapToStep(double value) {
+    double closest = _steps.first;
+    double minDiff = (value - closest).abs();
+    for (final s in _steps) {
+      final diff = (value - s).abs();
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = s;
+      }
+    }
+    return closest;
   }
 }

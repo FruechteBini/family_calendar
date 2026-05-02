@@ -19,6 +19,7 @@ final dioProvider = Provider<Dio>((ref) {
   final capturedToken = authState.token;
   dio.interceptors.add(AuthInterceptor(
     token: capturedToken,
+    onTryRenew: () => ref.read(authStateProvider.notifier).tryRenewToken(),
     onUnauthorized: () {
       // Only logout if the token hasn't changed since this Dio was created.
       // Prevents stale in-flight requests from logging out after re-login.

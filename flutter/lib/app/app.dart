@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/accent_color_provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/colors.dart';
+import '../core/theme/ui_scale_provider.dart';
 import '../features/notes/presentation/note_share_intent_listener.dart';
 import '../shared/widgets/toast.dart';
 import 'router.dart';
@@ -21,6 +22,8 @@ class FamilienkalenderApp extends ConsumerWidget {
     final accentSeed = accentAsync.valueOrNull ?? AppColors.primary;
     final theme = AppTheme.dark(accentSeed: accentSeed);
 
+    final uiScale = ref.watch(uiScaleProvider).valueOrNull ?? 1.0;
+
     return NoteShareIntentListener(
       child: MaterialApp.router(
         scaffoldMessengerKey: appScaffoldMessengerKey,
@@ -37,6 +40,28 @@ class FamilienkalenderApp extends ConsumerWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
+        builder: (context, child) {
+          if (uiScale >= 1.0) return child!;
+          final mq = MediaQuery.of(context);
+          final scaledSize = mq.size / uiScale;
+          return FittedBox(
+            fit: BoxFit.fill,
+            alignment: Alignment.topLeft,
+            child: MediaQuery(
+              data: mq.copyWith(
+                size: scaledSize,
+                padding: mq.padding / uiScale,
+                viewPadding: mq.viewPadding / uiScale,
+                viewInsets: mq.viewInsets / uiScale,
+              ),
+              child: SizedBox(
+                width: scaledSize.width,
+                height: scaledSize.height,
+                child: child,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

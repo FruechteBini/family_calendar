@@ -73,6 +73,11 @@ class TodoListScreen extends ConsumerStatefulWidget {
 
 class _TodoListScreenState extends ConsumerState<TodoListScreen>
     with SingleTickerProviderStateMixin {
+  /// One row for settings + todo actions (matches former category strip height).
+  static const double _kTodoToolbarRowHeight = 44;
+  static const double _kTodoToolbarIconSize = 26;
+  static const double _kTodoToolbarTapSize = 44;
+
   final _quickAddController = TextEditingController();
   late TabController _tabController;
 
@@ -196,6 +201,141 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
     ref.invalidate(todosProvider);
   }
 
+  void _openSettings() {
+    Navigator.of(context, rootNavigator: true)
+        .popUntil((route) => route is! PopupRoute);
+    context.go('/settings');
+  }
+
+  Widget _todoToolbarIcon({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String tooltip,
+    required ThemeData theme,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(_kTodoToolbarTapSize / 2),
+          child: SizedBox(
+            width: _kTodoToolbarTapSize,
+            height: _kTodoToolbarTapSize,
+            child: Icon(
+              icon,
+              size: _kTodoToolbarIconSize,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openReorderSheet(List<cat.Category> cats) async {
+    final repo = ref.read(categoryRepositoryProvider);
+    final local = <cat.Category>[...cats];
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Kategorien anordnen',
+                    style: Theme.of(ctx).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 420),
+                    child: ReorderableListView.builder(
+                      shrinkWrap: true,
+                      buildDefaultDragHandles: false,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: local.length,
+                      onReorder: (oldIndex, newIndex) async {
+                        if (newIndex > oldIndex) newIndex -= 1;
+                        setModalState(() {
+                          final item = local.removeAt(oldIndex);
+                          local.insert(newIndex, item);
+                        });
+                        try {
+                          final personalIds = local
+                              .where((c) => c.isPersonal)
+                              .map((c) => c.id)
+                              .toList();
+                          final familyIds = local
+                              .where((c) => !c.isPersonal)
+                              .map((c) => c.id)
+                              .toList();
+                          if (personalIds.isNotEmpty) {
+                            await repo.reorderCategories(
+                              personalIds,
+                              isPersonal: true,
+                            );
+                          }
+                          if (familyIds.isNotEmpty) {
+                            await repo.reorderCategories(
+                              familyIds,
+                              isPersonal: false,
+                            );
+                          }
+                          invalidateTodoCategoryCaches(ref);
+                        } on ApiException catch (e) {
+                          if (ctx.mounted) {
+                            showAppToast(ctx,
+                                message: e.message, type: ToastType.error);
+                          }
+                        }
+                      },
+                      itemBuilder: (_, i) => ListTile(
+                        key: ValueKey('reorder_cat_${local[i].id}'),
+                        title: Text(local[i].name),
+                        trailing: ReorderableDragStartListener(
+                          index: i,
+                          child: Icon(
+                            Icons.drag_handle,
+                            color: Theme.of(context).hintColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Fertig'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openManageCategories() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const CategoriesScreen(),
+      ),
+    );
+    invalidateTodoCategoryCaches(ref);
+  }
+
   Future<void> _showForm({Todo? todo}) async {
     final result = await showDialog<bool>(
       context: context,
@@ -256,46 +396,88 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
     final selectedViewMemberId = ref.watch(_familyViewMemberIdProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-               titleSpacing: 0,
-        title: const SizedBox.shrink(),
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary),
-            tooltip: 'KI: priorisieren & kategorisieren',
-            onPressed: () => showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              builder: (_) => const _TodoAiPrioritizeSheet(),
-            ),
-          ),
-          IconButton(
-            icon:
-                Icon(Icons.schedule_outlined, color: theme.colorScheme.primary),
-            onPressed: _showProposals,
-            tooltip: 'Terminvorschläge',
-          ),
-          IconButton(
-            icon: Icon(
-              showCompleted ? Icons.visibility : Icons.visibility_off,
-              color: theme.colorScheme.primary,
-            ),
-            onPressed: () {
-              ref.read(_showCompletedProvider.notifier).state = !showCompleted;
-              _invalidateAllTodoScopes();
-            },
-            tooltip:
-                showCompleted ? 'Erledigte ausblenden' : 'Erledigte anzeigen',
-          ),
-        ],
-      ),
       body: MainTabSwipeScope(
         child: Column(
           children: [
+            SizedBox(
+              height: _kTodoToolbarRowHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _todoToolbarIcon(
+                      icon: Icons.settings_outlined,
+                      tooltip: 'Einstellungen',
+                      onPressed: _openSettings,
+                      theme: theme,
+                    ),
+                    _todoToolbarIcon(
+                      icon: Icons.auto_awesome,
+                      tooltip: 'KI: priorisieren & kategorisieren',
+                      onPressed: () => showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => const _TodoAiPrioritizeSheet(),
+                      ),
+                      theme: theme,
+                    ),
+                    _todoToolbarIcon(
+                      icon: Icons.schedule_outlined,
+                      tooltip: 'Terminvorschläge',
+                      onPressed: _showProposals,
+                      theme: theme,
+                    ),
+                    _todoToolbarIcon(
+                      icon: showCompleted
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      tooltip: showCompleted
+                          ? 'Erledigte ausblenden'
+                          : 'Erledigte anzeigen',
+                      onPressed: () {
+                        ref.read(_showCompletedProvider.notifier).state =
+                            !showCompleted;
+                        _invalidateAllTodoScopes();
+                      },
+                      theme: theme,
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Kategorien',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: _kTodoToolbarTapSize,
+                        minHeight: _kTodoToolbarTapSize,
+                      ),
+                      icon: Icon(
+                        Icons.more_vert,
+                        size: _kTodoToolbarIconSize,
+                        color: theme.colorScheme.primary,
+                      ),
+                      onSelected: (value) async {
+                        if (value == 'manage') {
+                          await _openManageCategories();
+                        } else if (value == 'reorder') {
+                          final cats =
+                              ref.read(categoriesListProvider).valueOrNull;
+                          if (cats != null) await _openReorderSheet(cats);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'manage',
+                          child: Text('Kategorien verwalten'),
+                        ),
+                        PopupMenuItem(
+                          value: 'reorder',
+                          child: Text('Reihenfolge ändern'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               child: TabBar(
@@ -321,166 +503,31 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen>
                 ],
               ),
             ),
-          categoriesAsync.when(
-            data: (cats) {
-              Future<void> openReorderSheet() async {
-                final repo = ref.read(categoryRepositoryProvider);
-                final local = <cat.Category>[...cats];
-                await showModalBottomSheet<void>(
-                  context: context,
-                  showDragHandle: true,
-                  isScrollControlled: true,
-                  builder: (ctx) => StatefulBuilder(
-                    builder: (context, setModalState) {
-                      return SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Kategorien anordnen',
-                                style: Theme.of(ctx).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 12),
-                              ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxHeight: 420),
-                                child: ReorderableListView.builder(
-                                  shrinkWrap: true,
-                                  buildDefaultDragHandles: false,
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  itemCount: local.length,
-                                  onReorder: (oldIndex, newIndex) async {
-                                    if (newIndex > oldIndex) newIndex -= 1;
-                                    setModalState(() {
-                                      final item = local.removeAt(oldIndex);
-                                      local.insert(newIndex, item);
-                                    });
-                                    try {
-                                      final personalIds = local
-                                          .where((c) => c.isPersonal)
-                                          .map((c) => c.id)
-                                          .toList();
-                                      final familyIds = local
-                                          .where((c) => !c.isPersonal)
-                                          .map((c) => c.id)
-                                          .toList();
-                                      if (personalIds.isNotEmpty) {
-                                        await repo.reorderCategories(
-                                          personalIds,
-                                          isPersonal: true,
-                                        );
-                                      }
-                                      if (familyIds.isNotEmpty) {
-                                        await repo.reorderCategories(
-                                          familyIds,
-                                          isPersonal: false,
-                                        );
-                                      }
-                                      invalidateTodoCategoryCaches(ref);
-                                    } on ApiException catch (e) {
-                                      if (ctx.mounted) {
-                                        showAppToast(ctx,
-                                            message: e.message,
-                                            type: ToastType.error);
-                                      }
-                                    }
-                                  },
-                                  itemBuilder: (_, i) => ListTile(
-                                    key: ValueKey('reorder_cat_${local[i].id}'),
-                                    title: Text(local[i].name),
-                                    trailing: ReorderableDragStartListener(
-                                      index: i,
-                                      child: Icon(
-                                        Icons.drag_handle,
-                                        color: Theme.of(context).hintColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: FilledButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text('Fertig'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              }
-
-              Future<void> openManageCategories() async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const CategoriesScreen(),
-                  ),
-                );
-                invalidateTodoCategoryCaches(ref);
-              }
-
-              return Padding(
+            categoriesAsync.when(
+              data: (cats) => Padding(
                 padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: CategoryFilterStrip(
-                        entries: cats
-                            .map(
-                              (c) => CategoryStripEntry(
-                                id: c.id,
-                                label: c.name.trim().toLowerCase() == 'familie'
-                                    ? c.name
-                                    : '${c.icon} ${c.name}',
-                                colorHex: c.color,
-                              ),
-                            )
-                            .toList(),
-                        selectedCategoryId: selectedCategoryId,
-                        onCategorySelected: (id) {
-                          ref.read(_selectedCategoryIdProvider.notifier).state =
-                              id;
-                          _invalidateAllTodoScopes();
-                        },
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      tooltip: 'Kategorien',
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (value) {
-                        if (value == 'manage') {
-                          openManageCategories();
-                        } else if (value == 'reorder') {
-                          openReorderSheet();
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'manage',
-                          child: Text('Kategorien verwalten'),
+                child: CategoryFilterStrip(
+                  entries: cats
+                      .map(
+                        (c) => CategoryStripEntry(
+                          id: c.id,
+                          label: c.name.trim().toLowerCase() == 'familie'
+                              ? c.name
+                              : '${c.icon} ${c.name}',
+                          colorHex: c.color,
                         ),
-                        PopupMenuItem(
-                          value: 'reorder',
-                          child: Text('Reihenfolge ändern'),
-                        ),
-                      ],
-                    ),
-                  ],
+                      )
+                      .toList(),
+                  selectedCategoryId: selectedCategoryId,
+                  onCategorySelected: (id) {
+                    ref.read(_selectedCategoryIdProvider.notifier).state = id;
+                    _invalidateAllTodoScopes();
+                  },
                 ),
-              );
-            },
-            loading: () => const SizedBox(height: 8),
-            error: (_, __) => const SizedBox(height: 8),
-          ),
+              ),
+              loading: () => const SizedBox(height: 8),
+              error: (_, __) => const SizedBox(height: 8),
+            ),
           if (scope == TodoScope.family)
             membersAsync.when(
               data: (members) {

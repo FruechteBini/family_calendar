@@ -213,29 +213,32 @@ class _FamilyAwareTopBar extends ConsumerWidget {
                   ),
                 ] else
                   const Spacer(),
-                const SizedBox(width: 4),
-                Material(
-                  color: Colors.transparent,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.of(context, rootNavigator: true)
-                          .popUntil((r) => r is! PopupRoute);
-                      context.go('/settings');
-                    },
-                    hoverColor: AppColors.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(AppColors.radiusFull),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.settings,
-                        color: cs.primary,
-                        size: 20,
+                if (!isTodosList) ...[
+                  const SizedBox(width: 4),
+                  Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context, rootNavigator: true)
+                            .popUntil((r) => r is! PopupRoute);
+                        context.go('/settings');
+                      },
+                      hoverColor: AppColors.surfaceContainerHighest,
+                      borderRadius:
+                          BorderRadius.circular(AppColors.radiusFull),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.settings,
+                          color: cs.primary,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

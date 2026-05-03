@@ -34,6 +34,77 @@ final pendingProposalsProvider = FutureProvider<List<Proposal>>((ref) async {
 final lastMainTabLocationProvider = StateProvider<String>((ref) => '/today');
 // Primary tabs: /today, /calendar, /todos, /meals, /notes
 
+/// In-app back for the authenticated shell: closes the top overlay (dialog /
+/// sheet) if any, otherwise navigates like the app bar back button. Does not
+/// finish the activity when already on a root tab (Android system back).
+void performAppShellBack(BuildContext context, WidgetRef ref,
+    {required bool dismissAllOverlays}) {
+  final rootNav = Navigator.of(context, rootNavigator: true);
+  final shellNav = Navigator.of(context);
+
+  if (dismissAllOverlays) {
+    rootNav.popUntil((route) => route is! PopupRoute);
+    shellNav.popUntil((route) => route is! PopupRoute);
+  } else {
+    if (rootNav.canPop()) {
+      rootNav.maybePop();
+      return;
+    }
+    if (shellNav.canPop()) {
+      shellNav.maybePop();
+      return;
+    }
+  }
+
+  final router = GoRouter.of(context);
+  final loc = GoRouterState.of(context).matchedLocation;
+
+  if (loc.startsWith('/members') || loc.startsWith('/categories')) {
+    context.go('/settings');
+    return;
+  }
+  if (router.canPop()) {
+    router.pop();
+    return;
+  }
+  if (loc.startsWith('/notification-settings') ||
+      loc.startsWith('/google-sync') ||
+      loc.startsWith('/app-info')) {
+    context.go('/settings');
+    return;
+  }
+  if (loc.startsWith('/settings')) {
+    context.go(ref.read(lastMainTabLocationProvider));
+    return;
+  }
+  if (loc.startsWith('/knuspr') || loc.startsWith('/recipes/')) {
+    context.go('/meals');
+    return;
+  }
+  if (loc.startsWith('/events/')) {
+    context.go(ref.read(lastMainTabLocationProvider));
+    return;
+  }
+  if (loc.startsWith('/todos/')) {
+    context.go('/todos');
+    return;
+  }
+  if (_isPrimaryShellTabLocation(loc)) {
+    // Stay on app — never finish from system back on main tabs.
+    return;
+  }
+  context.go('/today');
+}
+
+bool _isPrimaryShellTabLocation(String loc) {
+  return loc.startsWith('/today') ||
+      loc.startsWith('/calendar') ||
+      loc == '/todos' ||
+      loc.startsWith('/todos?') ||
+      loc.startsWith('/meals') ||
+      loc.startsWith('/notes');
+}
+
 // ── App Shell ────────────────────────────────────────────────────────────
 
 class AppShell extends ConsumerWidget {
@@ -73,35 +144,42 @@ class AppShell extends ConsumerWidget {
     final appBarHeight =
         topInset + 6 + _kCompactFamilyBarContentHeight + 8;
 
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(appBarHeight),
-        child: SizedBox(
-          height: appBarHeight,
-          width: double.infinity,
-          child: const _FamilyAwareTopBar(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        performAppShellBack(context, ref, dismissAllOverlays: false);
+      },
+      child: Scaffold(
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(appBarHeight),
+          child: SizedBox(
+            height: appBarHeight,
+            width: double.infinity,
+            child: const _FamilyAwareTopBar(),
+          ),
         ),
+        body: child,
+        bottomNavigationBar: _GlassmorphismNavBar(
+          selectedIndex: index,
+          proposalCount: proposalCount,
+          onDestinationSelected: (i) {
+            _dismissPopups(context);
+            final path = switch (i) {
+              0 => '/today',
+              1 => '/calendar',
+              2 => '/todos',
+              3 => '/meals',
+              4 => '/notes',
+              _ => '/today',
+            };
+            ref.read(lastMainTabLocationProvider.notifier).state = path;
+            context.go(path);
+          },
+        ),
+        floatingActionButton: const _FamilienherdVoiceFAB(),
+        floatingActionButtonLocation: const _VoiceFABLocation(),
       ),
-      body: child,
-      bottomNavigationBar: _GlassmorphismNavBar(
-        selectedIndex: index,
-        proposalCount: proposalCount,
-        onDestinationSelected: (i) {
-          _dismissPopups(context);
-          final path = switch (i) {
-            0 => '/today',
-            1 => '/calendar',
-            2 => '/todos',
-            3 => '/meals',
-            4 => '/notes',
-            _ => '/today',
-          };
-          ref.read(lastMainTabLocationProvider.notifier).state = path;
-          context.go(path);
-        },
-      ),
-      floatingActionButton: const _FamilienherdVoiceFAB(),
-      floatingActionButtonLocation: const _VoiceFABLocation(),
     );
   }
 }
@@ -130,42 +208,7 @@ class _FamilyAwareTopBar extends ConsumerWidget {
     final familyName = familyInfo.valueOrNull?.name ?? 'Familienherd';
 
     void goBackToMenu() {
-      Navigator.of(context, rootNavigator: true).popUntil((r) => r is! PopupRoute);
-      final router = GoRouter.of(context);
-      final loc = GoRouterState.of(context).matchedLocation;
-
-      if (loc.startsWith('/members') || loc.startsWith('/categories')) {
-        context.go('/settings');
-        return;
-      }
-      if (router.canPop()) {
-        router.pop();
-        return;
-      }
-      // Opened with context.go (no stack), e.g. deep link — return to settings
-      if (loc.startsWith('/notification-settings') ||
-          loc.startsWith('/google-sync') ||
-          loc.startsWith('/app-info')) {
-        context.go('/settings');
-        return;
-      }
-      if (loc.startsWith('/settings')) {
-        context.go(ref.read(lastMainTabLocationProvider));
-        return;
-      }
-      if (loc.startsWith('/knuspr') || loc.startsWith('/recipes/')) {
-        context.go('/meals');
-        return;
-      }
-      if (loc.startsWith('/events/')) {
-        context.go(ref.read(lastMainTabLocationProvider));
-        return;
-      }
-      if (loc.startsWith('/todos/')) {
-        context.go('/todos');
-        return;
-      }
-      context.go('/today');
+      performAppShellBack(context, ref, dismissAllOverlays: true);
     }
 
     return Material(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/speech/voice_state.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_category_repository.dart';
 import '../data/note_repository.dart';
@@ -45,19 +46,25 @@ Future<void> runQuickNoteCapture(
 
   if (!context.mounted) return;
 
-  final result = await showModalBottomSheet<_QuickCaptureResult>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (ctx) => _QuickCaptureSheetBody(
-      rawPreview: _previewRaw(trimmed),
-      askScope: askScope,
-      initialShareScope: NotesScope.family,
-      fixedIsPersonal: askScope
-          ? null
-          : ref.read(notesScopeProvider) == NotesScope.personal,
-    ),
-  );
+  suppressVoiceFab(ref);
+  _QuickCaptureResult? result;
+  try {
+    result = await showModalBottomSheet<_QuickCaptureResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => _QuickCaptureSheetBody(
+        rawPreview: _previewRaw(trimmed),
+        askScope: askScope,
+        initialShareScope: NotesScope.family,
+        fixedIsPersonal: askScope
+            ? null
+            : ref.read(notesScopeProvider) == NotesScope.personal,
+      ),
+    );
+  } finally {
+    releaseVoiceFab(ref);
+  }
 
   if (result == null || !context.mounted) return;
 

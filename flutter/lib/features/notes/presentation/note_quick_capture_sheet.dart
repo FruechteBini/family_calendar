@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/toast.dart';
 import '../data/note_category_repository.dart';
 import '../data/note_repository.dart';
@@ -129,6 +130,86 @@ class _QuickCaptureSheetBodyState extends ConsumerState<_QuickCaptureSheetBody> 
     );
   }
 
+  Future<void> _createCategory() async {
+    final name = TextEditingController();
+    try {
+      var hex = kCategoryPresetHexColors.first;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setModal) => AlertDialog(
+            title: const Text('Neue Kategorie'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Farbe',
+                    style: Theme.of(ctx).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  CategoryPresetColorRow(
+                    selectedHex: hex,
+                    onSelect: (h) => setModal(() => hex = h),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Anlegen'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok != true || !mounted) return;
+      final trimmed = name.text.trim();
+      if (trimmed.isEmpty) {
+        showAppToast(context,
+            message: 'Name erforderlich', type: ToastType.error);
+        return;
+      }
+      final forPersonal = _categoriesForPersonal;
+      try {
+        final created =
+            await ref.read(noteCategoryRepositoryProvider).createCategory({
+          'name': trimmed,
+          'color': hex,
+          'icon': '\u{1F4DD}',
+          'is_personal': forPersonal,
+        });
+        invalidateNoteCategoryCaches(ref);
+        if (mounted) {
+          showAppToast(context,
+              message: 'Kategorie angelegt', type: ToastType.success);
+        }
+        _pick(created.id);
+      } on ApiException catch (e) {
+        if (mounted) {
+          showAppToast(context, message: e.message, type: ToastType.error);
+        }
+      }
+    } finally {
+      name.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -202,6 +283,14 @@ class _QuickCaptureSheetBodyState extends ConsumerState<_QuickCaptureSheetBody> 
                 leading: const Icon(Icons.folder_off_outlined),
                 title: const Text('Ohne Kategorie'),
                 onTap: () => _pick(null),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.add_circle_outline,
+                  color: theme.colorScheme.primary,
+                ),
+                title: const Text('Neue Kategorie…'),
+                onTap: _createCategory,
               ),
               catsAsync.when(
                 loading: () => const Padding(

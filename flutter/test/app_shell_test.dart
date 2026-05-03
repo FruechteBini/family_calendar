@@ -57,6 +57,11 @@ void main() {
               path: '/shopping',
               redirect: (context, state) => '/meals?tab=einkauf',
             ),
+            GoRoute(
+              path: '/settings',
+              builder: (context, state) =>
+                  const _SettingsBackTestScreen(),
+            ),
           ],
         ),
       ],
@@ -228,6 +233,38 @@ void main() {
 
     expect(find.byIcon(Icons.mic), findsOneWidget);
   });
+
+  testWidgets('Android system back from settings returns to main tab',
+      (tester) async {
+    await tester.pumpWidget(buildTestWidget(initialLocation: '/settings'));
+    await pumpShell(tester);
+    expect(find.text('Settings Test'), findsOneWidget);
+
+    await tester.pageBack();
+    await pumpShell(tester);
+
+    expect(find.text('Today Screen'), findsOneWidget);
+  });
+
+  testWidgets('Android system back closes dialog before leaving screen',
+      (tester) async {
+    await tester.pumpWidget(buildTestWidget(initialLocation: '/settings'));
+    await pumpShell(tester);
+
+    await tester.tap(find.text('Open dialog'));
+    await tester.pumpAndSettle();
+    expect(find.text('In dialog'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('In dialog'), findsNothing);
+    expect(find.text('Settings Test'), findsOneWidget);
+
+    await tester.pageBack();
+    await pumpShell(tester);
+    expect(find.text('Today Screen'), findsOneWidget);
+  });
 }
 
 // ── Helper widget ──────────────────────────────────────────────────────
@@ -240,6 +277,42 @@ class _PlaceholderScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(child: Text('$label Screen')),
+    );
+  }
+}
+
+class _SettingsBackTestScreen extends StatelessWidget {
+  const _SettingsBackTestScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Settings Test'),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                showDialog<void>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('In dialog'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              child: const Text('Open dialog'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

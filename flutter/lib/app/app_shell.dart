@@ -69,6 +69,7 @@ class AppShell extends ConsumerWidget {
     final index = _currentIndex(context);
     final pendingProposals = ref.watch(pendingProposalsProvider);
     final proposalCount = pendingProposals.valueOrNull?.length ?? 0;
+    final hideVoiceFab = ref.watch(voiceFabSuppressionCountProvider) > 0;
     final topInset = MediaQuery.paddingOf(context).top;
     final appBarHeight =
         topInset + 6 + _kCompactFamilyBarContentHeight + 8;
@@ -100,8 +101,10 @@ class AppShell extends ConsumerWidget {
           context.go(path);
         },
       ),
-      floatingActionButton: const _FamilienherdVoiceFAB(),
-      floatingActionButtonLocation: const _VoiceFABLocation(),
+      floatingActionButton:
+          hideVoiceFab ? null : const _FamilienherdVoiceFAB(),
+      floatingActionButtonLocation:
+          hideVoiceFab ? null : const _VoiceFABLocation(),
     );
   }
 }

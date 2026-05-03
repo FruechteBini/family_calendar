@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../../../app/main_tab_swipe_scope.dart';
+import '../../../core/speech/voice_state.dart';
 import '../../../shared/widgets/category_accent_chips.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/toast.dart';
@@ -166,10 +167,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
   }
 
   Future<void> _openForm({Note? note, List<SharedMediaFile>? sharedMedia}) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => NoteFormDialog(note: note, sharedMedia: sharedMedia),
-    );
+    suppressVoiceFab(ref);
+    bool? ok;
+    try {
+      ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => NoteFormDialog(note: note, sharedMedia: sharedMedia),
+      );
+    } finally {
+      releaseVoiceFab(ref);
+    }
     if (ok == true && mounted) {
       invalidateAllNotesScopes(ref);
       invalidateNoteCategoryCaches(ref);
